@@ -680,3 +680,18 @@ async def preview_project(ctx,path='',checks='',require_webgl=False,**_):
         finally:
             if session:await session.close();browser.pool.sessions.pop(key,None)
             if runner:await runner.cleanup()
+
+@tool('inspect_integrations','Memeriksa akun host','Read actual host CLI installation and verified GitHub/Cloudflare connection state. Never exposes tokens.',{},[])
+async def inspect_integrations(ctx,**_):
+    from . import integrations
+    return json.dumps(integrations.status(),ensure_ascii=False)
+
+@tool('github_read','Membaca GitHub tersambung','Use the verified host GitHub login to GET /user, /user/repos?per_page=30, /repos/owner/repo, or README/languages/issues?per_page=10. No writes, emails or token exposure.',{'path':S('allowlisted GitHub API path')},['path'])
+async def github_read(ctx,path='',**_):
+    from . import integrations
+    return await integrations.read('github',path)
+
+@tool('cloudflare_read','Membaca Cloudflare tersambung','Use verified host Cloudflare credential to GET /accounts?per_page=20 or /zones?per_page=20. No deployment, DNS changes or tunnel creation.',{'path':S('allowlisted Cloudflare path')},['path'])
+async def cloudflare_read(ctx,path='',**_):
+    from . import integrations
+    return await integrations.read('cloudflare',path)

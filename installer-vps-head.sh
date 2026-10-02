@@ -30,7 +30,7 @@ fi
 step "1/5 Menyiapkan paket dan Docker"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl openssl tar coreutils iproute2 jq util-linux
+apt-get install -y ca-certificates curl openssl tar coreutils iproute2 jq util-linux python3 gh git
 if ! command -v docker >/dev/null; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL --retry 3 "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
@@ -114,19 +114,31 @@ NUM_CTX=4096
 CHROMIUM=0
 AGEN_AI_PROFILE=$PROFILE
 AGEN_MEM_LIMIT=800m
-ROUTER_MEM_LIMIT=768m
-NINE_ROUTER_IMAGE=decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1
+ROUTER_MEM_LIMIT=256m
+NINE_ROUTER_IMAGE=luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba
 EOF
   chmod 600 "$DIR/.env"
 else
   echo "Pengaturan dan data lama dipertahankan."
+fi
+# Remember the host account that owns CLI logins when setup is run through sudo.
+if [[ ! -f "$DIR/data/host-owner-home" ]]; then
+  HOST_ACCOUNT_HOME="${AGEN_HOST_HOME:-}"
+  if [[ -z "$HOST_ACCOUNT_HOME" && -n "${SUDO_USER:-}" && "$SUDO_USER" != root ]]; then HOST_ACCOUNT_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6); fi
+  printf '%s\n' "${HOST_ACCOUNT_HOME:-$HOME}" > "$DIR/data/host-owner-home"
+  chmod 600 "$DIR/data/host-owner-home"
 fi
 get_env() { sed -n "s/^$1=//p" "$DIR/.env" | head -1; }
 [[ $(get_env LLM_BACKEND) =~ ^(compatible|router|local|freellmapi|online|auto)$ ]] || fail "Instalasi lama memakai backend lain. Ganti backend lewat web dahulu; pemasang ini khusus mode tanpa Ollama."
 if ! grep -q '^ROUTER_JWT_SECRET=.' "$DIR/.env"; then
   printf '\nROUTER_JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$DIR/.env"
 fi
-sed -i 's|^NINE_ROUTER_IMAGE=decolua/9router:latest$|NINE_ROUTER_IMAGE=decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1|' "$DIR/.env"
+# Migrate only the previously managed upstream image. Preserve custom images.
+if [[ $(get_env NINE_ROUTER_IMAGE) == decolua/9router:* || $(get_env NINE_ROUTER_IMAGE) == decolua/9router@* ]]; then
+  python3 "$DIR/router-backup.py" "$DIR/data/backup" || fail "Backup database router gagal; migrasi dibatalkan."
+  sed -i 's|^NINE_ROUTER_IMAGE=.*|NINE_ROUTER_IMAGE=luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba|' "$DIR/.env"
+  sed -i 's|^ROUTER_MEM_LIMIT=768m$|ROUTER_MEM_LIMIT=256m|' "$DIR/.env"
+fi
 # Optional FreeLLMAPI uses an internal account, never a public setup page.
 for setting in FREELLMAPI_ENCRYPTION_KEY FREELLMAPI_ADMIN_PASSWORD; do
   if ! grep -q "^$setting=." "$DIR/.env"; then

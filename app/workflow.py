@@ -70,9 +70,13 @@ async def run(ctx,text,on_event):
                          'Jika reviewer menyebut masalah nyata, sebutkan; jangan menyatakan valid semua. Tidak perlu menulis ulang hasil spesialis.'},
                         {'role':'user','content':json.dumps({'request':text[:2000],'result':result['text'][:2500],'review':review['text'][:2500],'files':facts},ensure_ascii=False)}],
                          model=ctx.bot.get('model') or llm.default_model(),max_tokens=600)
-    answer=final['content'];meta={'tools':['delegate_task'],'trace':trace,'files':ctx.attachments,
+    answer=final['content']
+    incomplete=len(answer.strip())<100 or (ctx.attachments and not any(path.rsplit('/',1)[-1] in answer for path in ctx.attachments))
+    if incomplete:
+        answer=result['text'].strip()+'\n\nLampiran: '+', '.join(ctx.attachments)+'\nPemeriksaan: spesialis dan reviewer selesai; berkas tercatat di disk. Batas pengujian tetap mengikuti log alat.'
+    meta={'tools':['delegate_task'],'trace':trace,'files':ctx.attachments,
           'seconds':round(time.time()-started,1),'stats':final.get('stats',{}),'review':review['text'][:2000],
-          'delegated_bots':['copywriter','desainer','reviewer'] if is_site else [target,'reviewer']}
+          'summary_fallback':incomplete,'delegated_bots':['copywriter','desainer','reviewer'] if is_site else [target,'reviewer']}
     return {'text':answer,'meta':meta}
 
 

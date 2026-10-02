@@ -7,6 +7,13 @@ mkdir -p data
 [[ -f data/maintenance ]] && exit 0
 exec 9>data/supervisor.lock
 flock -n 9 || exit 0
+if [[ -f data/host-owner-home ]]; then export AGEN_HOST_HOME="$(cat data/host-owner-home)"; fi
+if [[ -f host-integrations.py ]]; then
+  if [[ -f data/integrations/refresh-request ]]; then
+    python3 host-integrations.py "$DIR/data" --force >/dev/null 2>&1 || true
+    rm -f data/integrations/refresh-request
+  else python3 host-integrations.py "$DIR/data" >/dev/null 2>&1 || true; fi
+fi
 touch data/local-runtime.env
 compose() { docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml "$@"; }
 RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
@@ -101,7 +108,14 @@ if [[ -f data/runtime-request ]]; then
   else
     compose --profile local stop local
   fi
-  if [[ "$WANT_ROUTER" == true ]]; then compose --profile router up -d router
+  if [[ "$WANT_ROUTER" == true ]]; then
+    compose --profile router up -d router
+    ROUTER_SECURE=0
+    for attempt in $(seq 1 12); do
+      if compose exec -T agen python -m app.router secure >/dev/null 2>&1; then ROUTER_SECURE=1; break; fi
+      sleep 2
+    done
+    [[ "$ROUTER_SECURE" == 1 ]] || { compose --profile router stop router; runtime_status failed '9router gagal mengaktifkan autentikasi; layanan dihentikan. Periksa konfigurasi dan log supervisor.'; rm -f data/runtime-processing; exit 1; }
   else compose --profile router stop router || true; fi
   if [[ "$WANT_FREE" == true ]]; then compose --profile free up -d freellmapi
   else compose --profile free stop freellmapi || true; fi

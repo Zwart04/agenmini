@@ -1,4 +1,12 @@
-# Agen Mini 0.3.5
+# Agen Mini 0.3.6
+
+9router opsional kini memakai backend Go yang dipin digest dan panel koneksi HTML/CSS/JavaScript bawaan. Akun upstream dipertahankan dengan backup SQLite sebelum migrasi; image khusus tetap dipertahankan. Dashboard lanjutan memakai ikon SVG lokal tanpa Google Fonts. Layanan router hanya dipublikasikan pada loopback, API key/login diwajibkan, dan TLS ketat diaktifkan.
+
+Login `gh auth login` di akun host pemasang dideteksi dan diverifikasi melalui GitHub. Cloudflare dideteksi dari API token environment atau login Wrangler; sertifikat Tunnel tidak disamakan dengan API token. Token berada di direktori privat yang tidak dapat dibaca pengguna sandbox; alat bawaan GitHub/Cloudflare hanya membaca API yang diizinkan. CLI lain dideteksi keberadaannya, bukan dianggap memiliki login valid. Pada komputer non-Docker, atur `ROUTER_BASE=http://127.0.0.1:20128` sesuai layanan Anda.
+
+Pengaturan menyediakan unduhan backup migrasi privat; pada host buat ulang dengan `python3 /opt/agenmini/make_vps_backup.py`. Backup adalah snapshot bertanggal, bukan sinkronisasi otomatis. Sebelum reinstall VPS, unduh backup privat `.env`, data aplikasi, database router dan FreeLLMAPI. Model bisa diunduh ulang. Jangan mempublikasikan arsip ini; akun host harus login ulang atau dipulihkan dengan aman pada VPS baru.
+
+# Agen Mini
 
 Asisten pribadi ringan dengan web, Telegram, MCP, skill, memori, dan workspace bot.
 

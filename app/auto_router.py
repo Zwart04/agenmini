@@ -51,7 +51,8 @@ async def candidates(messages):
         if complexity:
             skill=next((i for i,key in enumerate(('devstral','codestral','opus','large','medium','sonnet','gpt','smart')) if key in model),9)
         if row['backend']=='local':return (10 if complexity else -1,0,0)
-        return (position,skill,row['model'])
+        preferred={'router':db.setting('router_last_model'),'freellmapi':db.setting('freellmapi_model'),'online':db.setting('online_model')}.get(row['backend'])
+        return (position,-1 if not complexity and row['model']==preferred else skill,row['model'])
     rows.sort(key=rank)
     # One candidate per API backend; retrying every model on the same quota wastes time.
     selected=[];seen=set()

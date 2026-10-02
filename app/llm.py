@@ -316,7 +316,7 @@ def active_backend():
 
 def default_model(backend=None):
     backend = backend or active_backend()
-    return {'router': db.setting('router_last_model') or db.setting('model'),
+    return {'router': db.setting('router_last_model') or (db.setting('model') if db.setting('llm_backend')=='router' and not db.setting('model').startswith(('auto:', 'smart')) else ''),
             'auto':'smart',
             'freellmapi': db.setting('freellmapi_model') or 'auto:smart',
             'local': db.setting('local_model_id') or 'qwenpaw-2b',
@@ -486,6 +486,8 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     base = db.setting("compatible_base" if local else "online_base").rstrip("/")
     if local and backend == "router":
         from . import router
+        if not model_override or model_override in ("smart","auto:smart","local","online"):
+            raise LLMError("Pilih model 9router dari provider terhubung di Koneksi. Model Smart Router/FreeLLMAPI tidak bisa digunakan sebagai ID 9router.")
         base = router.base() + "/v1"
     elif local and backend == "local":
         from . import runtime_status

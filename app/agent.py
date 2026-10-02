@@ -396,7 +396,7 @@ class Turn:
                         user_text=text if save_user else "")
         if getattr(self,'project_folder',None):ctx.project_folder=self.project_folder
         from . import coding, office
-        if bot['id']=='orchestrator' and not getattr(self,'delegated',False) and not extra_msgs:
+        if bot['id']=='orchestrator' and 'delegate_task' in bot.get('tools',[]) and not getattr(self,'delegated',False) and not extra_msgs:
             from . import workflow
             try:
                 result=await workflow.run(ctx,text,self.on_event)

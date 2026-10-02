@@ -102,7 +102,7 @@ async def engine_runtime(request):
         ready=any(route.get('ready') for route in routes)
         return web.json_response({'phase':'ready' if ready else 'stopped','ready':ready,'message':str(len(routes))+' kandidat router terdeteksi. Model aktual dan galat dicatat ketika digunakan.' if routes else 'Belum ada kandidat. Hubungkan provider atau siapkan lokal di Koneksi.'})
     if mode in ('router', 'compatible', 'freellmapi'):
-        base, path = (free_router.base(), '/api/ping') if mode == 'freellmapi' else (router.base(), '/api/health')
+        base, path = (free_router.base(), '/api/ping') if mode == 'freellmapi' else (router.base(), '/health')
         try:
             import aiohttp
             async with llm.session().get(base + path, timeout=aiohttp.ClientTimeout(total=2)) as response:
@@ -260,6 +260,9 @@ async def choose_model(request):
     model = str(data.get('model', '')).strip()
     if not model:
         raise ValueError('Pilih model terlebih dahulu.')
+    if model not in {m['id'] for m in (await router.state())['models']}:
+        raise ValueError('Model tidak tersedia dari provider 9router yang terhubung. Perbarui daftar model dahulu.')
+    runtime_status.request('api')
     db.set_setting('llm_backend', 'router')
     db.set_setting('model', model)
     db.set_setting('router_last_model', model)
@@ -384,13 +387,13 @@ async def change_mode(request):
     if office.presence:
         raise ValueError('Tunggu tugas aktif selesai sebelum mengganti mode.')
     if mode == 'auto':
+        if db.setting('llm_backend') in ('router','compatible'):db.set_setting('auto_9router','1')
         runtime_status.request('reconcile')
         db.set_setting('llm_backend','auto'); db.set_setting('model','smart')
     elif mode == 'router':
         runtime_status.request('api')
         db.set_setting('llm_backend', 'router')
-        if db.setting('router_last_model'):
-            db.set_setting('model', db.setting('router_last_model'))
+        db.set_setting('model', db.setting('router_last_model') or '')
     elif mode == 'local':
         # Host supervisor starts/stops llama.cpp; app cannot control Docker itself.
         from . import local_models
@@ -530,7 +533,7 @@ async def ai_connection_test(request):
     if backend not in ('auto','local','router','freellmapi','online'):raise ValueError('Mesin tidak dikenal.')
     token=llm.backend_context.set(backend);started=time.monotonic()
     try:
-        result=await llm.chat([{'role':'system','content':'This is a connection instruction-following test. Output only the exact text AGEN_OK. No explanation or formatting.'},{'role':'user','content':'AGEN_OK'}],model=data.get('model') or llm.default_model(backend),max_tokens=32)
+        result=await llm.chat([{'role':'system','content':'This is a connection instruction-following test. Output only the exact text AGEN_OK. No explanation or formatting.'},{'role':'user','content':'AGEN_OK'}],model=data.get('model') or llm.default_model(backend),max_tokens=256)
         return web.json_response({'ok':result['content'].strip()=='AGEN_OK','text':result['content'][:100], 'seconds':round(time.monotonic()-started,1),'model':result.get('stats',{}).get('served_model',''), 'routing':result.get('stats',{}).get('routing',{})})
     finally:llm.backend_context.reset(token)
 
@@ -562,3 +565,20 @@ async def project_action(request):
     else:raise ValueError('Tindakan proyek tidak valid.')
     db.run('UPDATE project_jobs SET status=?,updated_at=? WHERE id=?',(state,time.time(),pid));project_jobs.event(pid,state,'Pemilik: '+action)
     return web.json_response({'ok':True})
+
+@routes.get('/api/integrations')
+async def host_integrations(request):
+    from . import integrations
+    return web.json_response(integrations.status())
+
+@routes.post('/api/integrations/refresh')
+async def refresh_integrations(request):
+    marker=config.DATA_DIR/'integrations/refresh-request'
+    marker.parent.mkdir(mode=0o700,exist_ok=True);marker.touch()
+    return web.json_response({'ok':True,'message':'Deteksi ulang dijadwalkan melalui supervisor host.'})
+
+@routes.get('/api/backup-vps')
+async def download_vps_backup(request):
+    path=config.DATA_DIR/'backup/vps-migration.tar.gz'
+    if not path.is_file():raise ValueError('Backup migrasi belum dibuat. Pada host jalankan python3 /opt/agenmini/make_vps_backup.py. Arsip berisi kredensial privat; simpan dengan aman.')
+    return web.FileResponse(path,headers={'Content-Disposition':'attachment; filename="agenmini-migrasi-vps.tar.gz"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})

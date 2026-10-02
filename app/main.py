@@ -86,6 +86,15 @@ def bootstrap():
             if setting['value']=='asisten': db.set_setting(setting['key'],'orchestrator')
         db.set_setting('telegram_default_bot','orchestrator')
         db.set_setting('team_execution_seeded_035','1')
+    os.chmod(config.DB_PATH.parent,0o700)
+    if config.DB_PATH.exists():os.chmod(config.DB_PATH,0o600)
+    if not db.setting('host_tools_seeded_036'):
+        bot=db.bot('orchestrator')
+        if bot:db.save_bot({'id':bot['id'],'tools':list(dict.fromkeys(bot['tools']+['inspect_integrations','github_read','cloudflare_read']))})
+        db.run("UPDATE bots SET model='' WHERE backend='router' AND model IN ('smart','auto:smart','online','local')")
+        db.run("UPDATE chats SET model='' WHERE backend='router' AND model IN ('smart','auto:smart','online','local')")
+        if db.setting('llm_backend')=='router' and db.setting('model') in ('smart','auto:smart','local','online'):db.set_setting('model',db.setting('router_last_model') or '')
+        db.set_setting('host_tools_seeded_036','1')
     mcp_path = config.DATA_DIR / 'mcp.json'
     if not db.setting('mcp_builtin_seeded'):
         import sys

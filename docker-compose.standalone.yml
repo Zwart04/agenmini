@@ -16,7 +16,7 @@ services:
       options: {max-size: "10m", max-file: "3"}
   router:
     profiles: [router]
-    image: ${NINE_ROUTER_IMAGE:-decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1}
+    image: ${NINE_ROUTER_IMAGE:-luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba}
     restart: unless-stopped
     ports: ["127.0.0.1:20128:20128"]
     volumes: ["router-data:/app/data"]
@@ -25,9 +25,10 @@ services:
       PORT: "20128"
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
+      STRICT_SSL: "true"
       JWT_SECRET: ${ROUTER_JWT_SECRET:?Jalankan pasang-vps.sh atau isi secret acak di .env}
       INITIAL_PASSWORD: ${WEB_PASSWORD}
-    mem_limit: ${ROUTER_MEM_LIMIT:-768m}
+    mem_limit: ${ROUTER_MEM_LIMIT:-256m}
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}

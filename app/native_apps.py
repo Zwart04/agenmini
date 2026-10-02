@@ -21,11 +21,15 @@ def rewrite(text, kind, content_type):
         text = re.sub(r'basename:(["\x27`])/\1', lambda m: 'basename:' + m[1] + prefix + '/' + m[1], text)
     elif kind == 'router':
         # Next assets, API fetches and dashboard routes. Leave absolute external OAuth URLs intact.
-        text = re.sub(r'(["\x27`])/(api|v1|_next)(?=[/"\x27`?])',
+        text = re.sub(r'(["\x27`])/(api|v1|_next|assets|_app|fonts|images|icons|providers|logos|dashboard|login)(?=[/"\x27`?])',
                       lambda m: m[1] + prefix + '/' + m[2], text)
+    if 'css' in content_type:
+        text = re.sub(r'url\(([\"\']?)/(?!/|apps/)',lambda m:'url('+m[1]+prefix+'/',text)
     if 'html' in content_type:
         text = re.sub(r'((?:src|href)=["\x27])/(?!/|apps/)', lambda m: m[1] + prefix + '/', text)
         if kind == 'router':
+            text=re.sub(r'<link\b[^>]*href=[\"\']https://fonts\.(?:googleapis|gstatic)\.com[^>]*>','',text,flags=re.S)
+            text=text.replace('<head>','<head><script src="/static/router-icons.js" defer></script><style>body{font-family:system-ui,sans-serif!important}.material-symbols-outlined{display:inline-flex;align-items:center;justify-content:center;width:1em;height:1em;vertical-align:middle}.material-symbols-outlined svg{width:1em;height:1em;min-width:1em;stroke:currentColor;fill:none;stroke-width:1.8}</style>',1)
             bridge = '<script>document.addEventListener("click",function(e){var a=e.target.closest("a[href]");if(!a)return;var u=new URL(a.href,location.href);if(u.origin!==location.origin)return;if(u.pathname.startsWith("/dashboard")||u.pathname.startsWith("/apps/router/dashboard")){e.preventDefault();e.stopImmediatePropagation();if(!u.pathname.startsWith("/apps/router/"))u.pathname="/apps/router"+u.pathname;location.assign(u.href)}},true);</script>'
             text = text.replace('<head>', '<head>' + bridge, 1)
         if kind == 'free':
@@ -51,7 +55,7 @@ async def proxy(request):
     if kind == 'router' and path == '/': raise web.HTTPFound('/apps/router/dashboard')
     base = router.base() if kind == 'router' else free_router.base()
     key = kind + ':' + base + path
-    is_asset = path.startswith(('/_next/static/', '/assets/')) and request.method == 'GET'
+    is_asset = path.startswith(('/_next/static/', '/assets/', '/_app/', '/fonts/', '/images/', '/icons/')) and request.method == 'GET'
     if is_asset and key in _assets:
         data, ct = _assets[key]; _assets.move_to_end(key)
         return web.Response(body=data, content_type=None, headers={'Content-Type': ct, 'Cache-Control': 'private, max-age=86400'})

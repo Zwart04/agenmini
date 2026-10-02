@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-FILES = ["app", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "DESIGN.md", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh"]
+FILES = ["app", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "DESIGN.md", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
 DEFAULT_MODEL = "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"
 
 
