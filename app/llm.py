@@ -1,3 +1,4 @@
+import contextvars
 """Penghubung ke otak: Ollama lokal (utama) dan API online (opsional).
 
 Model kecil sering tidak rapi saat memanggil alat. Karena itu:
@@ -308,6 +309,11 @@ def to_text_mode(messages: list[dict], tools: list[dict] | None) -> list[dict]:
 
 # ---------- panggilan utama ----------
 
+backend_context = contextvars.ContextVar('bot_backend', default='')
+
+def active_backend():
+    return backend_context.get() or db.setting('llm_backend')
+
 async def chat(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
                on_token=None, prio: int = PRIO_USER, fmt=None, temperature: float = 0.3,
                num_ctx: int | None = None, max_tokens: int | None = None) -> dict:
@@ -326,10 +332,10 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
     try:
         busy_path.parent.mkdir(parents=True, exist_ok=True)
         busy_path.write_text(model or "AI")
-        if model == "online":
-            res = await _chat_online(messages, tools, temperature, fmt, max_tokens=max_tokens)
-        elif db.setting("llm_backend") in ("compatible", "router", "local"):
-            if db.setting("llm_backend") == "router" or (db.setting("llm_backend") == "compatible" and db.setting("compatible_base").rstrip("/") == "http://router:20128/v1"):
+        if model == "online" or active_backend() == "online":
+            res = await _chat_online(messages, tools, temperature, fmt, model_override=model if model != "online" else None, max_tokens=max_tokens)
+        elif active_backend() in ("compatible", "router", "local", "freellmapi"):
+            if active_backend() == "router" or (active_backend() == "compatible" and db.setting("compatible_base").rstrip("/") == "http://router:20128/v1"):
                 from . import router
                 await router.ensure_key()
             res = await _chat_online(messages, tools, temperature, fmt, local=True, model_override=model, max_tokens=max_tokens)
@@ -448,16 +454,26 @@ def tools_suspect(text: str) -> bool:
 
 
 async def _chat_online(messages, tools, temperature, fmt, local=False, model_override=None, max_tokens=None) -> dict:
-    backend = db.setting("llm_backend")
+    backend = active_backend()
     base = db.setting("compatible_base" if local else "online_base").rstrip("/")
     if local and backend == "router":
         from . import router
         base = router.base() + "/v1"
     elif local and backend == "local":
+        from . import runtime_status
+        status = await runtime_status.state()
+        if not status["ready"]:
+            raise LLMError(status["message"] + " Buka menu AI untuk progres/log; tidak perlu menghapus data lama.")
         import os
         base = os.environ.get("LOCAL_API_BASE", "http://local:8080/v1")
+    if local and backend == "freellmapi":
+        from . import free_router
+        base = free_router.base() + "/v1"
+        await free_router.ensure_key()
     key = "" if local and backend == "local" else db.setting("compatible_key" if local else "online_key")
-    model = model_override if local else db.setting("online_model")
+    if local and backend == "freellmapi": key = db.setting("freellmapi_key")
+    model = model_override if local else (model_override or db.setting("online_model"))
+    if local and backend == "local": model = db.setting("local_model_id") or "qwenpaw-2b"
     if not (base and model and (local or key)):
         raise LLMError("API online belum diatur (Pengaturan → Otak online).")
     msgs, pending = [], []
@@ -491,6 +507,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
                                   headers={"Authorization": f"Bearer {key}"} if key else {},
                                   timeout=aiohttp.ClientTimeout(total=180)) as r:
             data = await r.json(content_type=None)
+            served_model = r.headers.get("X-Routed-Via") or data.get("model", "")
     except Exception as e:
         raise LLMError(f"API online gagal: {e}")
     if "choices" not in data and "API key required" in str(data):
@@ -504,7 +521,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     usage = data.get("usage", {})
     return {"content": msg.get("content") or "", "tool_calls": calls,
             "stats": {"tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
-                      "seconds": round(time.time() - t0, 1)}}
+                      "seconds": round(time.time() - t0, 1), "served_model": served_model}}
 
 
 # ---------- manajemen model di Ollama ----------

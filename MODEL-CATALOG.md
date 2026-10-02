@@ -4,7 +4,7 @@ Metadata checked against Hugging Face API on 2026-10-02. CPU Q4_K_M, 4096 contex
 
 | Model | Download | Minimum host RAM | Source |
 |---|---:|---:|---|
-| QwenPaw Flash 2B | about 1.3 GB | 4 GB | https://huggingface.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M |
+| QwenPaw Flash 2B | 1560460928 bytes | 4 GB | https://huggingface.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M |
 | Qwen3.5 0.8B | 579615840 bytes | 3 GB | https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF |
 | Qwen3.5 2B | 1396198496 bytes | 5 GB | https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF |
 | Qwen3.5 4B | 3013027808 bytes | 8 GB | https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF |
@@ -15,3 +15,8 @@ The Qwen3.5 GGUF repositories were last modified 2026-05-19 in the checked metad
 Recommendation uses total RAM, available RAM plus reclaimable local-model memory, and CPU count. It reserves memory for OS/app; the host supervisor rechecks actual available RAM before loading. More parameters is only a capacity heuristic. CPU throughput, other services, GGUF architecture support and real task quality must still be checked.
 
 QwenPaw 2B was actually loaded in the pinned llama.cpp image and evaluated through Agen Mini. Arithmetic with Python succeeded in 33.1 seconds after reducing irrelevant tool schemas, current unsupported price was withheld, and unknown-password question was answered by a deterministic guard. This is a small smoke test, not a comprehensive model benchmark. Larger catalogue models were checked for actual file existence/size but have not been run here.
+
+
+0.3.1 pins every artifact to a Hugging Face commit and LFS SHA256. The downloader checks size, GGUF header and SHA256 before starting llama.cpp; interrupted downloads can resume by HTTP Range. Cached older HF blobs are reused only after validation. Existing model caches/data are not deleted. The runtime loads an explicit local file with --no-mmproj, so the text profile no longer silently downloads/loads an image projector.
+
+Qwen3.5 0.8B was downloaded and verified, then actually loaded at context 4096 / one CPU thread / 1700m container limit. Full Agen Mini arithmetic used actual Python and returned 1000 in 37.6 seconds. This is a smoke test, not a quality leaderboard or a guarantee of throughput on the user's VPS.

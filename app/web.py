@@ -100,8 +100,14 @@ async def system_stats() -> dict:
                 agent_mb = int(line.split()[1]) // 1024
     except Exception:
         pass
+    from . import runtime_status, local_models
+    runtime = await runtime_status.state() if db.setting('llm_backend') == 'local' else {}
+    hw = local_models.hardware()
+    if hw.get('source') == 'host':
+        mem['MemTotal'] = hw['ram_mb']; mem['MemAvailable'] = hw['available_mb']
+    local_name = next((m['name'] for m in local_models.CATALOG if m['id'] == db.setting('local_model_id')), 'Model lokal')
     return {
-        "version": VERSION, "backend": db.setting("llm_backend"),
+        "version": VERSION, "backend": db.setting("llm_backend"), "runtime":runtime, "local_model_name":local_name,
         "ram_total_mb": mem.get("MemTotal", 0), "ram_available_mb": mem.get("MemAvailable", 0),
         "ram_used_mb": mem.get("MemTotal", 0) - mem.get("MemAvailable", 0),
         "swap_used_mb": mem.get("SwapTotal", 0) - mem.get("SwapFree", 0), "swap_total_mb": mem.get("SwapTotal", 0),
@@ -175,6 +181,17 @@ async def list_bots(request):
 @routes.post("/api/bots")
 async def save_bot(request):
     data = await request.json()
+    if data.get("backend", "") not in ("", "router", "freellmapi", "online", "local"):
+        return web.json_response({"error":"Mesin bot tidak dikenal."}, status=400)
+    backend=data.get('backend', '')
+    selected=str(data.get('model', '')).strip()
+    if selected and backend in ('router', 'freellmapi'):
+        from . import router, free_router
+        rows=(await router.state())['models'] if backend=='router' else await free_router.models()
+        if selected not in [m['id'] for m in rows]:
+            return web.json_response({'error':'ID model tidak tersedia. Hubungkan provider di Koneksi dan pilih model dari daftar.'}, status=400)
+    if selected and backend=='local' and selected != db.setting('local_model_id'):
+        return web.json_response({'error':'Bot lokal berbagi satu model aktif. Ganti model di Koneksi.'}, status=400)
     if not data.get("name"):
         return web.json_response({"error": "Nama wajib diisi."}, status=400)
     if str(data.get("telegram_token", "")).startswith("••••"):
@@ -182,6 +199,9 @@ async def save_bot(request):
     data["tools"] = [t for t in data.get("tools", []) if t in tools.REGISTRY]
     bid = db.save_bot(data)
     await telegram.sync()
+    from . import runtime_status
+    if not (config.DATA_DIR / "runtime-request").exists() and not (config.DATA_DIR / "runtime-processing").exists():
+        runtime_status.request("reconcile")
     return web.json_response({"id": bid})
 
 

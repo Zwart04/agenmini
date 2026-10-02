@@ -96,6 +96,9 @@ def conn() -> sqlite3.Connection:
 def _migrate(c: sqlite3.Connection):
     """Versi 0.1: satu baris chat per (bot, saluran, pengguna), "percakapan baru" hanya menyembunyikan pesan lama.
     Versi 0.2: tiap percakapan baris sendiri (riwayat). Pesan lama yang dulu tersembunyi dipulihkan jadi riwayat."""
+    bot_cols = {r[1] for r in c.execute("PRAGMA table_info(bots)")}
+    if bot_cols and "backend" not in bot_cols:
+        c.execute("ALTER TABLE bots ADD COLUMN backend TEXT DEFAULT ''")
     cols = {r[1] for r in c.execute("PRAGMA table_info(chats)")}
     if "archived" not in cols:
         c.executescript("""
@@ -199,6 +202,7 @@ def save_bot(data: dict) -> str:
         "memory_scope": data.get("memory_scope", existing["memory_scope"] if existing else "shared"),
         "telegram_token": data.get("telegram_token", existing["telegram_token"] if existing else ""),
         "model": data.get("model", existing["model"] if existing else ""),
+        "backend": data.get("backend", existing.get("backend", "") if existing else ""),
         "active": int(data.get("active", existing["active"] if existing else 1)),
     }
     if existing:

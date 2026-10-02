@@ -473,11 +473,12 @@ async def ask_online(ctx: Ctx, question: str = "", **_):
 
 
 
-@tool("ask_bot", "Berkonsultasi dengan bot", "Ask another specialist bot for research or a second opinion. Read-only consultation; no external writes. Bot IDs: asisten, riset, pengingat, teknisi. Returns the actual answer.", {"bot": S("target bot id"), "task": S("specific question with relevant context")}, ["bot", "task"])
+@tool("ask_bot", "Berkonsultasi dengan bot", "Ask another specialist bot for research or a second opinion. Read-only consultation; no external writes. Use a bot ID from the current bot roster. Returns the actual answer.", {"bot": S("target bot id"), "task": S("specific question with relevant context")}, ["bot", "task"])
 async def ask_bot(ctx, bot: str, task: str, **_):
     from . import office
-    if getattr(ctx, "delegations", 0) >= 2:
-        return "Error: maksimal dua konsultasi per giliran."
+    limit = 4 if ctx.bot["id"] == "orchestrator" else 2
+    if getattr(ctx, "delegations", 0) >= limit:
+        return f"Error: maksimal {limit} konsultasi per giliran."
     ctx.delegations = getattr(ctx, "delegations", 0) + 1
     tid = office.enqueue(ctx.bot["id"], bot, task)
     db.run("UPDATE office_tasks SET status='working' WHERE id=?", (tid,))

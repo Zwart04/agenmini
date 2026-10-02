@@ -5,3 +5,6 @@ Use the system font, neutral surfaces, one primary action per panel, and concise
 Below 760px: sidebar drawer, single-column forms/model cards, two-column office, 44px touch controls, 16px input text, and no horizontal page scrolling. Preserve labels, loading/error/empty states, keyboard focus, contrast, and reduced motion. SVG characters are served locally; no web font/CDN/game engine.
 
 Status comes from actual task/trace records. A failed task must not show success. Logs are owner-authenticated. Every new component should follow these rules and be checked at desktop and mobile widths.
+
+
+Navigation: only Chat, Workspace, Koneksi and Pengaturan in the main sidebar. Secondary sections stay in compact tab bars. Runtime readiness must reflect live server/model identity; saved preference is not readiness. Downloads use real byte progress, a lightweight CSS spinner and a reduced-motion fallback, with distinct verification/loading/failure states. Each bot exposes the shared provider engine and its own model choice.

@@ -6,7 +6,7 @@ import time
 import re
 from urllib.parse import urlparse, parse_qs, quote
 from aiohttp import web, ClientError
-from . import VERSION, config, db, llm, memory, tools, mcp_bridge, router, office
+from . import VERSION, config, db, llm, memory, tools, mcp_bridge, router, office, runtime_status, free_router
 
 routes = web.RouteTableDef()
 _oauth = {}
@@ -279,35 +279,35 @@ async def update_action(request):
 async def change_mode(request):
     data = await request.json()
     mode = data.get('mode')
-    if mode not in ('local', 'router', 'online', 'ollama'):
+    if mode not in ('local', 'router', 'online', 'ollama', 'freellmapi'):
         raise ValueError('Mode tidak dikenal.')
     if office.presence:
         raise ValueError('Tunggu tugas aktif selesai sebelum mengganti mode.')
     if mode == 'router':
-        (config.DATA_DIR / 'runtime-request').write_text('api')
-        if db.setting('llm_backend') != 'local':
-            await router.ensure_key()
+        runtime_status.request('api')
         db.set_setting('llm_backend', 'router')
         if db.setting('router_last_model'):
             db.set_setting('model', db.setting('router_last_model'))
     elif mode == 'local':
         # Host supervisor starts/stops llama.cpp; app cannot control Docker itself.
         from . import local_models
-        chosen = local_models.catalogue()['recommended']
+        catalogue = local_models.catalogue()
+        previous = db.setting('local_model_id')
+        chosen = previous if any(m['id'] == previous and m['fits'] for m in catalogue['models']) else catalogue['recommended']
         if not chosen:
             raise ValueError('RAM belum terdeteksi atau tidak cukup. Tunggu status hardware, atau gunakan API.')
-        (config.DATA_DIR / 'local-model-request').write_text(chosen)
+        runtime_status.request('local', chosen)
         db.set_setting('local_model_id', chosen)
-        (config.DATA_DIR / 'runtime-request').write_text('local')
         db.set_setting('llm_backend', 'local')
         db.set_setting('model', 'local')
     else:
+        runtime_status.request('free' if mode == 'freellmapi' else 'api')
         db.set_setting('llm_backend', mode)
+        if mode == 'freellmapi':
+            db.set_setting('model', db.setting('freellmapi_model') or 'auto:smart')
         if mode == 'online':
             db.set_setting('model', 'online')
-    if mode != 'local':
-        (config.DATA_DIR / 'runtime-request').write_text('api')
-    return web.json_response({'ok': True, 'message': 'Mode disimpan. Model lokal pertama kali diunduh oleh VPS; lihat status di menu AI.'})
+    return web.json_response({'ok': True, 'message': 'Mode disimpan. Persiapan layanan berjalan di latar; status akan diperbarui di halaman ini.'})
 
 
 @routes.post('/api/skills/from-message')
@@ -334,6 +334,9 @@ async def local_catalogue(request):
     from . import local_models
     result = local_models.catalogue()
     result['selected'] = db.setting('local_model_id') or 'qwenpaw-2b'
+    result['runtime'] = await runtime_status.state()
+    log = config.DATA_DIR / 'local-log.txt'
+    result['log'] = log.read_text(errors='replace')[-6000:] if log.exists() else ''
     return web.json_response(result)
 
 @routes.post('/api/local-models')
@@ -345,8 +348,9 @@ async def select_local_model(request):
         raise ValueError('Model tidak cocok dengan RAM terdeteksi. Pilih rekomendasi atau mode API.')
     if llm.gate.busy:
         raise ValueError('Tunggu tugas aktif selesai sebelum mengganti model.')
-    (config.DATA_DIR / 'local-model-request').write_text(model['id'])
-    (config.DATA_DIR / 'runtime-request').write_text('local')
+    if office.presence:
+        raise ValueError('Tunggu semua tugas aktif selesai.')
+    runtime_status.request('local', model['id'])
     db.set_setting('local_model_id',model['id'])
     db.set_setting('llm_backend','local')
     db.set_setting('model','local')
@@ -370,4 +374,33 @@ async def office_approval(request):
             db.run("UPDATE office_tasks SET status='failed',result=?,updated_at=? WHERE id=?",(str(exc)[:500],time.time(),task['id']))
             raise
         finally:office.finish(token,response)
+    return web.json_response({'ok':True})
+
+
+@routes.get('/api/freellmapi')
+async def free_state(request):
+    return web.json_response(await free_router.state())
+
+@routes.post('/api/freellmapi/provider')
+async def free_provider(request):
+    data=await request.json()
+    providers=(await free_router.request('GET','/api/keys/providers')).get('providers', [])
+    if data.get('platform') not in [p['platform'] for p in providers]:
+        raise ValueError('Provider tidak dikenal.')
+    await free_router.request('POST','/api/keys',{'platform':data['platform'],'key':str(data.get('key','')).strip(),'label':str(data.get('label',''))[:100]})
+    return web.json_response({'ok':True})
+
+@routes.delete('/api/freellmapi/provider/{id}')
+async def free_delete(request):
+    key=int(request.match_info['id'])
+    await free_router.request('DELETE','/api/keys/'+str(key))
+    return web.json_response({'ok':True})
+
+@routes.post('/api/freellmapi/model')
+async def free_model(request):
+    data=await request.json()
+    ids=[m['id'] for m in await free_router.models()]
+    if data.get('model') not in ids: raise ValueError('Model tidak tersedia pada server FreeLLMAPI.')
+    db.set_setting('freellmapi_model',data['model'])
+    if db.setting('llm_backend')=='freellmapi': db.set_setting('model',data['model'])
     return web.json_response({'ok':True})

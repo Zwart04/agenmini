@@ -1,4 +1,4 @@
-# Agen Mini 0.3.0
+# Agen Mini 0.3.1
 
 Asisten pribadi ringan dengan web, Telegram, MCP, skill, memori, dan workspace bot.
 
@@ -60,3 +60,12 @@ Lisensi dependensi/model mengikuti proyek masing-masing.
 
 
 Model terkurasi diverifikasi metadata/berkasnya pada 2 Oktober 2026, bukan daftar otomatis semua model terbaru. Baca [MODEL-CATALOG.md](MODEL-CATALOG.md). Hanya QwenPaw 2B yang sudah menjalani smoke test inferensi di lingkungan ini; keluarga lain perlu diuji pada VPS Anda. Seed skill adalah prosedur Agen Mini, bukan pemasangan plugin Superpowers pihak ketiga.
+
+
+### 0.3.1: status model dan tim
+
+Empat menu utama: Chat, Workspace, Koneksi, Pengaturan. Workspace → Tim bot untuk memilih mesin/model setiap bot; semua bot lokal berbagi satu model, sedangkan bot API dapat memakai model berbeda pada provider yang terhubung. Orchestrator dapat berkonsultasi dengan semua spesialis yang terdaftar; konsultasi antarbot tetap baca saja dan dibatasi agar ringan.
+
+Koneksi → AI menampilkan unduhan dalam byte/persen, verifikasi SHA256, pemuatan, status siap aktual dan log lokal. Pilihan yang tersimpan belum berarti model siap. Tidak perlu menghapus aplikasi atau cache model lama. Mode teks tidak memuat proyektor gambar. Jika gagal: agen lokal-log dan agen supervisor-log. Klik Unduh / perbaiki setelah melihat sebabnya.
+
+FreeLLMAPI merupakan profil opsional di Koneksi, dengan akun internal dan kunci penghubung otomatis. Tambahkan API key provider; daftar model berasal dari server yang terhubung, bukan daftar model rekaan. auto:smart/auto:fast adalah strategi routing, dan nama slot Claude di upstream adalah alias kompatibilitas, bukan klaim model Claude asli. Model yang benar-benar melayani permintaan dicatat pada metadata jawaban. Kuota/ketentuan layanan provider tetap berlaku; akun berbayar Premium tidak diperlukan untuk integrasi ini.

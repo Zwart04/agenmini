@@ -307,11 +307,13 @@ class Turn:
         from . import office
         token = office.start(self.bot['id'],getattr(self,'display_task',None) or str(args[0] if args else kwargs.get('text','')))
         result = None
+        backend_token = llm.backend_context.set(self.bot.get('backend', ''))
         try:
             result = await self._run(*args, **kwargs)
             return result
         finally:
             office.finish(token,result)
+            llm.backend_context.reset(backend_token)
 
     async def _run(self, text: str, save_user: bool = True, extra_msgs: list[dict] | None = None,
                   images: list[bytes] | None = None) -> dict:
@@ -352,8 +354,11 @@ class Turn:
             db.add_message(chat["id"], "user", text or "(gambar)", user_meta)
         if extra_msgs:
             msgs += extra_msgs
+        if 'ask_bot' in bot.get('tools', []):
+            roster='; '.join(b['id']+': '+b['name'] for b in db.bots(active_only=True))
+            msgs[0]['content'] += '\n[Rekan bot tersedia] '+roster
         schemas = tools.schemas_for(bot)
-        if db.setting('llm_backend') == 'local':
+        if llm.active_backend() == 'local':
             relevant = {name for name, _ in intents(text, bot.get('tools', []))}
             if relevant:
                 if relevant & {'web_search','read_webpage','browser'}:
@@ -377,10 +382,12 @@ class Turn:
         turn_start = len(msgs) - 1
         answer, stats, mode = "", {}, "lengkap"
         model = bot.get("model") or None
+        if bot.get('backend') and not model:
+            model = {'router': db.setting('router_last_model'), 'freellmapi': db.setting('freellmapi_model') or 'auto:smart', 'online':db.setting('online_model'), 'local':db.setting('local_model_id') or 'qwenpaw-2b'}.get(bot['backend'])
         names = [s["function"]["name"] for s in schemas]
 
         try:
-            if db.setting("llm_backend") == "ollama" and (model or db.setting("model")) != "online" and not await llm.is_loaded(model or db.setting("model")):
+            if llm.active_backend() == "ollama" and (model or db.setting("model")) != "online" and not await llm.is_loaded(model or db.setting("model")):
                 # model sedang tidak di RAM (mis. baru dipakai "mata"): memuat dari disk butuh waktu
                 await self.on_event("status", "Menyiapkan otak AI (memuat model, bisa sampai 1 menit)…")
             if schemas and extra_msgs is None and is_light(text, names):

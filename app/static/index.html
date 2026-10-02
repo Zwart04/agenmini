@@ -225,14 +225,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
     <nav class="nav" id="nav">
       <button class="item on" data-v="chat"><span data-ic="chat"></span>Chat</button>
       <button class="item" data-v="office"><span data-ic="briefcase"></span>Workspace</button>
-      <button class="item" data-v="ai"><span data-ic="sparkle"></span>AI & 9router</button>
-      <button class="item" data-v="mcp"><span data-ic="tool"></span>Koneksi MCP</button>
-      <button class="item" data-v="updates"><span data-ic="download"></span>Versi & Update</button>
-      <button class="item" data-v="bots"><span data-ic="bot"></span>Bot</button>
-      <button class="item" data-v="memory"><span data-ic="memory"></span>Ingatan</button>
-      <button class="item" data-v="skills"><span data-ic="star"></span>Skill</button>
-      <button class="item" data-v="jobs"><span data-ic="calendar"></span>Jadwal</button>
-      <button class="item" data-v="models"><span data-ic="server"></span>Diagnostik server</button>
+      <button class="item" data-v="ai"><span data-ic="tool"></span>Koneksi</button>
       <button class="item" data-v="settings"><span data-ic="sliders"></span>Pengaturan</button>
     </nav>
     <div class="side-label">Bot</div>
@@ -274,39 +267,39 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 
 
     <div class="view hidden" id="v-office"><div class="page"><div class="page-in">
-      <div class="row"><h2 class="grow">Workspace</h2><span class="pill">Satu antrean, banyak rekan</span></div><p class="lead">Kantor kecil untuk bot Anda. Klik karakter untuk mengobrol, atau kirim tugas dan ikuti hasilnya di bawah.</p>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('office')">Kantor</button><button class="btn sm " type="button" onclick="go('bots')">Tim bot</button><button class="btn sm " type="button" onclick="go('jobs')">Jadwal</button></nav><div class="row"><h2 class="grow">Workspace</h2><span class="pill">Satu antrean, banyak rekan</span></div><p class="lead">Kantor kecil untuk bot Anda. Klik karakter untuk mengobrol, atau kirim tugas dan ikuti hasilnya di bawah.</p>
       <div class="office-scene"><div class="office-wall"><span class="office-title">AGEN MINI / STUDIO</span><span class="room-plant" aria-hidden="true">✦</span><div class="wall-chart" aria-hidden="true"><svg viewBox="0 0 90 36" width="90" height="36"><path d="M4 29L20 19L35 24L53 10L68 17L85 5" fill="none" stroke="#9cb8a6" stroke-width="3"/></svg></div></div><div class="office-room" id="officeRoom"></div></div>
       <form class="control-form" id="officeForm"><div class="row"><select class="inp" id="officeTarget" aria-label="Bot tujuan"></select><input class="inp grow" id="officeText" placeholder="Tugas untuk rekan Anda" required><button class="btn pri">Kirim tugas</button></div></form>
       <div id="officeLog" class="control-form hidden"><div class="row"><h3 class="grow" id="officeLogTitle">Log aktivitas</h3><button class="btn sm" id="officeLogClose">Tutup log</button></div><div id="officeLogEntries"></div></div><h3>Aktivitas kantor</h3><div class="group"><div class="rows" id="officeTasks"></div></div>
     </div></div></div>
     <div class="view hidden" id="v-ai"><div class="page"><div class="page-in" style="max-width:760px">
-      <h2>AI & 9router</h2><p class="lead">Pilih otak dan hubungkan provider di sini. Mode sekarang: <b id="aiMode"></b>.</p>
-      <div class="mode-buttons"><button class="btn" data-mode="local">Lokal tanpa Ollama</button><button class="btn" data-mode="router">9router / API</button><button class="btn" data-mode="online">API langsung</button></div><div class="sub" id="runtimeStatus"></div><section class="control-form"><div class="row"><h3 class="grow">Model lokal untuk VPS Anda</h3><button class="btn sm" id="refreshHardware">Periksa ulang</button></div><p class="hint" id="hardwareSummary">Membaca hardware...</p><div id="localModelCards" class="local-models"></div><p class="hint">Katalog terkurasi Q4 · CPU · konteks 4096. Ukuran RAM adalah perkiraan dengan cadangan sistem. Model lebih besar bisa lebih lambat, dan tetap dapat salah.</p></section>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('ai')">AI</button><button class="btn sm " type="button" onclick="go('mcp')">MCP</button></nav><h2>Koneksi AI</h2><p class="lead">Pilih otak dan hubungkan provider di sini. Mode sekarang: <b id="aiMode"></b>.</p>
+      <div class="mode-buttons"><button class="btn" data-mode="local">Lokal tanpa Ollama</button><button class="btn" data-mode="router">9router / API</button><button class="btn" data-mode="online">API langsung</button><button class="btn" data-mode="freellmapi">FreeLLMAPI</button></div><div class="runtime-box" id="localRuntime" role="status" aria-live="polite"><span class="runtime-spinner hidden" id="runtimeSpinner"></span><b id="runtimePhase"></b><p id="runtimeStatus"></p><progress id="runtimeProgress" max="100" class="hidden" aria-label="Progres unduhan model"></progress><small id="runtimeBytes"></small><details><summary>Log model lokal</summary><pre id="runtimeLog">Belum ada log.</pre></details></div><section class="control-form" id="localModelSection"><div class="row"><h3 class="grow">Model lokal untuk VPS Anda</h3><button class="btn sm" id="refreshHardware">Periksa ulang</button></div><p class="hint" id="hardwareSummary">Membaca hardware...</p><div id="localModelCards" class="local-models"></div><p class="hint">Katalog terkurasi Q4 · CPU · konteks 4096. Ukuran RAM adalah perkiraan dengan cadangan sistem. Model lebih besar bisa lebih lambat, dan tetap dapat salah.</p></section>
       <div class="setup-note">Lokal mengunduh model sesuai rekomendasi hardware saat pertama dinyalakan dan memakai CPU/RAM VPS. Mode API menghentikan model lokal agar lebih hemat. Kualitas model kecil tetap perlu dinilai dari hasil nyata.</div>
-      <div class="row"><h3 class="grow">9router</h3><button class="btn sm" id="routerConnect">Hubungkan otomatis</button></div><p id="routerStatus" class="sub"></p>
-      <section id="routerPanel"><div class="group"><div class="rows" id="routerConnections"></div></div>
+      <div class="row" id="routerHeading"><h3 class="grow">9router</h3><button class="btn sm" id="routerConnect">Hubungkan otomatis</button></div><p id="routerStatus" class="sub"></p>
+      <form id="directApiForm" class="control-form hidden"><h3>API langsung</h3><div class="field"><label for="directApiUrl">URL API (akhiran /v1)</label><input class="inp" id="directApiUrl" required placeholder="https://api.example.com/v1"></div><div class="field"><label for="directApiKey">API key</label><input class="inp" id="directApiKey" type="password" autocomplete="off"></div><div class="field"><label for="directApiModel">ID model dari provider</label><input class="inp" id="directApiModel" required></div><button class="btn pri">Simpan API</button></form><section id="freePanel" class="control-form hidden"><h3>FreeLLMAPI</h3><p class="hint">Router gratis opsional. Tambahkan kunci provider, lalu pilih dari model yang tersedia pada server. Gratis mengikuti kuota penyedia; bukan API tanpa batas.</p><p id="freeStatus" class="sub"></p><div id="freeConnections"></div><form id="freeProviderForm"><div class="twocol"><div class="field"><label for="freeProvider">Provider</label><select class="inp" id="freeProvider"></select></div><div class="field"><label for="freeKey">API key provider</label><input class="inp" type="password" id="freeKey" autocomplete="off"></div></div><button class="btn" type="submit">Tambah provider</button></form><div class="field"><label for="freeModel">Model / strategi yang tersedia</label><select class="inp" id="freeModel"></select></div><button class="btn pri" id="useFreeModel">Gunakan model</button></section><section id="routerPanel"><div class="group"><div class="rows" id="routerConnections"></div></div>
       <div class="row" style="margin:18px 0"><select class="inp grow" id="routerModel" aria-label="Model router"></select><button class="btn pri" id="useRouterModel">Pakai model</button></div>
       <form id="providerForm" class="control-form"><h3>Tambahkan API key</h3><div class="field"><label for="apiProvider">Provider</label><select class="inp" id="apiProvider"></select></div><div class="field"><label for="providerName">Nama koneksi</label><input class="inp" id="providerName" placeholder="Misalnya akun utama"></div><div class="field"><label for="providerKey">API key provider</label><input class="inp" id="providerKey" type="password" autocomplete="off" required></div><button class="btn pri">Simpan koneksi</button></form>
       <div class="control-form"><h3>Login OAuth</h3><div class="field"><label for="oauthProvider">Provider OAuth</label><select class="inp" id="oauthProvider"></select></div><details><summary>Redirect URI (opsional)</summary><input class="inp" id="oauthRedirect" placeholder="Kosong = bawaan provider"></details><button class="btn" id="oauthStart" style="margin-top:12px">Mulai login</button><a class="btn hidden" id="oauthLogin" target="_blank" rel="noopener noreferrer">Buka halaman provider</a><p class="sub" id="oauthInfo"></p><div id="oauthCallbackRow" class="hidden"><input class="inp" id="oauthCallback" placeholder="Tempel URL callback setelah login"><button class="btn" id="oauthFinish">Selesaikan login</button></div><p class="sub">Login tetap dilakukan di situs provider. Device code diperiksa otomatis; alur callback memakai URL yang Anda tempel.</p></div>
       <form id="comboForm" class="control-form"><h3>Fallback antar model</h3><div class="field"><label for="comboName">Nama combo</label><input class="inp" id="comboName" required></div><div class="field"><label for="comboModels">Model berurutan, satu per baris</label><textarea class="inp" id="comboModels" rows="3" required></textarea></div><button class="btn">Buat fallback</button></form></section>
     </div></div></div>
     <div class="view hidden" id="v-mcp"><div class="page"><div class="page-in" style="max-width:760px">
-      <h2>Koneksi MCP</h2><p class="lead">Hubungkan GitHub, email atau server MCP lain. Akun/token mengikuti server yang Anda pilih. Alat yang mengubah data meminta izin.</p><div class="group"><div class="rows" id="mcpServers"></div></div>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('ai')">AI</button><button class="btn sm tab-active" type="button" onclick="go('mcp')">MCP</button></nav><h2>Koneksi MCP</h2><p class="lead">Hubungkan GitHub, email atau server MCP lain. Akun/token mengikuti server yang Anda pilih. Alat yang mengubah data meminta izin.</p><div class="group"><div class="rows" id="mcpServers"></div></div>
       <div class="setup-note">MCP bawaan Agen Local menyediakan informasi hardware dan pencarian skill tanpa akun tambahan. Untuk layanan lain: isi URL dan token, klik Uji & cari alat, tinjau alat/izin, kemudian Simpan & aktifkan.</div><div class="row"><button class="btn" id="mcpGithubPreset">Tambah GitHub</button><span class="hint">Email: gunakan URL server MCP penyedia Anda; login dan izin akun tetap diperlukan.</span></div><form id="mcpForm" class="control-form" style="margin-top:20px"><div class="field"><label for="mcpName">Nama koneksi</label><input class="inp" id="mcpName" required placeholder="github"></div><div class="field"><label for="mcpUrl">URL Streamable HTTP</label><input class="inp" id="mcpUrl" placeholder="https://api.githubcopilot.com/mcp/"></div><div class="field"><label for="mcpToken">Token (opsional)</label><input class="inp" id="mcpToken" type="password" autocomplete="off"><label><input type="checkbox" id="mcpKeepToken"> Pertahankan token lama saat edit</label></div><details><summary>Server stdio lokal (lanjutan)</summary><div class="field"><label for="mcpCommand">Program yang sudah terpasang</label><input class="inp" id="mcpCommand" placeholder="python"></div><div class="field"><label for="mcpArgs">Argumen JSON</label><input class="inp" id="mcpArgs" value="[]"></div></details><button type="button" class="btn" id="mcpDiscover" style="margin:12px 0">Uji & cari alat</button><pre class="steps" id="mcpFound"></pre><div class="field"><label for="mcpAllowed">Alat yang diizinkan, pisahkan koma</label><textarea class="inp" id="mcpAllowed" rows="2"></textarea></div><div class="field"><label for="mcpReadonly">Alat baca saja, pisahkan koma</label><input class="inp" id="mcpReadonly"><span class="hint">Hanya tandai alat yang Anda pastikan tidak mengubah data.</span></div><div class="field"><label for="mcpBot">Aktifkan pada bot</label><select class="inp" id="mcpBot"></select></div><button class="btn pri">Simpan & aktifkan</button></form>
       <h3>Alat terhubung</h3><div class="group"><div class="rows" id="mcpTools"></div></div>
     </div></div></div>
-    <div class="view hidden" id="v-updates"><div class="page"><div class="page-in" style="max-width:640px"><h2>Versi & Update</h2><p class="lead">Versi terpasang: <b id="updateVersion"></b></p><div class="control-form"><label><input type="checkbox" id="updateAuto"> Pasang release stabil otomatis setiap hari</label><p class="sub">Backup dibuat sebelum update. Pemeriksaan tidak menjalankan model AI. Data dan akun dipertahankan.</p><div class="row"><button class="btn" id="updateCheck">Cek versi</button><button class="btn pri" id="updateInstall">Update sekarang</button></div><p class="sub" id="updateStatus"></p><a href="https://github.com/Zwart04/agenmini/releases" target="_blank" rel="noopener">Catatan release</a></div></div></div></div>
+    <div class="view hidden" id="v-updates"><div class="page"><div class="page-in" style="max-width:640px"><nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm tab-active" type="button" onclick="go('updates')">Update</button><button class="btn sm " type="button" onclick="go('models')">Diagnostik</button></nav><h2>Versi & Update</h2><p class="lead">Versi terpasang: <b id="updateVersion"></b></p><div class="control-form"><label><input type="checkbox" id="updateAuto"> Pasang release stabil otomatis setiap hari</label><p class="sub">Backup dibuat sebelum update. Pemeriksaan tidak menjalankan model AI. Data dan akun dipertahankan.</p><div class="row"><button class="btn" id="updateCheck">Cek versi</button><button class="btn pri" id="updateInstall">Update sekarang</button></div><p class="sub" id="updateStatus"></p><a href="https://github.com/Zwart04/agenmini/releases" target="_blank" rel="noopener">Catatan release</a></div></div></div></div>
 
     <!-- BOT -->
     <div class="view hidden" id="v-bots"><div class="page"><div class="page-in">
-      <div class="row" style="align-items:flex-start"><h2 class="grow">Bot</h2><button class="btn pri" id="addBot"><span data-ic="plus" data-cls="s"></span>Bot baru</button></div>
-      <p class="lead">Tiap bot punya kepribadian, alat, dan skill sendiri, tapi semuanya memakai satu otak. Menambah bot hampir tidak memakan RAM. Bot juga bisa dibuat lewat chat.</p>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('office')">Kantor</button><button class="btn sm tab-active" type="button" onclick="go('bots')">Tim bot</button><button class="btn sm " type="button" onclick="go('jobs')">Jadwal</button></nav><div class="row" style="align-items:flex-start"><h2 class="grow">Bot</h2><button class="btn pri" id="addBot"><span data-ic="plus" data-cls="s"></span>Bot baru</button></div>
+      <p class="lead">Tiap bot punya kepribadian, alat dan pilihan model sendiri. Provider/kunci dikelola bersama di Koneksi; bot lokal berbagi model yang sedang dimuat.</p>
       <div class="grid" id="botCards"></div>
     </div></div></div>
 
     <!-- INGATAN -->
     <div class="view hidden" id="v-memory"><div class="page"><div class="page-in">
-      <h2>Ingatan</h2>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm tab-active" type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm " type="button" onclick="go('models')">Diagnostik</button></nav><h2>Ingatan</h2>
       <p class="lead">Hal yang diingat agen tentang Anda. Diisi otomatis dari percakapan; fakta yang tidak pernah Anda ucapkan ditolak.</p>
       <div class="row" style="margin-bottom:16px">
         <input class="inp grow" id="memQ" placeholder="Cari">
@@ -317,7 +310,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 
     <!-- SKILL -->
     <div class="view hidden" id="v-skills"><div class="page"><div class="page-in">
-      <div class="row"><h2 class="grow">Skill</h2><button class="btn pri" id="skillAdd">Tambah skill</button><label class="btn">Import .md<input id="skillImport" type="file" accept=".md" hidden></label></div>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('settings')">Umum</button><button class="btn sm tab-active" type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm " type="button" onclick="go('models')">Diagnostik</button></nav><div class="row"><h2 class="grow">Skill</h2><button class="btn pri" id="skillAdd">Tambah skill</button><label class="btn">Import .md<input id="skillImport" type="file" accept=".md" hidden></label></div>
       <form id="skillEditor" class="control-form hidden"><div class="field"><label for="skillName">Nama skill</label><input class="inp" id="skillName" required></div><div class="field"><label for="skillWhen">Kapan dipakai</label><input class="inp" id="skillWhen" required></div><div class="field"><label for="skillScope">Dipakai oleh</label><select class="inp" id="skillScope"></select></div><div class="field"><label for="skillSteps">Langkah dan aturan</label><textarea class="inp" id="skillSteps" rows="7" required></textarea></div><button class="btn pri">Simpan</button><button type="button" class="btn" id="skillCancel">Batal</button></form>
       <p class="lead">Prosedur kerja yang dipakai saat relevan. Tambahkan manual, import Markdown, atau simpan cara kerja dari jawaban yang sudah Anda periksa. Skill dapat diedit dan dinonaktifkan; ini bukan pelatihan ulang model.</p>
       <div class="group"><div class="rows" id="skillList"></div></div>
@@ -325,14 +318,14 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 
     <!-- JADWAL -->
     <div class="view hidden" id="v-jobs"><div class="page"><div class="page-in">
-      <h2>Jadwal</h2>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('office')">Kantor</button><button class="btn sm " type="button" onclick="go('bots')">Tim bot</button><button class="btn sm tab-active" type="button" onclick="go('jobs')">Jadwal</button></nav><h2>Jadwal</h2>
       <p class="lead">Pengingat dan tugas rutin. Buat lewat chat, misalnya "tiap hari jam 7 pagi carikan harga emas".</p>
       <div class="group"><div class="rows" id="jobList"></div></div>
     </div></div></div>
 
     <!-- MODEL -->
     <div class="view hidden" id="v-models"><div class="page"><div class="page-in">
-      <h2>Diagnostik server</h2>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm tab-active" type="button" onclick="go('models')">Diagnostik</button></nav><h2>Diagnostik server</h2>
       <p class="lead">Kondisi server, model yang terpasang, dan uji adu model.</p>
       <div class="stats" id="stats"></div>
       <div class="group">
@@ -358,7 +351,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 
     <!-- PENGATURAN -->
     <div class="view hidden" id="v-settings"><div class="page"><div class="page-in" style="max-width:640px">
-      <h2>Pengaturan</h2>
+      <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm " type="button" onclick="go('models')">Diagnostik</button></nav><h2>Pengaturan</h2>
       <p class="lead">Semua opsional kecuali model.</p>
       <form id="setForm">
         <div class="group"><div class="group-h">Telegram</div><div class="group-b">
@@ -368,7 +361,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
           <div class="field"><label>Bot dengan akun Telegram sendiri</label><span class="hint">Isi token di menu Bot, atau kirim <code>/tokenbot namabot token</code> di Telegram.</span></div>
         </div></div>
         <div class="group"><div class="group-h">Pengaturan AI lanjutan</div><div class="group-b">
-          <div class="field"><label>Mesin AI</label><select class="inp" name="llm_backend" disabled><option value="router">9router</option><option value="local">Lokal tanpa Ollama</option><option value="ollama">Ollama</option><option value="compatible">llama.cpp / API lokal</option><option value="online">API online</option></select><span class="hint">Ganti mesin dan pilih model di menu AI.</span></div><div class="field"><label>Alamat API lokal</label><input class="inp" name="compatible_base" placeholder="http://host.docker.internal:8080/v1"></div><div class="field"><label>Kunci API lokal (opsional)</label><input class="inp" name="compatible_key" type="password"></div><div class="field"><label>Panggilan alat</label><select class="inp" name="tool_mode"><option value="text">Teks, kompatibel model kecil</option><option value="native">Native</option></select></div><div class="field"><label>Model aktif</label><input class="inp" name="model" id="modelSel" list="modelChoices" placeholder="Nama model atau combo"><datalist id="modelChoices"></datalist></div>
+          <div class="field"><label>Mesin AI</label><select class="inp" name="llm_backend" disabled><option value="router">9router</option><option value="local">Lokal tanpa Ollama</option><option value="ollama">Ollama</option><option value="compatible">llama.cpp / API lokal</option><option value="online">API online</option><option value="freellmapi">FreeLLMAPI</option></select><span class="hint">Ganti mesin dan pilih model di menu AI.</span></div><div class="field"><label>Alamat API lokal</label><input class="inp" name="compatible_base" placeholder="http://host.docker.internal:8080/v1"></div><div class="field"><label>Kunci API lokal (opsional)</label><input class="inp" name="compatible_key" type="password"></div><div class="field"><label>Panggilan alat</label><select class="inp" name="tool_mode"><option value="text">Teks, kompatibel model kecil</option><option value="native">Native</option></select></div><div class="field"><label>Model aktif</label><input class="inp" name="model" id="modelSel" list="modelChoices" placeholder="Nama model atau combo"><datalist id="modelChoices"></datalist></div>
           <div class="twocol">
             <div class="field"><label>Panjang konteks</label><input class="inp" name="num_ctx" type="number" min="2048" step="1024"><span class="hint">Dalam token. Model lokal ringan memakai 4096.</span></div>
             <div class="field"><label>Maks. langkah alat</label><input class="inp" name="max_steps" type="number" min="1" max="12"></div>
@@ -415,7 +408,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
   <div class="field"><label>Alat</label><span class="hint">Makin sedikit alat, makin jarang model kecil salah pilih.</span><div class="checks" id="toolPick"></div></div>
   <div class="twocol">
     <div class="field"><label>Ingatan</label><select class="inp" name="memory_scope"><option value="shared">Bersama semua bot</option><option value="own">Sendiri + bersama</option></select></div>
-    <div class="field"><label>Model khusus</label><input class="inp" name="model" placeholder="kosong = model aktif"></div>
+    <div class="field"><label for="botBackend">Mesin bot</label><select class="inp" name="backend" id="botBackend"><option value="">Ikuti pengaturan utama</option><option value="local">Lokal</option><option value="router">9router</option><option value="freellmapi">FreeLLMAPI</option><option value="online">API langsung</option></select><span class="hint">Provider/kunci dikelola bersama di Koneksi. Model tiap bot bisa berbeda.</span></div><div class="field"><label>Model khusus</label><input class="inp" name="model" list="botModelChoices" placeholder="kosong = model aktif"><datalist id="botModelChoices"></datalist><span class="hint" id="botModelHint"></span></div>
   </div>
   <div class="field"><label>Token Telegram sendiri</label><input class="inp" name="telegram_token" placeholder="opsional, kosongkan untuk lewat bot utama"></div>
   <div class="row" style="margin-top:6px"><button class="btn pri">Simpan</button><button type="button" class="btn" data-close>Batal</button><span class="grow"></span><button type="button" class="btn danger ghost" id="botDel">Hapus bot</button></div>
@@ -518,6 +511,7 @@ function md(src) {
 function prettyModel(n) {
   if (!n) return '';
   if (n === 'online') return 'AI online';
+  if (n.startsWith('auto:')||n==='fusion'||n==='auto') return n;
   let [base, tag] = n.split('/').pop().split(':');
   base = base.replace(/-(instruct|gguf|it)\b/gi, '').replace(/[-_]q\d(_k)?(_[ms])?$|[-_](q8_0|f16|bf16)$/i, '');
   if (tag && /^\d+(\.\d+)?[bm]$/i.test(tag)) base += ' ' + tag.toUpperCase();
@@ -542,7 +536,7 @@ $('#loginForm').onsubmit = async e => {
 
 /* ---------- navigasi ---------- */
 function go(v) {
-  S.view = v; $('#mobileTitle').textContent=$('#v-'+v+' h2')?.textContent||'Agen Mini';$('#mobileTitle').classList.toggle('hidden',v==='chat');['botSelect','histBtn2','newChat2'].forEach(id=>$('#'+id).classList.toggle('hidden',v!=='chat')); $$('#nav .item').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  S.view = v; $('#mobileTitle').textContent=$('#v-'+v+' h2')?.textContent||'Agen Mini';$('#mobileTitle').classList.toggle('hidden',v==='chat');['botSelect','histBtn2','newChat2'].forEach(id=>$('#'+id).classList.toggle('hidden',v!=='chat')); $$('#nav .item').forEach(b => b.classList.toggle('on', b.dataset.v === ({bots:'office',jobs:'office',mcp:'ai',skills:'settings',memory:'settings',updates:'settings',models:'settings'}[v]||v)));
   $$('.view').forEach(x => x.classList.add('hidden')); $('#v-' + v).classList.remove('hidden');
   $('#side').classList.remove('open');
   ({office: loadOffice, ai: loadAI, mcp: loadMCP, updates: loadUpdates, bots: loadBots, memory: loadMem, skills: loadSkills, jobs: loadJobs, models: loadModels, settings: loadSettings}[v] || (() => {}))()?.catch(e=>toast(e.message));
@@ -604,6 +598,7 @@ const scrollEnd = () => { const m = $('#msgs'); m.scrollTop = m.scrollHeight };
 function metaHtml(m) {
   const meta = m.meta || {}, bits = [];
   if (meta.tools && meta.tools.length) bits.push(`<span>${ic('tool', 's')}${esc([...new Set(meta.tools)].map(t => (S.tools.find(x => x.name === t) || {}).label || t).join(', '))}</span>`);
+  if (meta.stats?.served_model) bits.push(`<span>Model: ${esc(meta.stats.served_model)}</span>`);
   if (meta.seconds) bits.push(`<span>${meta.mode === 'cepat' ? 'jawaban cepat, ' : ''}${meta.seconds} dtk</span>`);
   if (meta.learned && (meta.learned.skill || (meta.learned.facts || []).length)) bits.push(`<span>${ic('book', 's')}belajar${meta.learned.skill ? ': ' + esc(meta.learned.skill) : ''}</span>`);
   if (meta.proaktif) bits.push(`<span>${ic('clock', 's')}otomatis</span>`);
@@ -741,7 +736,7 @@ $('#newChat').onclick = newChat; $('#newChat2').onclick = newChat;
 async function loadBots() {
   await refreshBots();
   const label = t => (S.tools.find(x => x.name === t) || {}).label || t;
-  $('#botCards').innerHTML = S.bots.map(b => `<div class="card"><div class="row">${av(b, 'l')}<div class="grow"><div class="t">${esc(b.name)}</div><div class="sub" style="margin:0">${b.skills} skill · ingatan ${b.memory_scope === 'own' ? 'sendiri' : 'bersama'}${b.active ? '' : ' · nonaktif'}</div></div></div><div class="d">${esc(b.persona)}</div><div class="tags">${b.tools.map(t => `<span class="tag">${esc(label(t))}</span>`).join('')}</div><div class="row" style="margin-top:4px"><button class="btn sm" data-chat="${b.id}">${ic('chat', 's')}Chat</button><button class="btn sm ghost" data-edit="${b.id}">${ic('edit', 's')}Ubah</button></div></div>`).join('');
+  $('#botCards').innerHTML = S.bots.map(b => `<div class="card"><div class="row">${av(b, 'l')}<div class="grow"><div class="t">${esc(b.name)}</div><div class="sub" style="margin:0">${b.skills} skill · ingatan ${b.memory_scope === 'own' ? 'sendiri' : 'bersama'}${b.active ? '' : ' · nonaktif'} · ${esc(b.backend||'utama')} · ${esc(b.model||'model utama')}</div></div></div><div class="d">${esc(b.persona)}</div><div class="tags">${b.tools.map(t => `<span class="tag">${esc(label(t))}</span>`).join('')}</div><div class="row" style="margin-top:4px"><button class="btn sm" data-chat="${b.id}">${ic('chat', 's')}Chat</button><button class="btn sm ghost" data-edit="${b.id}">${ic('edit', 's')}Ubah</button></div></div>`).join('');
   $$('[data-chat]').forEach(x => x.onclick = () => pickBot(x.dataset.chat));
   $$('[data-edit]').forEach(x => x.onclick = () => editBot(S.bots.find(b => b.id === x.dataset.edit)));
 }
@@ -749,17 +744,18 @@ function editBot(b) {
   const f = $('#botForm'); f.reset();
   $('#botModalTitle').textContent = b ? 'Ubah bot' : 'Bot baru';
   const v = b || {id: '', icon: 'bot', name: '', persona: '', tools: ['web_search', 'read_webpage', 'remember'], memory_scope: 'shared', model: '', telegram_token: ''};
-  for (const k of ['id', 'name', 'persona', 'memory_scope', 'model', 'telegram_token']) f.elements[k].value = v[k] || '';
+  for (const k of ['id', 'name', 'persona', 'memory_scope', 'model', 'backend', 'telegram_token']) f.elements[k].value = v[k] || '';
   $('#iconPick').innerHTML = BOT_ICONS.map(n => `<label><input type="radio" name="icon" value="${n}" ${n === (v.icon || 'bot') ? 'checked' : ''}>${ic(n)}</label>`).join('');
   $('#toolPick').innerHTML = S.tools.map(t => `<label><input type="checkbox" value="${t.name}" ${v.tools.includes(t.name) ? 'checked' : ''}>${esc(t.label)}</label>`).join('');
   $('#botDel').classList.toggle('hidden', !b);
   $('#botModal').classList.remove('hidden');
+  loadBotModelChoices().catch(sayError);
 }
 $('#addBot').onclick = () => editBot(null);
 $('#botModal').addEventListener('click', e => { if (e.target.id === 'botModal' || e.target.closest('[data-close]')) $('#botModal').classList.add('hidden') });
 $('#botForm').onsubmit = async e => {
   e.preventDefault(); const f = e.target;
-  const body = Object.fromEntries(['id', 'name', 'persona', 'memory_scope', 'model', 'telegram_token'].map(k => [k, f.elements[k].value.trim()]));
+  const body = Object.fromEntries(['id', 'name', 'persona', 'memory_scope', 'model', 'backend', 'telegram_token'].map(k => [k, f.elements[k].value.trim()]));
   if (!body.id) delete body.id;
   body.icon = (f.querySelector('input[name=icon]:checked') || {}).value || 'bot';
   body.tools = $$('#toolPick input:checked').map(x => x.value);
@@ -861,10 +857,10 @@ $('#themeBtn').onclick = () => {
 async function sideStatus() {
   try {
     const s = await api('/api/status');
-    const cls = s.backend==='ollama'&&!s.ollama_ok ? 'bad' : s.queue ? 'busy' : 'ok';
-    const txt = s.backend==='ollama'&&!s.ollama_ok ? 'Ollama tidak terhubung' : s.queue ? `Sibuk · ${s.queue} antre` : 'Mode '+s.backend;
+    const cls = s.backend==='local'&&!s.runtime?.ready ? (s.runtime?.phase==='failed'?'bad':'busy') : s.backend==='ollama'&&!s.ollama_ok ? 'bad' : s.queue ? 'busy' : 'ok';
+    const txt = s.backend==='local' ? 'Lokal · '+(s.runtime?.ready?'siap':s.runtime?.phase==='failed'?'gagal':'belum siap') : s.backend==='ollama'&&!s.ollama_ok ? 'Ollama tidak terhubung' : s.queue ? `Sibuk · ${s.queue} antre` : 'Mode '+s.backend;
     $('#sideStatus').innerHTML = `<span class="dot ${cls}"></span>${txt}`;
-    $('#sideRam').textContent = `RAM ${(s.ram_used_mb / 1024).toFixed(1)} / ${(s.ram_total_mb / 1024).toFixed(1)} GB · ${prettyModel(s.model)}`;
+    $('#sideRam').textContent = `RAM ${(s.ram_used_mb / 1024).toFixed(1)} / ${(s.ram_total_mb / 1024).toFixed(1)} GB · ${s.backend==='local'?s.local_model_name:prettyModel(s.model)}`;
     $('#ver').textContent = s.version;
   } catch (e) {}
 }

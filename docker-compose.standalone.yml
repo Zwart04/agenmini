@@ -38,10 +38,26 @@ services:
     volumes: ["./data/models:/models"]
     environment:
       LLAMA_CACHE: /models
-    command: ["--hf-repo", "${LOCAL_REPO:-agentscope-ai/QwenPaw-Flash-2B-Q4_K_M}", "--hf-file", "${LOCAL_FILE:-QwenPaw-flash-2B-20260330-q4.gguf}", "--host", "0.0.0.0", "--port", "8080", "-c", "4096", "-t", "${LOCAL_THREADS:-2}", "--parallel", "1"]
+    command: ["--model", "/models/${LOCAL_MODEL_ID:-qwenpaw-2b}/${LOCAL_FILE:-QwenPaw-flash-2B-20260330-q4.gguf}", "--alias", "${LOCAL_MODEL_ID:-qwenpaw-2b}", "--no-mmproj", "--host", "0.0.0.0", "--port", "8080", "-c", "4096", "-t", "${LOCAL_THREADS:-2}", "--parallel", "1"]
     mem_limit: ${LOCAL_MEM_LIMIT:-2300m}
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+  freellmapi:
+    profiles: [free]
+    image: ghcr.io/tashfeenahmed/freellmapi@sha256:0376544a26f8da07cf2959fcfcc04bad25240c6e5fe45d66058b13ee763998a3
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      ENCRYPTION_KEY: ${FREELLMAPI_ENCRYPTION_KEY:-}
+      FREEAPI_CONFIG_JSON: '{"admin":{"email":"agenmini@localhost.local","password":"${FREELLMAPI_ADMIN_PASSWORD:-}"}}'
+    volumes: ["freellmapi-data:/app/server/data"]
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
 volumes:
   router-data:
+  freellmapi-data:

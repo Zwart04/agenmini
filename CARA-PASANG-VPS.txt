@@ -1,4 +1,4 @@
-AGEN MINI 0.3.0 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.3.1 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
@@ -6,7 +6,7 @@ PASANG BARU / UPDATE VERSI LAMA
 3. Buka port TCP 443 di firewall penyedia VPS, buka https://IP-VPS.
    Kata sandi baru ditampilkan pemasang. Instalasi lama memakai sandi lama.
    Reset jika lupa: agen sandi
-4. Menu AI & 9router: pilih 9router/API, tambahkan provider dengan API key
+4. Koneksi > AI: pilih 9router/API, tambahkan provider dengan API key
    atau OAuth, kemudian pilih model. API key router dibuat otomatis.
    Tidak perlu dashboard atau tunnel terpisah. Kuota provider tetap diperlukan.
 5. Alternatif: pilih Lokal tanpa Ollama. Supervisor memasang llama.cpp
@@ -15,11 +15,11 @@ PASANG BARU / UPDATE VERSI LAMA
 
 MENU
 Workspace: karakter bot, tugas aktif, antrean dan log hasil/alat.
-Skill: anti-slop, verifikasi, pemecahan masalah dan desain bawaan; tambah/edit prosedur atau impor Markdown. Ini bukan pelatihan bobot model.
-Koneksi MCP: Agen Local sudah tersedia tanpa akun. Untuk GitHub gunakan preset; isi URL/token atau perintah stdio, temukan alat dan pilih izin.
+Pengaturan > Skill: anti-slop, verifikasi, pemecahan masalah dan desain bawaan; tambah/edit prosedur atau impor Markdown. Ini bukan pelatihan bobot model.
+Koneksi > MCP: Agen Local sudah tersedia tanpa akun. Untuk GitHub gunakan preset; isi URL/token atau perintah stdio, temukan alat dan pilih izin.
 GitHub/email: sambungkan MCP milik layanan yang Anda pilih dengan kredensialnya.
 MCP stdio perlu executable terpasang di container; HTTP lebih mudah untuk VPS.
-Versi & Update: cek rilis, instal, atau aktifkan update otomatis harian.
+Pengaturan > Update: cek rilis, instal, atau aktifkan update otomatis harian.
 Update menunggu model tidak sibuk, memeriksa SHA256, dan membuat backup.
 OAuth tertentu perlu menyalin URL callback lengkap dari browser komputer Anda.
 
@@ -29,3 +29,14 @@ agen sandi | agen update | agen restart
 Lokasi /opt/agenmini. Data/kredensial dipertahankan saat update.
 Model kecil tidak dijamin bebas halusinasi; gunakan sumber dan verifikasi hasil.
 Sertifikat awal self-signed. Detail pengujian dan batasan ada di VALIDATION.md.
+
+PERBAIKAN MODEL VERSI LAMA
+Jangan hapus /opt/agenmini/data atau .env. Pasang versi ini di atas versi lama.
+Pemasang mempertahankan pilihan model. Cache GGUF lama dipakai ulang jika SHA256 cocok.
+Status Siap diperiksa melalui server, bukan hanya nama pilihan tersimpan.
+Jika gagal, buka Koneksi > AI > Log model lokal; perintah agen supervisor-log tersedia.
+
+MODEL PER BOT
+Workspace > Tim bot > Ubah > Mesin bot dan Model khusus > Simpan.
+Provider/kunci dikelola bersama di Koneksi. Bot lokal memakai satu model aktif.
+FreeLLMAPI: pilih di Koneksi > AI, tunggu layanan aktif, tambahkan provider dan pilih model.

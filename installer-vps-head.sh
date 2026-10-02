@@ -95,6 +95,13 @@ if ! grep -q '^ROUTER_JWT_SECRET=.' "$DIR/.env"; then
   printf '\nROUTER_JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$DIR/.env"
 fi
 sed -i 's|^NINE_ROUTER_IMAGE=decolua/9router:latest$|NINE_ROUTER_IMAGE=decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1|' "$DIR/.env"
+# Optional FreeLLMAPI uses an internal account, never a public setup page.
+for setting in FREELLMAPI_ENCRYPTION_KEY FREELLMAPI_ADMIN_PASSWORD; do
+  if ! grep -q "^$setting=." "$DIR/.env"; then
+    printf '\n%s=%s\n' "$setting" "$(openssl rand -hex 32)" >> "$DIR/.env"
+  fi
+done
+mkdir -p "$DIR/data"
 chmod 600 "$DIR/.env"
 step "4/5 Membangun dan menyalakan"
 cd "$DIR"
@@ -102,7 +109,10 @@ rm -f data/maintenance
 docker compose -f docker-compose.standalone.yml --profile router config --quiet
 docker compose -f docker-compose.standalone.yml --profile router up -d --build
 ACTIVE_MODE=$(docker compose -f docker-compose.standalone.yml exec -T agen python -c 'from app import db; print(db.setting("llm_backend"))' 2>/dev/null || true)
-if [[ "$ACTIVE_MODE" == local ]]; then echo local > data/runtime-request; fi
+if [[ "$ACTIVE_MODE" == local ]]; then
+  docker compose exec -T agen python -c 'from app import db,config; (config.DATA_DIR/"local-model-request").write_text(db.setting("local_model_id") or "qwenpaw-2b")'
+  echo local > data/runtime-request
+elif [[ "$ACTIVE_MODE" == freellmapi ]]; then echo free > data/runtime-request; fi
 if command -v systemctl >/dev/null; then
   cat > /etc/systemd/system/agenmini-supervisor.service <<EOF
 [Unit]
