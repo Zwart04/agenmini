@@ -1,4 +1,4 @@
-AGEN MINI 0.3.1 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.3.2 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
@@ -40,3 +40,14 @@ MODEL PER BOT
 Workspace > Tim bot > Ubah > Mesin bot dan Model khusus > Simpan.
 Provider/kunci dikelola bersama di Koneksi. Bot lokal memakai satu model aktif.
 FreeLLMAPI: pilih di Koneksi > AI, tunggu layanan aktif, tambahkan provider dan pilih model.
+
+PEMULIHAN GALAT UPDATER LAMA
+Jika agen update berakhir dengan command not found setelah memperbarui kode:
+versi baru mungkin sudah tersalin, tetapi skrip lama terpotong karena ditimpa saat berjalan.
+Versi 0.3.2 mengganti skrip secara atomik dan sudah diuji saat caller masih aktif.
+Untuk melewati updater lama, jalankan sebagai root:
+cd /root
+curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.2/pasang-vps.sh -o pasang-vps.sh
+curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.2/pasang-vps.sha256 -o pasang-vps.sha256
+sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
+Setelah TERPASANG, muat ulang browser; jangan hapus data atau .env.

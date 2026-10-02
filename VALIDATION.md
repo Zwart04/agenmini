@@ -38,3 +38,10 @@ Skills/MCP improve available instructions/tools; they do not train weights or gu
 - 0.3.1 desktop/mobile checks include four-menu navigation, ten bots and the persisted per-bot engine/model editor. At 390px, page/modal scroll width equalled viewport width.
 
 - Real download continuation was exercised end-to-end in the packaged app/supervisor with Qwen3.5 0.8B: the UI showed received bytes/percentage, the verified download completed and live readiness changed to Siap. This ran locally in an isolated Docker project, not on the user VPS.
+
+## Additional 0.3.2 checks
+
+- Reproduced the legacy installer replacing a running Bash caller in place: the caller failed while reading fragments of the replacement file. The new installer uses same-directory atomic rename for root scripts and /usr/local/bin/agen. Both the running supervisor and CLI completed their original >100KB script tail after the actual new installer replaced the path; inode changed and stored data/config survived. These use real Bash/file operations and the real installer payload inside a disposable Debian container; system/package/Docker commands are mocked.
+- 78 Linux Python tests passed in the 0.3.2 Docker build; 77 Windows tests passed with the Linux sandbox chart test excluded. Supervisor checks, dependency-lock build and JS/Bash syntax passed.
+- Browser viewport checks at 320/390/430px: Chat/Workspace/AI/settings, secondary settings tabs, MCP and bot editing; page/form widths had no horizontal overflow. Ten local SVG characters loaded. Bot dialog remained vertically scrollable at 320px; drawer open/outside-close and navigation were exercised. These are browser viewport tests, not a physical iOS/Android keyboard or safe-area certification.
+- No commands were executed on the user's VPS in this run. VPS-reported version 0.3.1 after the updater error indicates the earlier payload had already been copied; actual cloud update recovery remains for the user to run.

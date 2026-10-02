@@ -26,8 +26,8 @@ while [[ $# -gt 0 ]]; do
 done
 if [[ "$URL" == *releases/latest ]]; then
  if [[ "${MOCK_NEW:-0}" == 1 ]]; then
-   echo '{"tag_name":"v0.3.2","assets":[{"name":"pasang-vps.sh","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.2/pasang-vps.sh"},{"name":"pasang-vps.sha256","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.2/pasang-vps.sha256"}]}' > "$OUT"
- else echo '{"tag_name":"v0.3.1"}' > "$OUT"; fi
+   echo '{"tag_name":"v0.3.3","assets":[{"name":"pasang-vps.sh","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.3/pasang-vps.sh"},{"name":"pasang-vps.sha256","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.3/pasang-vps.sha256"}]}' > "$OUT"
+ else echo '{"tag_name":"v0.3.2"}' > "$OUT"; fi
 elif [[ "$URL" == *.sha256 ]]; then printf '%064d  pasang-vps.sh\n' 0 > "$OUT"
 else echo 'echo must-not-run' > "$OUT"; fi
 EOF

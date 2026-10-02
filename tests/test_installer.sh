@@ -49,4 +49,20 @@ grep -q 'keep-me' /opt/agenmini/data/marker
 grep -q 'CUSTOM_SETTING=keep' /opt/agenmini/.env
 if MOCK_FAIL=1 bash /src/dist/pasang-vps.sh > /tmp/fail-output 2>&1; then echo 'Build failure was swallowed'; exit 1; fi
 if grep -q 'TERPASANG' /tmp/fail-output; then exit 1; fi
-echo 'PASS: Docker install branch, extraction, credentials, update preserves data, build failure stops.'
+# Exercise the actual installer while Bash is reading the file it replaces.
+# The long tail forces additional reads after the installer has finished.
+for caller in /opt/agenmini/agen-supervisor.sh /usr/local/bin/agen; do
+  {
+    printf '#!/bin/bash\nset -euo pipefail\nbash /src/dist/pasang-vps.sh > /tmp/live-update-output\n'
+    for n in $(seq 1 1000); do printf '# original caller tail %080d\n' "$n"; done
+    printf 'echo completed > /tmp/live-update-completed\n'
+  } > "$caller"
+  OLD_INODE=$(stat -c '%i' "$caller")
+  rm -f /tmp/live-update-completed
+  bash "$caller"
+  [[ $(stat -c '%i' "$caller") != "$OLD_INODE" ]]
+  grep -q completed /tmp/live-update-completed
+  grep -q TERPASANG /tmp/live-update-output
+  grep -q keep-me /opt/agenmini/data/marker
+done
+echo 'PASS: install, preserve data/config, failure handling, atomic updates of running supervisor and CLI.'

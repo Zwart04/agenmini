@@ -44,3 +44,18 @@
 dialog{width:min(460px,calc(100% - 32px));border:1px solid var(--line);border-radius:18px;padding:24px;background:var(--panel);color:var(--text);box-shadow:0 20px 80px #0002}dialog::backdrop{background:#0005}dialog textarea{margin-top:8px;width:100%}dialog h3{margin-top:0}
 
 .section-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px}.section-tabs .tab-active{background:var(--text);color:var(--bg)}.runtime-box{border:1px solid var(--line);border-radius:16px;padding:18px;margin:16px 0;font-size:13px}.runtime-box p{margin:8px 0;line-height:1.6}.runtime-box progress{width:100%;height:8px;accent-color:var(--text)}.runtime-box small{display:block;color:var(--muted);margin-top:6px}.runtime-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--text);border-radius:50%;margin-right:8px;animation:runtime-spin 1s linear infinite}.runtime-box pre{white-space:pre-wrap;font-size:11px;max-height:240px;overflow:auto;overflow-wrap:anywhere}@keyframes runtime-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.runtime-spinner{animation:none}}
+
+.drawer-backdrop{display:none}
+@media(max-width:760px){
+  .drawer-backdrop{position:fixed;inset:0;z-index:4;border:0;background:#0004;padding:0}
+  aside.open + .drawer-backdrop{display:block}
+  .grow{min-width:0}.page .lead,.setup-note,.sub,.hint,.card,.rows>.r{overflow-wrap:anywhere}
+  .mode-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.mode-buttons .btn{white-space:normal;padding:10px 12px;min-width:0;line-height:1.4}
+  .section-tabs{gap:6px;margin-bottom:20px}.section-tabs .btn{padding-inline:12px}
+  .modal form,.modal .sheet,dialog{max-height:calc(100dvh - 32px);padding:20px}
+  .icons label,.checks label,.office-log{min-height:44px}.icons label{width:44px}
+  .toast{max-width:calc(100vw - 32px);width:max-content;border-radius:14px;overflow-wrap:anywhere}
+  .topbar{padding-top:max(8px,env(safe-area-inset-top))}.side-foot{padding-bottom:max(16px,env(safe-area-inset-bottom))}
+  #sendForm{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
+@media(max-width:360px){.office-room{padding:12px;gap:10px}.office-desk .desk-line{width:96px}.office-desk b{font-size:13px}.control-form{padding:14px}}

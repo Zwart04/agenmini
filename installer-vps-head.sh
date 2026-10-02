@@ -56,8 +56,18 @@ TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
 sed -n '/^__ARSIP_DI_BAWAH__$/,$p' "$0" | tail -n +2 | base64 -d | tar -xz -C "$TMP"
 mkdir -p "$DIR/data"
+# Replace running shell scripts by rename: their open descriptors must keep
+# reading the original inode until the current update command completes.
+for script in agen-supervisor.sh agen-standalone agen; do
+  NEXT=$(mktemp "$DIR/.$script.XXXXXX")
+  install -m 755 "$TMP/$script" "$NEXT"
+  mv -f "$NEXT" "$DIR/$script"
+  rm -f "$TMP/$script"
+done
 cp -a "$TMP"/. "$DIR"/
-install -m 755 "$DIR/agen-standalone" /usr/local/bin/agen
+NEXT=$(mktemp /usr/local/bin/.agen.XXXXXX)
+install -m 755 "$DIR/agen-standalone" "$NEXT"
+mv -f "$NEXT" /usr/local/bin/agen
 step "3/5 Pengaturan awal"
 if [[ ! -f "$DIR/.env" ]]; then
   PORT=443
