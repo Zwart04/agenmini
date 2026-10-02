@@ -4,6 +4,7 @@ import os
 import time
 import aiohttp
 import jwt
+from pathlib import Path
 from . import db, llm
 
 _key_lock = asyncio.Lock()
@@ -19,7 +20,7 @@ API_PROVIDERS = ['openai', 'anthropic', 'gemini', 'deepseek', 'openrouter', 'gro
 
 
 def base():
-    return os.environ.get('ROUTER_BASE', 'http://router:20128').rstrip('/')
+    return (os.environ.get('ROUTER_BASE') or ('http://router:20128' if Path('/.dockerenv').exists() else 'http://127.0.0.1:20128')).rstrip('/')
 
 
 def headers():

@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import secrets
+from pathlib import Path
 
 from . import VERSION, config, db, scheduler, seed, telegram, web, tools
 
@@ -86,6 +87,13 @@ def bootstrap():
             if setting['value']=='asisten': db.set_setting(setting['key'],'orchestrator')
         db.set_setting('telegram_default_bot','orchestrator')
         db.set_setting('team_execution_seeded_035','1')
+    if not Path('/.dockerenv').exists():
+        probe=Path(__file__).resolve().parents[1]/'host-integrations.py'
+        if probe.is_file():
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('agen_host_integrations',probe)
+            detector=importlib.util.module_from_spec(spec);spec.loader.exec_module(detector)
+            detector.discover(os.environ.get('AGEN_HOST_HOME',str(Path.home())),config.DATA_DIR)
     os.chmod(config.DB_PATH.parent,0o700)
     if config.DB_PATH.exists():os.chmod(config.DB_PATH,0o600)
     if not db.setting('host_tools_seeded_036'):

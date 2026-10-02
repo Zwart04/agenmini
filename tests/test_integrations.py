@@ -82,3 +82,11 @@ async def test_orchestrator_removed_delegation_permission_respected(monkeypatch)
     bot={**db.bot('orchestrator'),'tools':['read_file']}
     result=await agent.Turn(bot,'test','restricted036').run('Halo')
     assert result['text']=='Halo, saya siap.'
+
+@pytest.mark.parametrize('docker,expected',[(True,'http://router:20128'),(False,'http://127.0.0.1:20128')])
+def test_router_address_detects_docker_or_native_host(monkeypatch,docker,expected):
+    monkeypatch.delenv('ROUTER_BASE',raising=False)
+    monkeypatch.setattr(router.Path,'exists',lambda self:docker)
+    assert router.base()==expected
+    monkeypatch.setenv('ROUTER_BASE','http://custom:9999/')
+    assert router.base()=='http://custom:9999'
