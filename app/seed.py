@@ -8,6 +8,20 @@ import time
 
 from . import db
 
+NEW_SKILLS_035 = [
+ ('design-035','Art direction dan frontend lengkap','landing page, website, UI atau aplikasi',
+  ['Tetapkan audiens, tindakan utama, gaya visual dan struktur sebelum coding. Hindari halaman tiga kartu generik, emoji, gradient ungu dan angka rekaan.',
+   'Gunakan hierarki tipografi, ruang kosong, warna koheren, ilustrasi/preview yang relevan; implementasikan semua tombol, form dan navigasi yang disajikan.',
+   'Periksa HTML tersimpan, rujukan file, JS/Python syntax, 320px, keyboard dan reduced motion. Jangan menyamakan syntax check dengan runtime penuh.']),
+ ('project-035','Proyek besar: baca, tahap, uji, review','repositori, proyek kompleks, full stack, implementasi multi tahap',
+  ['Baca AGENTS.md, README, manifest dan kode relevan. Pertahankan arsitektur/konvensi; jangan menulis ulang repo tanpa kebutuhan.',
+   'Susun milestone dengan acceptance criteria. Orchestrator menugaskan spesialis; satu worker menjalankan build/model secara serial.',
+   'Catat berkas berubah, command/exit code, test hasil nyata dan checkpoint. Kegagalan harus gagal/menunggu, bukan done. Review akhir belum berarti deploy/push.']),
+ ('clear-035','Hasil dahulu, bukti singkat','jawaban, review, laporan hasil tugas',
+  ['Mulai dari hasil/masalah paling penting. Hapus pengantar, pujian, filler dan pengulangan.',
+   'Sebut perubahan nyata, berkas/lampiran dan pemeriksaan yang dilakukan. Tulis batas yang relevan, bukan janji semua berhasil.'])
+]
+
 NEW_SKILLS_03 = [
  ('coding-deliver', 'Coding: buat, cek, kirim', 'membuat website, landing page, skrip atau berkas kode',
   ['Landing page: build_website dengan brief singkat; jangan masukkan seluruh HTML ke argumen JSON panjang.', 'Berkas lain: write_file atau run_python, baca kembali hasil sebelum mengklaim selesai. Berkas baru otomatis dilampirkan.', 'Jika send_file gagal karena belum ada, buat berkas dahulu lalu periksa. Jangan mengirim berkas kosong atau mengaku aplikasi sudah terhubung ke AI/payment tanpa backend nyata.']),
@@ -205,7 +219,7 @@ def apply():
             if extra:
                 db.save_bot({"id": "asisten", "tools": b["tools"] + extra})
         done.add("fix:asisten-gambar")
-    for key, name, when, steps in NEW_SKILLS_02 + NEW_SKILLS_03:
+    for key, name, when, steps in NEW_SKILLS_02 + NEW_SKILLS_03 + NEW_SKILLS_035:
         k = f"skill:{key}"
         if k not in done:
             text = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(steps))

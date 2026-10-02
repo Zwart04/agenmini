@@ -47,12 +47,12 @@ versi baru mungkin sudah tersalin, tetapi skrip lama terpotong karena ditimpa sa
 Versi 0.3.2 mengganti skrip secara atomik dan sudah diuji saat caller masih aktif.
 Untuk melewati updater lama, jalankan sebagai root:
 cd /root
-curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.3/pasang-vps.sh -o pasang-vps.sh
-curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.3/pasang-vps.sha256 -o pasang-vps.sha256
+curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.5/pasang-vps.sh -o pasang-vps.sh
+curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.5/pasang-vps.sha256 -o pasang-vps.sha256
 sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
 Setelah TERPASANG, muat ulang browser; jangan hapus data atau .env.
 
-VERSI 0.3.3
+VERSI 0.3.5
 Jika 0.3.2 sudah berjalan: agen update, lalu muat ulang browser (Ctrl+F5).
 Jangan hapus aplikasi, .env, data, atau model lama. Cache valid tetap dapat dipakai.
 Jika updater lama masih error, gunakan tiga perintah pemulihan di atas.
@@ -86,3 +86,6 @@ Nilai profil: local/router/free/both/online. Update selalu mempertahankan data
 dan pengaturan Anda. Komponen tambahan diunduh saat dipilih melalui Koneksi.
 Profil both mengunduh image kedua tanpa menjalankan router yang tidak digunakan.
 Mode lokal mengunduh Qwen3.5 0.8B dan memerlukan RAM/disk yang cukup.
+
+PROYEK DAN KONEKSI 0.3.5
+Pilih Smart Router di Koneksi untuk routing lokal/API; aktifkan hanya kandidat yang dibutuhkan. Telegram utama menuju Orchestrator. Workspace menyimpan tahap proyek, hasil alat dan checkpoint; proyek besar bukan satu jawaban instan. Baca PROYEK-BESAR.md di ZIP source.

@@ -79,6 +79,10 @@ if __name__ == '__main__':
         from . import db, chat_models
         mode=db.setting('llm_backend')
         engines={mode} | {b.get('backend') for b in db.bots(active_only=True)} | chat_models.engines()
+        if 'auto' in engines:
+            if db.setting('freellmapi_key'): engines.add('freellmapi')
+            if db.setting('auto_local')=='1': engines.add('local')
+            if db.setting('auto_9router')=='1': engines.add('router')
         print(json.dumps({'mode':mode, 'local':'local' in engines, 'router':bool(engines & {'router','compatible'}), 'free':'freellmapi' in engines, 'model':db.setting('local_model_id') or 'qwenpaw-2b'}))
         raise SystemExit(0)
     model = next((m for m in local_models.all_models() if m['id'] == sys.argv[1]), None)

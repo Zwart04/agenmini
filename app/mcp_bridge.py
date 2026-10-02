@@ -67,4 +67,9 @@ async def register():
                                                  danger, schema)
         except Exception as exc:
             errors.append(f"{alias}: {type(exc).__name__}")
+    from . import db
+    coordinator=db.bot('orchestrator')
+    if coordinator:
+        connected=[name for name in tools.REGISTRY if name.startswith('mcp_')]
+        db.save_bot({'id':'orchestrator','tools':list(dict.fromkeys(coordinator['tools']+connected))})
     return errors

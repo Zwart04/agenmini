@@ -1,7 +1,7 @@
 """Validated conversation model preferences shared by web and Telegram."""
 from . import db, llm, local_models, router, free_router, config, office, runtime_status
 
-BACKENDS = ('', 'local', 'router', 'freellmapi', 'online')
+BACKENDS = ('', 'auto', 'local', 'router', 'freellmapi', 'online')
 
 
 def effective(bot, chat):
@@ -14,6 +14,7 @@ def effective(bot, chat):
 async def choices(backend):
     if backend not in BACKENDS: raise ValueError('Mode AI tidak dikenal.')
     if not backend: return []
+    if backend == 'auto': return [{'id':'smart','name':'Smart · router Agen Mini'}]
     if backend == 'router': return (await router.state())['models']
     if backend == 'freellmapi': return await free_router.models()
     if backend == 'online':

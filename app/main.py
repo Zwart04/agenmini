@@ -70,6 +70,22 @@ def bootstrap():
     for bot in db.bots():
         if "ask_bot" not in bot["tools"]:
             db.save_bot({**bot, "tools": bot["tools"] + ["ask_bot"]})
+    if not db.setting('team_execution_seeded_035'):
+        all_tools = list(tools.REGISTRY)
+        upgrades = {'orchestrator': all_tools,
+                    'desainer': ['preview_project','edit_project_file','build_website','build_project','write_file','read_file','list_files','send_file','run_python','run_shell','inspect_website','clone_repository','run_project_command','inspect_project'],
+                    'teknisi': ['preview_project','edit_project_file','build_project','inspect_website','clone_repository','run_project_command','inspect_project'],
+                    'reviewer': ['preview_project','inspect_website','list_files','inspect_project','run_project_command']}
+        for bid, extra in upgrades.items():
+            bot = db.bot(bid)
+            if bot: db.save_bot({'id':bid,'tools':list(dict.fromkeys(bot['tools']+extra))})
+        coordinator=db.bot('orchestrator')
+        if coordinator:
+            db.save_bot({'id':'orchestrator','persona':coordinator['persona']+'\nPelaksanaan: gunakan delegate_task untuk pekerjaan nyata dan reviewer untuk pemeriksaan akhir. Jika keahlian tim kurang, gunakan create_specialist dengan alat yang sudah kamu miliki, lalu tugaskan bot baru itu. Baca hasil alat; jangan mengaku tugas, integrasi atau uji berhasil jika gagal/belum dijalankan.'})
+        for setting in db.q("SELECT key,value FROM settings WHERE key LIKE 'tg_bot:%'"):
+            if setting['value']=='asisten': db.set_setting(setting['key'],'orchestrator')
+        db.set_setting('telegram_default_bot','orchestrator')
+        db.set_setting('team_execution_seeded_035','1')
     mcp_path = config.DATA_DIR / 'mcp.json'
     if not db.setting('mcp_builtin_seeded'):
         import sys

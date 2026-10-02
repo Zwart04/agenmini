@@ -113,7 +113,7 @@ async def system_stats() -> dict:
         "swap_used_mb": mem.get("SwapTotal", 0) - mem.get("SwapFree", 0), "swap_total_mb": mem.get("SwapTotal", 0),
         "agent_mb": agent_mb, "load": " ".join(load), "cpus": os.cpu_count(),
         "disk_free_gb": round(du.free / 1e9, 1),
-        "model": db.setting("model"), "loaded": loaded, "installed": installed, "ollama_ok": ollama_ok,
+        "model": db.setting("model"), "active_model": llm.default_model(), "loaded": loaded, "installed": installed, "ollama_ok": ollama_ok,
         "queue": llm.gate.waiting() + (1 if llm.gate.busy else 0), "busy_model": llm.gate.current,
         "telegram": telegram.status(), "online": llm.online_ready(),
         "last_consolidate": db.setting("last_consolidate"),
@@ -181,13 +181,13 @@ async def list_bots(request):
 @routes.post("/api/bots")
 async def save_bot(request):
     data = await request.json()
-    if data.get("backend", "") not in ("", "router", "freellmapi", "online", "local"):
+    if data.get("backend", "") not in ("", "auto", "router", "freellmapi", "online", "local"):
         return web.json_response({"error":"Mesin bot tidak dikenal."}, status=400)
     backend=data.get('backend', '')
     selected=str(data.get('model', '')).strip()
-    if selected and backend in ('router', 'freellmapi'):
+    if selected and backend in ('router', 'freellmapi', 'auto'):
         from . import router, free_router
-        rows=(await router.state())['models'] if backend=='router' else await free_router.models()
+        rows=[{'id':'smart'}] if backend=='auto' else (await router.state())['models'] if backend=='router' else await free_router.models()
         if selected not in [m['id'] for m in rows]:
             return web.json_response({'error':'ID model tidak tersedia. Hubungkan provider di Koneksi dan pilih model dari daftar.'}, status=400)
     if selected and backend=='local' and selected != db.setting('local_model_id'):
@@ -304,7 +304,10 @@ async def serve_file(request):
         return web.json_response({"error": "berkas tidak ada"}, status=404)
     headers = {"Cache-Control": "private, max-age=86400"}
     if path.suffix.lower() in ('.html', '.htm', '.js', '.svg'):
-        headers['Content-Disposition'] = 'attachment'
+        from urllib.parse import quote
+        filename = path.name
+        safe = re.sub(r'[^A-Za-z0-9._-]', '_', filename)
+        headers['Content-Disposition'] = f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename, safe='')}"
     return web.FileResponse(path, headers=headers)
 
 
@@ -524,7 +527,7 @@ async def bench_start(request):
 # pengaturan
 
 PUBLIC_SETTINGS = ["llm_backend", "compatible_base", "tool_mode", "model", "num_ctx", "keep_alive", "online_base", "online_model", "searx_url", "max_steps",
-                   "browser_engine", "dns_aman", "vision_model", "image_gen", "cpu_hemat"]
+                   "browser_engine", "dns_aman", "vision_model", "image_gen", "cpu_hemat", "auto_local", "auto_9router"]
 
 
 @routes.get("/api/settings")

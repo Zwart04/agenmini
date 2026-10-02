@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 DATA_DIR=/data TZ=Asia/Jakarta 
     LIGHTPANDA_DISABLE_TELEMETRY=true PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl openssl tzdata jq procps tini \
+ && apt-get install -y --no-install-recommends ca-certificates curl openssl tzdata jq procps tini git nodejs npm \
     $( [ "$CHROMIUM" = "1" ] && echo chromium fonts-liberation fonts-noto-color-emoji ) \
  && rm -rf /var/lib/apt/lists/*
 

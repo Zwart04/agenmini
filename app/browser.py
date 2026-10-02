@@ -438,10 +438,11 @@ class BrowserPool:
         self.sessions: dict[str, CDP] = {}
         self.lock = asyncio.Lock()
 
-    async def _launch(self, engine: str) -> CDP:
+    async def _launch(self, engine: str, local_preview=False) -> CDP:
         port = 9222 if engine == "lightpanda" else 9223
         if engine == "lightpanda":
-            cmd = ["lightpanda", "serve", "--host", "127.0.0.1", "--port", str(port), "--block-private-networks"]
+            cmd = ["lightpanda", "serve", "--host", "127.0.0.1", "--port", str(port)]
+            if not local_preview:cmd.append("--block-private-networks")
         else:
             if mem_available_mb() < 700:
                 await llm.unload()
@@ -460,7 +461,7 @@ class BrowserPool:
             raise
         return cdp
 
-    async def get(self, key: str, fresh_engine: str | None = None) -> CDP:
+    async def get(self, key: str, fresh_engine: str | None = None, local_preview=False) -> CDP:
         async with self.lock:
             cur = self.sessions.get(key)
             if cur and (fresh_engine is None or cur.engine == fresh_engine):
@@ -478,7 +479,7 @@ class BrowserPool:
                 if eng == "chromium" and not chromium_bin():
                     continue
                 try:
-                    s = await self._launch(eng)
+                    s = await self._launch(eng,local_preview=True) if local_preview else await self._launch(eng)
                     self.sessions[key] = s
                     return s
                 except Exception as e:

@@ -26,13 +26,15 @@ while [[ $# -gt 0 ]]; do
 done
 if [[ "$URL" == *releases/latest ]]; then
  if [[ "${MOCK_NEW:-0}" == 1 ]]; then
-   echo '{"tag_name":"v0.3.5","assets":[{"name":"pasang-vps.sh","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.5/pasang-vps.sh"},{"name":"pasang-vps.sha256","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v0.3.5/pasang-vps.sha256"}]}' > "$OUT"
- else echo '{"tag_name":"v0.3.4"}' > "$OUT"; fi
+   printf '{"tag_name":"v%s","assets":[{"name":"pasang-vps.sh","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v%s/pasang-vps.sh"},{"name":"pasang-vps.sha256","browser_download_url":"https://github.com/Zwart04/agenmini/releases/download/v%s/pasang-vps.sha256"}]}' "$TEST_NEW" "$TEST_NEW" "$TEST_NEW" > "$OUT"
+ else printf '{"tag_name":"v%s"}' "$TEST_CURRENT" > "$OUT"; fi
 elif [[ "$URL" == *.sha256 ]]; then printf '%064d  pasang-vps.sh\n' 0 > "$OUT"
 else echo 'echo must-not-run' > "$OUT"; fi
 EOF
 chmod +x /mock/*
 export PATH=/mock:$PATH
+export TEST_CURRENT=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' /src/app/__init__.py)
+export TEST_NEW=$(python -c 'import os; v=os.environ["TEST_CURRENT"].split(".");v[-1]=str(int(v[-1])+1);print(".".join(v))')
 cd /opt/agenmini
 echo api > data/runtime-request
 echo working > data/task-busy

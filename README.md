@@ -1,4 +1,4 @@
-# Agen Mini 0.3.4
+# Agen Mini 0.3.5
 
 Asisten pribadi ringan dengan web, Telegram, MCP, skill, memori, dan workspace bot.
 
@@ -92,3 +92,7 @@ Memilih ulang model lokal memulihkan layanan yang terputus. Readiness diperiksa 
 Pemasangan baru menyediakan setup awal: lokal saja, 9router saja, FreeLLMAPI saja, keduanya, atau API langsung. Untuk pemasangan otomatis gunakan `AGEN_AI_PROFILE=free AGEN_OTOMATIS=1 bash pasang-vps.sh` (nilai: `local`, `router`, `free`, `both`, `online`). Update mempertahankan pilihan di database dan `.env`; pilihan ini tidak mereset instalasi lama. Pada pilihan keduanya, image kedua disiapkan tetapi hanya mesin yang digunakan bot/percakapan yang dijalankan.
 
 Kandidat ringan [9router-go](https://github.com/luqman-v1/9router-go) diuji terpisah: v1.9.7 binary idle RSS sekitar 32 MiB; image Docker teruji memakai sekitar 12 MiB cgroup. Integrasi dashboard/providers/combos memakai JWT kompatibel, tetapi `/api/models` menolak autentikasi adapter saat ini. Karena kompatibilitas model/akun belum lulus, fork ini belum menjadi opsi pemasang atau pengganti otomatis. Upstream yang dipin tetap tersedia secara opsional; instalasi FreeLLMAPI/API langsung tidak menjalankan 9router tanpa kebutuhan bot/chat.
+
+### 0.3.5: tim pelaksana dan proyek bertahap
+
+Orchestrator menugaskan pekerjaan nyata, membuat spesialis domain dengan izin terbatas, dan meminta review. Telegram utama memakai Orchestrator. Workspace menampilkan tim, aktivitas, proyek persisten dan checkpoint. Koneksi memandu setup dan uji lokal/9router/FreeLLMAPI/API langsung serta Smart Router milik Agen Mini. Unduhan HTML memakai nama berkas produk; coding memakai anggaran lebih besar, pemeriksaan dan layout interaktif yang hemat untuk lokal. Node/npm/git tersedia sebagai alat proyek, dengan build serial dan batas RAM. Baca [alur proyek besar dan batas pengujiannya](PROYEK-BESAR.md).

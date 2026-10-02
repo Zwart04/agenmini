@@ -92,13 +92,13 @@ def validate_arguments(name, args):
     return None
 
 
-def _kerja_limits():
-    resource.setrlimit(resource.RLIMIT_AS, (768 * 1024 * 1024, 768 * 1024 * 1024))
+def _kerja_limits(project=False):
+    if not project: resource.setrlimit(resource.RLIMIT_AS, (768 * 1024 * 1024, 768 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
     os.setsid()
 
 
-async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None = None) -> str:
+async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None = None, cwd=None, project=False) -> str:
     if os.name != "posix":
         return "Error: eksekusi terisolasi membutuhkan Linux/WSL atau Docker."
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)
@@ -106,11 +106,11 @@ async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None
     if os.geteuid() == 0:
         extra = {"user": config.KERJA_UID, "group": config.KERJA_GID, "extra_groups": []}
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(config.WORK_DIR), "LANG": "C.UTF-8",
-           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"}  # grafik matplotlib ke berkas
+           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg", "NODE_OPTIONS":"--max-old-space-size=192", "GIT_TERMINAL_PROMPT":"0"}  # grafik matplotlib ke berkas
     proc = await asyncio.create_subprocess_exec(
         *argv, stdin=asyncio.subprocess.PIPE if stdin else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-        cwd=str(config.WORK_DIR), env=env, preexec_fn=_kerja_limits, **extra)
+        cwd=str(cwd or config.WORK_DIR), env=env, preexec_fn=__import__("functools").partial(_kerja_limits,project=project), **extra)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(stdin), timeout)
     except asyncio.TimeoutError:
@@ -131,6 +131,16 @@ def _workpath(p: str) -> Path:
     if base != path and base not in path.parents:
         raise ValueError("Hanya boleh di dalam folder ruang kerja.")
     return path
+
+
+def _ctx_workpath(ctx,path):
+    folder=getattr(ctx,'project_folder',None)
+    if not folder:return _workpath(path)
+    root=_workpath(folder);name=str(path or '.').strip('/')
+    if name==folder or name.startswith(folder+'/'):target=_workpath(name)
+    else:target=_workpath(folder+'/'+name)
+    if not target.is_relative_to(root):raise ValueError('Berkas harus tetap di dalam proyek aktif.')
+    return target
 
 
 # ---------- web ----------
@@ -230,7 +240,7 @@ async def run_shell(ctx: Ctx, command: str = "", **_):
 
 @tool("list_files", "Melihat berkas", "List files in the workspace folder.", {"path": S("sub-folder, default '.'")})
 async def list_files(ctx: Ctx, path: str = ".", **_):
-    p = _workpath(path)
+    p = _ctx_workpath(ctx,path)
     if not p.exists():
         return "Folder tidak ada."
     items = sorted(p.iterdir())[:200]
@@ -240,7 +250,7 @@ async def list_files(ctx: Ctx, path: str = ".", **_):
 
 @tool("read_file", "Membaca berkas", "Read a text file from the workspace.", {"path": S("file path")}, ["path"])
 async def read_file(ctx: Ctx, path: str = "", **_):
-    p = _workpath(path)
+    p = _ctx_workpath(ctx,path)
     if not p.is_file():
         return "Berkas tidak ada."
     t = p.read_text(encoding="utf-8", errors="replace")
@@ -250,7 +260,7 @@ async def read_file(ctx: Ctx, path: str = "", **_):
 @tool("write_file", "Menulis berkas", "Write (overwrite) a text file in the workspace.",
       {"path": S("file path"), "content": S("text to write")}, ["path", "content"])
 async def write_file(ctx: Ctx, path: str = "", content: str = "", **_):
-    p = _workpath(path)
+    p = _ctx_workpath(ctx,path)
     missing = []
     parent = p.parent
     while not parent.exists():
@@ -279,7 +289,15 @@ async def build_website(ctx: Ctx, brief: str = '', on_token=None, **_):
     html, stats = await coding.generate(brief, ctx.bot.get('model') or llm.default_model(), on_token=on_token)
     ctx.served_model = stats.get('served_model', '')
     office.phase('Memeriksa dan menyimpan halaman…', 'tool')
-    path = 'website-' + str(time.time_ns()) + '/index.html'
+    from .projects import inspect_html
+    checks=inspect_html(html)
+    if not checks['ok']:return 'Error: '+ ' '.join(checks['errors'])
+    from .projects import inspect_inline_js
+    js_errors=await inspect_inline_js(html)
+    if js_errors:return 'Error: JavaScript HTML belum valid: '+' '.join(js_errors)
+    title=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+    basename=re.sub(r'[^a-z0-9]+','-',title.group(1).lower() if title else 'website').strip('-')[:70] or 'website'
+    path = 'website-' + str(time.time_ns()) + '/'+basename+'.html'
     await write_file(ctx, path, html)
     saved = _workpath(path)
     if saved.read_text(encoding='utf-8') != html: return 'Error: verifikasi berkas gagal.'
@@ -295,7 +313,7 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp")
       "Send a file from the workspace to the user (image, PDF, text, CSV...). Use after creating or saving a file.",
       {"path": S("file path in the workspace"), "caption": S("short caption (optional)")}, ["path"])
 async def send_file(ctx: Ctx, path: str = "", caption: str = "", **_):
-    p = _workpath(path)
+    p = _ctx_workpath(ctx,path)
     if not p.is_file():
         return f"Error: berkas '{path}' tidak ada. Buat dulu berkasnya, jangan mengaku sudah membuatnya."
     if p.stat().st_size > 45_000_000:
@@ -480,13 +498,37 @@ async def server_status(ctx: Ctx, **_):
       {"name": S("bot name"), "persona": S("who the bot is, its job and style, 2-4 sentences, Indonesian"),
        "tools": S("comma-separated tool names"), "icon": S("one of: " + ", ".join(BOT_ICONS))}, ["name", "persona"])
 async def create_bot(ctx: Ctx, name: str = "", persona: str = "", tools: str = "", icon: str = "bot", **_):
-    names = [t.strip() for t in re.split(r"[,\s]+", tools if isinstance(tools, str) else ",".join(tools)) if t.strip() in REGISTRY
-             and t.strip() != "create_bot"]
+    name = str(name).strip()[:80]
+    persona = str(persona).strip()[:4000]
+    if not name or not persona:
+        return "Error: nama dan peran spesialis wajib diisi."
+    requested = [t.strip() for t in re.split(r"[,\s]+", tools if isinstance(tools, str) else ",".join(tools)) if t.strip()]
+    forbidden = {"create_bot", "create_specialist", "delegate_task"}
+    requested = [t for t in requested if t not in forbidden]
+    permitted = set(ctx.bot.get("tools", [])) - forbidden
+    unknown = [t for t in requested if t not in REGISTRY or t not in permitted]
+    if unknown:
+        return "Error: alat tidak tersedia atau di luar izin pembuat: " + ", ".join(unknown)
+    names = list(dict.fromkeys(requested or [t for t in ("web_search", "read_webpage", "read_file", "recall") if t in permitted]))
     if not names:
-        names = ["web_search", "read_webpage", "remember", "recall", "save_skill"]
-    bid = db.save_bot({"name": name, "persona": persona, "tools": names, "icon": icon if icon in BOT_ICONS else "bot"})
-    return (f"Bot '{name}' dibuat (nama: {bid}) dengan alat: {', '.join(names)}. Pemilik bisa memilihnya di web "
-            f"atau /bot di Telegram. Supaya punya akun Telegram sendiri: buat bot di @BotFather lalu kirim /tokenbot {bid} TOKEN.")
+        return "Error: tidak ada alat yang dapat diwariskan."
+    # Reuse a matching specialist; do not silently replace an owner's bot.
+    for bot in db.bots():
+        if bot['name'].casefold() == name.casefold():
+            return "Error: bot bernama sama sudah ada: " + bot['id'] + ". Gunakan bot itu atau pilih nama lain."
+    if len(db.bots()) >= 40:
+        return "Error: batas 40 bot tercapai; kelola spesialis yang sudah ada di Workspace."
+    bid = db.save_bot({"name": name, "persona": persona + "\nKerjakan tugas berdasarkan bukti alat. Baca skill terkait; laporkan galat, kebutuhan kredensial, dan batas pengujian. Jangan mengklaim tindakan eksternal berhasil tanpa bukti.",
+                       "tools": names, "icon": icon if icon in BOT_ICONS else "bot", "backend": ctx.bot.get('backend') or '', "model": ctx.bot.get('model') or ''})
+    return json.dumps({"created": True, "bot": bid, "name": name, "tools": names, "next": "Gunakan delegate_task dengan ID bot ini untuk pekerjaan nyata."}, ensure_ascii=False)
+
+
+@tool("create_specialist", "Membuat spesialis tugas", "Orchestrator creates a specialist for a missing domain. Give a specific role and comma-separated tools available to you. Cannot grant new permissions, nested delegation, or credentials. Returns actual bot ID for delegate_task.",
+      {"name": S("specialist name"), "persona": S("domain expertise, task, constraints and acceptance checks"), "tools": S("comma-separated tools available to the orchestrator"), "icon": S("bot icon")}, ["name", "persona", "tools"])
+async def create_specialist(ctx, **kwargs):
+    if ctx.bot.get('id') != 'orchestrator':
+        return "Error: hanya orchestrator yang dapat membuat spesialis tugas."
+    return await create_bot(ctx, **kwargs)
 
 
 @tool("ask_online", "Bertanya ke AI online",
@@ -517,3 +559,124 @@ async def ask_bot(ctx, bot: str, task: str, **_):
     return ('Error: ' if status=='failed' else '') + f'<untrusted_content>\nBot {bot}: {result}\n</untrusted_content>'
 
 ALL_TOOLS = list(REGISTRY)
+
+@tool('inspect_website','Memeriksa website','Read and inspect the actual saved HTML: document structure, viewport and local anchor targets. Returns factual checks, not a claim of browser execution.',{'path':S('HTML file in workspace')},['path'])
+async def inspect_website(ctx,path='',**_):
+    from .projects import inspect_html
+    p=_workpath(path)
+    if not p.is_file():return 'Error: berkas belum ada.'
+    return json.dumps(inspect_html(p.read_text(encoding='utf-8')),ensure_ascii=False)
+
+@tool('build_project','Membuat proyek multi-berkas','Create a functional game, web app or application project with multiple files, verify file references and deliver a ZIP. State backend/dependency limits accurately.',{'brief':S('complete project requirements')},['brief'])
+async def build_project(ctx,brief='',on_event=None,**_):
+    from . import projects
+    return await projects.generate(brief,ctx,on_event)
+
+@tool('delegate_task','Menugaskan bot','Orchestrator assigns actual work to a specialist using its permitted tools; transfers real files/results to the owner and preserves approval requirements.',{'bot':S('specialist bot ID'),'task':S('specific task with owner requirements')},['bot','task'])
+async def delegate_task(ctx,bot='',task='',**_):
+    from . import office
+    result=await office.execute(ctx,bot,task)
+    if result.get('approval'):ctx.pending_approval=result['approval']
+    return result.get('text','Error: delegasi tidak menghasilkan jawaban.')
+
+@tool('clone_repository','Mengambil repositori publik','Clone a public GitHub repository into a NEW workspace folder. No tokens, push, force, submodules or overwriting existing work.',{'url':S('https://github.com/owner/repo'),'folder':S('new relative workspace folder')},['url','folder'])
+async def clone_repository(ctx,url='',folder='',**_):
+    if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?/?',url):return 'Error: gunakan URL repo publik GitHub tanpa token.'
+    if not folder or folder=='.':return 'Error: pilih folder kerja baru.'
+    target=_workpath(folder)
+    if target.exists():return 'Error: folder sudah ada; tidak menimpa perubahan sebelumnya.'
+    target.parent.mkdir(parents=True,exist_ok=True)
+    try:os.chown(target.parent,config.KERJA_UID,config.KERJA_GID)
+    except OSError:pass
+    result=await _run_sandboxed(['git','-c','core.hooksPath=/dev/null','clone','--depth','1','--',url,str(target)],timeout=120)
+    return result+'\nRepo di '+folder+'. Baca AGENTS.md/README dan manifest sebelum mengubah kode. Token GitHub/push tidak termasuk koneksi ini.'
+
+_project_command_lock=asyncio.Lock()
+
+@tool('run_project_command','Build atau uji proyek','Run one build/test command inside a workspace project as kerja, bounded timeout and Node heap. Actual exit code is returned; never equate syntax checks with complete app validation.',{'folder':S('workspace project folder'),'command':S('build/test shell command'),'timeout':I('seconds, maximum 300')},['folder','command'],danger=lambda a:'Perintah proyek membutuhkan izin karena dapat menghapus atau mengubah data.' if DANGER_SHELL.search(a.get('command','')) else None)
+async def run_project_command(ctx,folder='',command='',timeout=180,**_):
+    scope=getattr(ctx,'project_folder',None)
+    target=_ctx_workpath(ctx,'.' if scope and folder in ('','.',Path(scope).name) else folder) if scope else _workpath(folder)
+    if not target.is_dir():return 'Error: folder proyek belum ada.'
+    async with _project_command_lock:
+        return await _run_sandboxed(['bash','-c',command],timeout=min(max(int(timeout),1),300),cwd=target,project=True)
+
+@tool('inspect_project','Memeriksa proyek','Read project tree/manifests and verify JSON/Python/JavaScript syntax without running installation scripts. Reports actual checks and remaining build/test requirements.',{'folder':S('workspace project folder')},['folder'])
+async def inspect_project(ctx,folder='',**_):
+    from .project_jobs import inspect
+    return json.dumps(await inspect(getattr(ctx,'project_folder',None) or folder),ensure_ascii=False)
+
+@tool('start_project','Memulai proyek berkelanjutan','Create a persistent multi-milestone project coordinated by orchestrator, optionally from a public repository. Work progresses serially; status/checkpoints survive restart and can be paused/resumed.',{'brief':S('detailed project objective and acceptance criteria'),'repository':S('optional public GitHub URL')},['brief'])
+async def start_project(ctx,brief='',repository='',**_):
+    from . import project_jobs
+    pid=project_jobs.create(ctx,brief,repository)
+    return f'Proyek #{pid} masuk antrean. Lihat rencana, hasil tiap tahap dan pemeriksaan di Workspace. Belum dianggap selesai.'
+
+
+@tool('edit_project_file','Mengembangkan berkas proyek','Implement or update one real file in an existing project using bounded raw-code generation, preserving existing conventions. Reads current file/README/AGENTS; saves and syntax-checks. Use run_project_command for actual build/integration tests afterward.',{'folder':S('existing workspace project'),'path':S('relative project file'),'instructions':S('specific change, acceptance criteria and imports/interfaces to preserve')},['folder','path','instructions'])
+async def edit_project_file(ctx,folder='',path='',instructions='',**_):
+    from . import projects
+    folder=getattr(ctx,'project_folder',None) or folder
+    root=_workpath(folder)
+    if not root.is_dir():return 'Error: folder proyek belum ada.'
+    if path.startswith(folder+'/'):path=path[len(folder)+1:]
+    target=_workpath(folder+'/'+projects.safe_name(path))
+    if not target.is_relative_to(root):return 'Error: berkas harus berada dalam proyek.'
+    original=target.read_text() if target.is_file() else ''
+    if len(original)>(6000 if llm.active_backend()=='local' else 24000):return 'Error: berkas terlalu panjang untuk satu perubahan model; baca bagian relevan dan edit melalui perintah proyek.'
+    context={name:(root/name).read_text(errors='replace')[:3000] for name in ('AGENTS.md','README.md','package.json') if (root/name).is_file()}
+    result=await llm.chat([{'role':'system','content':'Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'},
+                          {'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}],max_tokens=2400 if llm.active_backend()=='local' else 6000,temperature=.2)
+    content=re.sub(r'^```[^\n]*\n','',result['content'].strip());content=re.sub(r'\n```\s*$','',content)
+    if not content:return 'Error: model menghasilkan berkas kosong.'
+    if target.suffix=='.py':__import__('ast').parse(content)
+    if target.suffix=='.json':json.loads(content)
+    if target.suffix=='.html' and not projects.inspect_html(content)['ok']:return 'Error: struktur HTML belum valid.'
+    # Validate JavaScript privately before replacing existing code.
+    if target.suffix=='.js':
+        async with _project_command_lock:
+            check=await _run_sandboxed(['node','--check','--input-type=module'],timeout=15,stdin=content.encode(),cwd=root,project=True)
+        if not check.startswith('[kode keluar 0]'):return 'Error: sintaks JavaScript belum valid: '+check
+    await write_file(ctx,str(target.relative_to(config.WORK_DIR.resolve())),content)
+    if target.read_text()!=content:return 'Error: verifikasi isi berkas gagal.'
+    return 'Berkas diperbarui dan dibaca ulang: '+folder+'/'+path+' ('+str(len(content.encode()))+' byte). Jalankan build/test proyek; pemeriksaan sintaks belum membuktikan runtime.'
+
+@tool('preview_project','Uji frontend tersimpan','Open a real workspace HTML in an installed browser and check JavaScript exceptions. Optional checks is a JavaScript expression for actual clicks/assertions. Visual layout/WebGL requires Chromium; Lightpanda checks DOM/JS only. Browser closes after testing.',{'path':S('workspace HTML path'),'checks':S('optional JS expression returning verification results'),'require_webgl':{'type':'boolean','description':'require real Chromium WebGL rendering capability'}},['path'])
+async def preview_project(ctx,path='',checks='',require_webgl=False,**_):
+    from . import browser
+    page=_ctx_workpath(ctx,path)
+    if not page.is_file() or page.suffix.lower()!='.html':return 'Error: berkas HTML belum tersedia.'
+    if require_webgl and not browser.chromium_bin():return 'Error: uji WebGL memerlukan Chromium opsional; browser ringan hanya memeriksa DOM/JavaScript, bukan rendering 3D.'
+    key='preview:'+ctx.bot['id'];session=None;runner=None
+    from aiohttp import web
+    root=page.parent
+    async def serve(request):
+        relative=request.match_info['tail'] or page.name;target=(root/relative).resolve()
+        allowed={'.html','.htm','.js','.css','.json','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2','.txt'}
+        if not target.is_relative_to(root) or any(part.startswith('.') for part in Path(relative).parts) or target.suffix.lower() not in allowed or not target.is_file():raise web.HTTPNotFound()
+        return web.FileResponse(target)
+    async with _project_command_lock:
+        try:
+            app=web.Application();app.router.add_get('/{tail:.*}',serve);runner=web.AppRunner(app);await runner.setup()
+            site=web.TCPSite(runner,'127.0.0.1',0);await site.start();port=site._server.sockets[0].getsockname()[1]
+            from urllib.parse import quote
+            url='http://127.0.0.1:'+str(port)+'/'+quote(page.name)
+            session=await browser.pool.get(key,fresh_engine='chromium' if require_webgl else None,local_preview=True)
+            await session.send('Page.navigate',{'url':url},session=True)
+            await session.wait_ready()
+            loaded=await session.eval('({url:location.href,title:document.title,body:!!document.body,buttons:document.querySelectorAll("button").length})')
+            if not loaded or loaded.get('url')!=url or not loaded.get('body'):return 'Error: browser belum berhasil memuat berkas.'
+            assertions=await session.eval(checks) if checks else None
+            await asyncio.sleep(.3)
+            errors=[e.get('params',{}).get('exceptionDetails',{}).get('exception',{}).get('description') or e.get('params',{}).get('exceptionDetails',{}).get('text') for e in session.events if e.get('method')=='Runtime.exceptionThrown']
+            report={'engine':session.engine,'document':loaded,'assertions':assertions,'js_errors':errors,'note':'DOM/JS smoke test. Lightpanda tidak membuktikan layout/WebGL. Semua alur aplikasi/backend tetap memerlukan pengujian khusus.'}
+            if session.engine=='chromium':
+                report['viewports']=[]
+                for width in (320,390,430,1280):
+                    await session.send('Emulation.setDeviceMetricsOverride',{'width':width,'height':900,'deviceScaleFactor':1,'mobile':width<600},session=True)
+                    report['viewports'].append(await session.eval('({width:innerWidth,documentWidth:document.documentElement.scrollWidth})'))
+            return ('Error: frontend belum lulus. ' if errors or assertions is False or isinstance(assertions,dict) and assertions.get('ok') is False else '')+json.dumps(report,ensure_ascii=False)
+        except Exception as exc:return 'Error: preview belum berhasil: '+str(exc)[:500]
+        finally:
+            if session:await session.close();browser.pool.sessions.pop(key,None)
+            if runner:await runner.cleanup()

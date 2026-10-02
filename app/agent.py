@@ -326,12 +326,15 @@ class Turn:
         token = office.start(self.bot['id'],getattr(self,'display_task',None) or str(args[0] if args else kwargs.get('text','')))
         result = None
         backend_token = llm.backend_context.set(self.bot.get('backend', ''))
+        from . import auto_router
+        route_token=auto_router.task_context.set(str(args[0] if args else kwargs.get('text','')))
         try:
             result = await self._run(*args, **kwargs)
             return result
         finally:
             office.finish(token,result)
             llm.backend_context.reset(backend_token)
+            auto_router.task_context.reset(route_token)
 
     async def _run(self, text: str, save_user: bool = True, extra_msgs: list[dict] | None = None,
                   images: list[bytes] | None = None) -> dict:
@@ -378,6 +381,8 @@ class Turn:
         schemas = tools.schemas_for(bot)
         if llm.active_backend() == 'local':
             relevant = {name for name, _ in intents(text, bot.get('tools', []))}
+            if getattr(self,'project_folder',None):
+                relevant=set(bot['tools']) & {'list_files','read_file','write_file','edit_project_file','run_project_command','inspect_project','preview_project','send_file'}
             if relevant:
                 if relevant & {'web_search','read_webpage','browser'}:
                     relevant |= {'web_search','read_webpage','browser'}
@@ -389,7 +394,28 @@ class Turn:
 
         ctx = tools.Ctx(bot=bot, chat=chat, channel=self.channel, ext_id=self.ext_id, skills_used=skill_ids,
                         user_text=text if save_user else "")
+        if getattr(self,'project_folder',None):ctx.project_folder=self.project_folder
         from . import coding, office
+        if bot['id']=='orchestrator' and not getattr(self,'delegated',False) and not extra_msgs:
+            from . import workflow
+            try:
+                result=await workflow.run(ctx,text,self.on_event)
+            except (llm.LLMError,ValueError,OSError) as exc:
+                result={'text':'Tugas belum berhasil: '+str(exc),'meta':{'files':[],'status':'failed'}}
+            mid=db.add_message(chat['id'],'assistant',result['text'],result.get('meta',{}) | ({'approval':result['approval']} if result.get('approval') else {}))
+            result['message_id']=mid
+            await self.on_event('done',result)
+            return result
+        from . import projects
+        if projects.project_request(text) and not coding.website_request(text) and 'build_project' in bot['tools'] and not extra_msgs:
+            try:
+                result=await tools.build_project(ctx,brief=text,on_event=self.on_event)
+                answer=result
+            except (ValueError,llm.LLMError,OSError) as exc:answer='Tugas belum berhasil: '+str(exc)
+            meta={'tools':['build_project'],'files':ctx.attachments if not answer.startswith('Tugas belum berhasil') else [],
+                  'seconds':round(time.time()-t0,1),'stats':{'served_model':getattr(ctx,'served_model','')}}
+            mid=db.add_message(chat['id'],'assistant',answer,meta)
+            result={'text':answer,'meta':meta,'message_id':mid};await self.on_event('done',result);return result
         if coding.website_request(text) and 'build_website' in bot['tools'] and not extra_msgs:
             await self.on_event('status', 'Menulis HTML dan CSS…')
             try:
@@ -401,7 +427,7 @@ class Turn:
                         await self._callback('status', 'Menulis HTML dan CSS…')
                 result = await tools.build_website(ctx, brief=text, on_token=code_token)
                 office.log(bot['id'], 'result', result)
-                answer = 'Landing page HTML sudah dibuat, diperiksa, dan dilampirkan. Buka index.html di browser. Fitur AI atau pembayaran belum dihubungkan ke backend.'
+                answer = 'Landing page HTML sudah dibuat, diperiksa, dan dilampirkan. Buka berkas HTML terlampir di browser. Fitur AI atau pembayaran belum dihubungkan ke backend.'
                 if result.startswith('Error:'): answer = result
             except (ValueError, llm.LLMError, OSError) as exc:
                 answer = 'Pembuatan halaman belum berhasil: ' + str(exc)
@@ -411,7 +437,7 @@ class Turn:
             mid = db.add_message(chat['id'], 'assistant', answer, meta)
             await self.on_event('done', {'text':answer,'message_id':mid,'meta':meta})
             return {'text':answer,'message_id':mid,'meta':meta}
-        max_steps = int(db.setting("max_steps") or 6)
+        max_steps = int(getattr(self,"max_steps",None) or db.setting("max_steps") or 6)
         nudged = finalized = file_checked = False
         evidence: list[str] = []
         trace: list[dict] = []  # jejak alat (disimpan di riwayat untuk diagnosa)
@@ -445,6 +471,11 @@ class Turn:
                 stats = res.get("stats", {})
                 calls = res["tool_calls"][:3]
                 if not calls:
+                    pending,_=llm.extract_tool_calls(res['content'],set(bot.get('tools',[])))
+                    if last and pending:
+                        failures.append('Error: batas langkah tercapai sebelum panggilan alat berikutnya dijalankan.')
+                        answer='Tugas belum berhasil: batas langkah tercapai. Lanjutkan dari checkpoint; tindakan berikutnya belum dijalankan.'
+                        break
                     answer = res["content"].strip()
                     if (last or nudged) and needs_nudge(answer, used, names, text):
                         answer = "Saya belum berhasil menjalankan alat yang diperlukan, jadi hasilnya belum bisa saya pastikan."
@@ -508,12 +539,16 @@ class Turn:
                         try:
                             from . import office
                             label = tool_label(name, args)
-                            if name == 'ask_bot':
+                            if name in ('ask_bot','delegate_task'):
                                 target = args.get('bot_id') or args.get('target') or args.get('bot') or ''
                                 label = 'Berdiskusi dengan ' + ((db.bot(target) or {}).get('name') or target)
-                            office.phase(label, 'delegating' if name == 'ask_bot' else 'tool')
+                            office.phase(label, 'delegating' if name in ('ask_bot','delegate_task') else 'tool')
                             office.log(bot["id"], "tool", tool_label(name,args))
-                            result = await asyncio.wait_for(t.fn(ctx, **args), 150)
+                            result = await asyncio.wait_for(t.fn(ctx, **args), 900 if name in ('delegate_task','build_project') else 360 if name=='build_website' else 150)
+                            if getattr(ctx,'pending_approval',None):
+                                result={'text':str(result),'approval':ctx.pending_approval}
+                                await self.on_event('done',result)
+                                return result
                         except TypeError as e:
                             result = f"Wrong arguments for {name}: {e}"
                         except Exception as e:
@@ -552,7 +587,7 @@ class Turn:
         if not answer:
             answer = "Maaf, saya belum menemukan jawabannya."
         meta = {"tools": used, "skills": skill_ids, "seconds": round(time.time() - t0, 1), "stats": stats,
-                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace}
+                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "status": "partial" if failures else "done"}
         mid = db.add_message(chat["id"], "assistant", answer, meta)
         await self.on_event("done", {"text": answer, "message_id": mid, "meta": meta})
 
@@ -627,7 +662,8 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
     office.phase("Menjalankan tindakan yang diizinkan", "writing")
     office.log(bot["id"],"tool",t.label)
     try:
-        result = await asyncio.wait_for(t.fn(ctx, **args), 150)
+        result = await asyncio.wait_for(t.fn(ctx, **args), 900 if a['tool'] in ('delegate_task','build_project') else 360 if a['tool']=='build_website' else 150)
+        if getattr(ctx,'pending_approval',None):return {'text':str(result),'approval':ctx.pending_approval}
     except Exception as e:
         result = f"Error: {e}"
     result = str(result)

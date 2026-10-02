@@ -19,7 +19,7 @@ async def state():
     if pending.exists():
         return {**result, 'phase': 'queued', 'message': 'Menunggu supervisor VPS (sekitar 30 detik).'}
     from .chat_models import engines
-    if llm.active_backend() != 'local' and 'local' not in engines() and not any(b.get('backend') == 'local' for b in db.bots(active_only=True)):
+    if llm.active_backend() != 'local' and db.setting('auto_local')!='1' and 'local' not in engines() and not any(b.get('backend') == 'local' for b in db.bots(active_only=True)):
         return {**result, 'phase': 'stopped', 'message': 'Model lokal berhenti saat mode API aktif.'}
     if (config.DATA_DIR / 'runtime-processing').exists() and result.get('phase') in ('preparing', 'downloading', 'verifying'):
         return result

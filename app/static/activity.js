@@ -2,7 +2,7 @@
 function setMotion(value){document.documentElement.dataset.motion=value==='off'?'off':'on';$('#motionSetting').value=document.documentElement.dataset.motion;try{localStorage.setItem('motion',value)}catch(e){}}
 try{setMotion(localStorage.getItem('motion')||'on')}catch(e){setMotion('on')}
 $('#motionSetting').onchange=e=>setMotion(e.target.value);
-document.addEventListener('visibilitychange',()=>{document.documentElement.dataset.paused=String(document.hidden)});
+document.addEventListener('visibilitychange',()=>{document.documentElement.dataset.paused=String(document.hidden);if(document.hidden){clearInterval(runtimeClock);runtimeClock=null}document.querySelectorAll('.dot-asset').forEach(img=>{if(document.hidden){img.dataset.resumeSrc=img.getAttribute('src');img.src=img.src.replace(/-(idle|thinking|writing|listening|success|error|alert)\.svg$/,'-asleep.svg')}else if(img.dataset.resumeSrc){img.src=img.dataset.resumeSrc;delete img.dataset.resumeSrc}})});
 let runtimeClock=null,runtimeStarted=0,runtimeKey='',importRows=[];
 function renderRuntime(r){
  const labels={queued:'Menunggu',preparing:'Menyiapkan',downloading:'Mengunduh',verifying:'Memeriksa SHA256',loading:'Menghubungkan AI',ready:'Siap',failed:'Gagal',stopped:'Belum aktif'};

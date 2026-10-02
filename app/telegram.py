@@ -142,7 +142,7 @@ class TgBot:
     def bot_for_chat(self, chat_id) -> dict:
         if self.fixed_bot:
             return db.bot(self.fixed_bot)
-        bid = db.setting(f"tg_bot:{chat_id}") or "asisten"
+        bid = db.setting(f"tg_bot:{chat_id}") or db.setting("telegram_default_bot") or "orchestrator"
         return db.bot(bid) or db.bots(active_only=True)[0]
 
     # ---------- pembaruan masuk ----------
@@ -482,7 +482,7 @@ class TgBot:
                     await self.send(chat_id, 'Pilih model. Model lokal berbagi satu mesin; pergantian dapat mengunduh bobot. Daftar kosong berarti hubungkan provider melalui web dahulu.', buttons or None)
                 else:
                     active = chat_models.effective(bot, chat)
-                    await self.send(chat_id, 'Model percakapan: ' + (active.get('backend') or db.setting('llm_backend')) + ' · ' + (active.get('model') or llm.default_model(active.get('backend'))) + '\n\nPilih layanan:', [[{'text': label, 'callback_data': 'models:' + mode}] for mode, label in [('utama','Ikuti model bot'),('local','Model lokal'),('router','9router'),('freellmapi','FreeLLMAPI'),('online','API langsung')]])
+                    await self.send(chat_id, 'Model percakapan: ' + (active.get('backend') or db.setting('llm_backend')) + ' · ' + (active.get('model') or llm.default_model(active.get('backend'))) + '\n\nPilih layanan:', [[{'text': label, 'callback_data': 'models:' + mode}] for mode, label in [('utama','Ikuti model bot'),('auto','Smart · Agen Mini'),('local','Model lokal'),('router','9router'),('freellmapi','FreeLLMAPI'),('online','API langsung')]])
             except (ValueError, llm.LLMError) as exc: await self.send(chat_id, str(exc))
             return True
         if cmd == "/tokenbot":

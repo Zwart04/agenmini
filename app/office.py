@@ -90,6 +90,8 @@ def init():
 def outcome(result):
     text=result.get('text','')
     if result.get('approval'):return 'waiting'
+    if result.get('meta',{}).get('status') in ('failed','partial'):return 'failed'
+    if result.get('meta',{}).get('project_id'):return result['meta'].get('status','queued')
     return 'failed' if text.startswith(('Error:','Galat:','Terjadi galat','Tugas belum berhasil','Saya belum berhasil','Angka terkini belum terverifikasi','Argumen tidak valid','Pembuatan halaman belum berhasil')) else 'done'
 
 
@@ -131,9 +133,15 @@ async def consult(source, target, text, task_id=None):
 async def loop():
     init()
     db.run("UPDATE office_tasks SET status='queued' WHERE status='working'")
+    from . import project_jobs
+    project_jobs.init()
+    db.run("UPDATE project_jobs SET status='queued' WHERE status IN ('working','planning')")
     while True:
         row = db.one("SELECT * FROM office_tasks WHERE status='queued' ORDER BY id LIMIT 1")
         if not row:
+            if await project_jobs.step():
+                await asyncio.sleep(.2)
+                continue
             await asyncio.sleep(2)
             continue
         db.run("UPDATE office_tasks SET status='working',updated_at=? WHERE id=?", (time.time(), row['id']))
@@ -151,3 +159,48 @@ async def loop():
             result, status, approval_id = str(exc)[:500], 'failed',0
         db.run('UPDATE office_tasks SET result=?,status=?,updated_at=?,approval_id=? WHERE id=?',
                (result[:6000], status, time.time(), approval_id, row['id']))
+
+async def execute(ctx,target,text,on_event=None):
+    """Owner-authorized work, serial and bounded; consultation remains read-only."""
+    from . import agent,tools
+    if ctx.bot['id']!='orchestrator':return {'text':'Error: penugasan eksekusi hanya tersedia untuk orchestrator.'}
+    chain=_chain.get()
+    if target==ctx.bot['id'] or target in chain or len(chain)>=2:return {'text':'Error: delegasi membentuk siklus atau terlalu dalam.'}
+    bot=db.bot(target)
+    if not bot or not bot.get('active'):return {'text':'Error: bot tujuan tidak aktif.'}
+    if getattr(ctx,'delegations',0)>=4:return {'text':'Error: maksimal empat penugasan per giliran.'}
+    ctx.delegations=getattr(ctx,'delegations',0)+1
+    # Target cannot exceed either owner's orchestrator permissions or its own permissions.
+    parent_backend=ctx.bot.get('backend') or llm.active_backend()
+    target_backend=bot.get('backend') or parent_backend
+    bot={**bot,'backend':target_backend,'model':bot.get('model') or (ctx.bot.get('model') if target_backend==parent_backend else '') or '', 'tools':[name for name in bot['tools'] if name in ctx.bot['tools'] and name not in ('delegate_task',)]}
+    if getattr(ctx,'project_folder',None):
+        bot['tools']=[name for name in bot['tools'] if name not in ('build_project','build_website','start_project','clone_repository','run_python','run_shell')]
+    if 'tidak perlu pencarian web' in text.lower():
+        bot['tools']=[name for name in bot['tools'] if name not in ('web_search','read_webpage','browser')]
+    tid=enqueue(ctx.bot['id'],target,text,owner_task=True)
+    db.run("UPDATE office_tasks SET status='working' WHERE id=?",(tid,))
+    phase('Menugaskan '+bot['name'],'delegating');log(ctx.bot['id'],'delegating',f'{target}: {text[:300]}')
+    token=_chain.set(chain+(ctx.bot['id'],))
+    response={}
+    try:
+        async def event(kind,data):
+            if on_event and kind=='status':await on_event('status',bot['name']+': '+str(data))
+        turn=agent.Turn(bot,ctx.channel,ctx.ext_id,event,prio=llm.PRIO_TASK);turn.bot=bot;turn.delegated=True
+        if getattr(ctx,'project_folder',None):
+            turn.max_steps=10;turn.project_folder=ctx.project_folder
+        turn.display_task=text
+        async with asyncio.timeout(900):response=await turn.run(text)
+        status=outcome(response)
+        if status=='done':
+            for path in response.get('meta',{}).get('files',[]):
+                if not tools._workpath(path).is_file():raise ValueError('Bot mengembalikan berkas yang tidak ada: '+path)
+                if path not in ctx.attachments:ctx.attachments.append(path)
+        ctx.last_delegation=response
+    except Exception as exc:
+        response={'text':'Error: penugasan gagal: '+str(exc)[:350]};status='failed'
+    finally:
+        _chain.reset(token)
+        db.run('UPDATE office_tasks SET status=?,result=?,approval_id=?,updated_at=? WHERE id=?',
+               (status,response.get('text','')[:6000],response.get('approval',0),time.time(),tid))
+    return response

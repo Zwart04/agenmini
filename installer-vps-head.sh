@@ -122,7 +122,7 @@ else
   echo "Pengaturan dan data lama dipertahankan."
 fi
 get_env() { sed -n "s/^$1=//p" "$DIR/.env" | head -1; }
-[[ $(get_env LLM_BACKEND) =~ ^(compatible|router|local|freellmapi|online)$ ]] || fail "Instalasi lama memakai backend lain. Ganti backend lewat web dahulu; pemasang ini khusus mode tanpa Ollama."
+[[ $(get_env LLM_BACKEND) =~ ^(compatible|router|local|freellmapi|online|auto)$ ]] || fail "Instalasi lama memakai backend lain. Ganti backend lewat web dahulu; pemasang ini khusus mode tanpa Ollama."
 if ! grep -q '^ROUTER_JWT_SECRET=.' "$DIR/.env"; then
   printf '\nROUTER_JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$DIR/.env"
 fi

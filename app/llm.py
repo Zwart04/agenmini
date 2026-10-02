@@ -317,6 +317,7 @@ def active_backend():
 def default_model(backend=None):
     backend = backend or active_backend()
     return {'router': db.setting('router_last_model') or db.setting('model'),
+            'auto':'smart',
             'freellmapi': db.setting('freellmapi_model') or 'auto:smart',
             'local': db.setting('local_model_id') or 'qwenpaw-2b',
             'online': db.setting('online_model')}.get(backend, db.setting('model'))
@@ -326,6 +327,25 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
                on_token=None, prio: int = PRIO_USER, fmt=None, temperature: float = 0.3,
                num_ctx: int | None = None, max_tokens: int | None = None) -> dict:
     """Kembalikan {content, tool_calls, stats}. tool_calls = [{name, arguments}]."""
+    if active_backend()=='auto':
+        from . import auto_router,office
+        routes=await auto_router.candidates(messages);errors=[];emitted=False
+        async def token(content):
+            nonlocal emitted
+            emitted=True
+            if on_token:await on_token(content)
+        for route in routes:
+            office.phase('Router: '+route['backend']+' / '+route['model'],'thinking')
+            backend_token=backend_context.set(route['backend'])
+            try:
+                result=await chat(messages,tools,route['model'],token if on_token else None,prio,fmt,temperature,num_ctx,max_tokens)
+                result.setdefault('stats',{})['routing']={'backend':route['backend'],'selected_model':route['model'],'reason':route['reason'],'attempts':len(errors)+1}
+                return result
+            except (LLMError,ValueError,aiohttp.ClientError,TimeoutError) as exc:
+                auto_router.failed(route);errors.append(route['backend']+': '+str(exc)[:180])
+                if emitted:raise
+            finally:backend_context.reset(backend_token)
+        raise LLMError('Semua kandidat router gagal: '+' | '.join(errors))
     model = model or default_model()
     names = {t["function"]["name"] for t in (tools or [])}
     if prio == PRIO_USER:

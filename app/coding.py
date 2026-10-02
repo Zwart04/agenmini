@@ -39,12 +39,13 @@ def compact_page(data):
         if not isinstance(item,dict) or not all(isinstance(item.get(k),str) and item[k].strip() for k in ('title','description')):
             raise ValueError('Isi fitur belum lengkap.')
         cards.append(f'<article><small>0{i+1}</small><h3>{escape(item["title"][:100])}</h3><p>{escape(item["description"][:350])}</p></article>')
-    return f'''<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
-<style>*{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:#f8f8f5;color:#172528;font:16px/1.65 system-ui,sans-serif}}a{{color:inherit}}.wrap{{max-width:1080px;margin:auto;padding:24px}}nav{{display:flex;justify-content:space-between;align-items:center;gap:16px}}nav strong{{font-size:20px}}nav a{{font-size:14px}}header{{padding:80px 0 64px;max-width:800px}}.eyebrow,article small{{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#52706b}}h1{{font-size:clamp(38px,6vw,72px);line-height:1.08;letter-spacing:-.045em;margin:20px 0}}h2{{font-size:30px;line-height:1.2}}h3{{font-size:20px}}p{{color:#596760}}header p{{font-size:19px;max-width:650px}}.button{{display:inline-block;padding:14px 22px;border-radius:14px;background:#244b42;color:white;text-decoration:none;margin-top:18px}}.grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}}article{{background:white;border:1px solid #e2e7e0;border-radius:20px;padding:24px}}section{{padding:24px 0 48px}}.demo{{background:#eaf0e8;border-radius:24px;padding:32px;margin:32px 0}}footer{{border-top:1px solid #dce3db;padding:24px 0;color:#637168;font-size:13px}}a:focus-visible{{outline:3px solid #568c7d;outline-offset:4px}}@media(max-width:640px){{.wrap{{padding:20px}}header{{padding:48px 0}}.grid{{grid-template-columns:1fr}}.demo{{padding:24px}}}}</style></head>
-<body><div class="wrap"><nav aria-label="Utama"><strong>{title}</strong><a href="#fitur">Jelajahi fitur</a></nav><main><header><span class="eyebrow">Rancangan produk digital</span><h1>{headline}</h1><p>{description}</p><a class="button" href="#demo">Lihat konsep</a></header><section id="fitur"><h2>Dirancang untuk kebutuhan Anda</h2><div class="grid">{''.join(cards)}</div></section><section id="demo" class="demo"><h2>Mulai dari ide, wujudkan bertahap.</h2><p>Ini halaman prototipe. Fitur aplikasi, AI, akun, dan pembayaran perlu dihubungkan ke backend sebelum digunakan.</p><a href="#fitur">Kembali ke fitur</a></section></main><footer>{title} &middot; Konsep landing page.</footer></div></body></html>'''
+    from .site_layout import render
+    return render(title,headline,description,cards)
+
 
 
 async def generate_compact(brief, model=None, on_token=None, prio=0):
+    brief=brief.split('\n\nArahan copywriter')[0]
     prompt=('Write concise Indonesian landing page copy for the brief. Return ONLY a JSON object with title (product name), '
             'headline, description, and features (exactly 3 objects with title and description). '
             'Use the exact product name from the brief. Include ONLY features explicitly requested in the brief, not invented video, inventory or customer-support features. Each description is one short sentence. No HTML/CSS, markdown, fake prices, testimonials, performance numbers, viral guarantees or claims of existing integrations. '
@@ -73,19 +74,41 @@ async def generate_compact(brief, model=None, on_token=None, prio=0):
                 item['description']=re.sub(r'\bdalam\s+\d+\s*(?:detik|seconds?|menit)\b','',item['description'],flags=re.I).replace(' .','.')
     if not re.search(r'\bviral\b',brief,re.I) and isinstance(data.get('headline'),str):
         data['headline']=re.sub(r'\bviral\b','menarik',data['headline'],flags=re.I)
+    banned=r'24\s*/\s*7|24 jam|dukungan pelanggan|customer support|inventaris|inventory|video'
+    data['features']=[item for item in data.get('features',[]) if not re.search(banned,json.dumps(item),re.I) or any(word in brief.lower() for word in ('video','inventaris','inventory','dukungan','support','24/7'))]
+    if not data['features']:data['features']=[{'title':'Draf konten','description':'Mulai dari ide Anda dan tinjau hasilnya sebelum digunakan.'}]
     return extract_html(compact_page(data)),result.get('stats',{})
 
 async def generate(brief, model=None, on_token=None, prio=0):
+    brief=brief.split('\n\nArahan copywriter')[0]
     if llm.active_backend() == 'local':
         return await generate_compact(brief,model,on_token,prio)
-    prompt = ('Create one complete, compact HTML landing page in Indonesian matching the brief. '
-              'Output raw <!doctype html> through </html> only, no markdown and no tool-call JSON. '
-              'Inline CSS, system fonts, responsive mobile layout, clear typography, accessible buttons, '
-              'one distinctive accent, useful headline and sections. Keep the ENTIRE document under 4500 characters and 1000 tokens. Use compact CSS, one hero, three feature cards, one CTA and footer. '
-              'Include title, viewport, main, footer. No remote scripts/fonts/images, fake testimonials, '
-              'invented prices, fake working AI, payment or login. Links can navigate to real sections. '
-              'A signup/demo form must visibly say it is a prototype if no backend is connected. '
-              'Finish all tags including </body></html>.')
-    result = await llm.chat([{'role': 'system', 'content': prompt}, {'role': 'user', 'content': brief[:3500]}],
-                            tools=None, model=model, max_tokens=2600, temperature=0.25, on_token=on_token, prio=prio)
-    return extract_html(result['content']), result.get('stats', {})
+    prompt = ('You are a senior frontend designer and engineer. Create one complete, distinctive, polished HTML '
+              'website matching the brief, in Indonesian unless requested otherwise. Output raw <!doctype html> '
+              'through </html> only. Build a visually rich frontend with thoughtful art direction, strong typography, '
+              'real whitespace, coherent custom SVG/CSS illustration or detailed product preview, 6-8 useful sections '
+              'when appropriate, responsive navigation and meaningful JavaScript interactions. Avoid generic three-card '
+              'templates, purple gradients, emoji icons, fake counters/logos/testimonials, invented prices and filler. '
+              'Use inline CSS/JS and system fonts; no remote scripts/fonts/images. A product demo must honestly label '
+              'sample/offline behavior. Implement the interactions you present: tabs, copy, filters, forms, FAQ, navigation. '
+              'All links must have real destinations. Never pretend AI/payment/login is connected without a backend. '
+              'Target 12-25 KB of useful HTML/CSS/JS, maximum 6000 tokens. Finish all tags. Include title, viewport, '
+              'main, footer, keyboard focus, accessible labels, reduced motion and mobile layouts down to 320px. '
+              'Review your own code before output: no clipping, missing anchors, placeholder text or inert primary buttons.')
+    result = await llm.chat([{'role': 'system', 'content': prompt}, {'role': 'user', 'content': brief[:6500]}],
+                            tools=None, model=model, max_tokens=6000, temperature=0.4, on_token=on_token, prio=prio)
+    from .projects import inspect_html
+    html=extract_html(result['content']);check=inspect_html(html)
+    if check['buttons']<2 or not re.search(r'<form\b',html,re.I):check['errors'].append('Implementasikan demo produk offline dengan form, tombol, tab dan hasil yang berubah; labeli sebagai demo, bukan AI terhubung.');check['ok']=False
+    invented=[url for url in re.findall(r'https?://[^\s\"<>]+',html) if any(key in url for key in ('sellerstudio','seller-studio')) and url not in brief]
+    if invented:check['errors'].append('Hapus tautan akun/domain produk yang tidak diberikan pemilik: '+', '.join(invented));check['ok']=False
+    if not check['ok']:
+        repaired=await llm.chat([{'role':'system','content':prompt+' Repair the existing document. Preserve its design, fix the reported problems. All anchors must target real sections; use buttons for implemented actions, never href="#". Output the COMPLETE HTML.'},
+                                {'role':'user','content':brief[:2500]+'\nActual validation errors: '+json.dumps(check['errors'])+'\nExisting HTML:\n'+html}],tools=None,model=model,max_tokens=6000,temperature=.2,on_token=on_token,prio=prio)
+        html=extract_html(repaired['content']);result=repaired;check=inspect_html(html)
+        if not check['ok'] or check['buttons']<2 or not re.search(r'<form\b',html,re.I):
+            # A tested interactive foundation is preferable to shipping dead controls.
+            html,stats=await generate_compact(brief,model,on_token,prio)
+            stats['layout']='Fondasi desain interaktif teruji; copy dari model API setelah HTML awal gagal validasi.'
+            return html,stats
+    return html,result.get('stats',{})

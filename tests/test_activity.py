@@ -130,7 +130,7 @@ def test_free_mount_preserves_routes_and_rebases_api_and_router():
 async def test_website_is_created_verified_and_attached_without_long_tool_json(monkeypatch, tmp_path):
     from app import coding, tools
     monkeypatch.setattr(config, 'WORK_DIR', tmp_path)
-    text='<!doctype html><html><head><title>Seller Studio</title></head><body><main>Konten AI untuk seller Indonesia</main></body></html>'
+    text='<!doctype html><html><head><title>Seller Studio</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><main>Konten AI untuk seller Indonesia<form><label>Produk<input aria-label="Produk"></label><button>Buat contoh</button></form><button>Salin</button></main></body></html>'
     calls=[]
     async def fake(messages, **kw):
         calls.append((messages,kw))
@@ -139,7 +139,7 @@ async def test_website_is_created_verified_and_attached_without_long_tool_json(m
     monkeypatch.setattr(llm,'active_backend',lambda:'online')
     bot=db.bot('asisten')
     result=await agent.Turn(bot,'test','html-workflow').run('Bisa buatkan saya website/landingpage HTML untuk Seller Studio, membuat konten untuk seller Indonesia memakai AI?')
-    assert len(calls)==1 and calls[0][1]['tools'] is None and calls[0][1]['max_tokens']==2600
+    assert len(calls)==1 and calls[0][1]['tools'] is None and calls[0][1]['max_tokens']==6000
     assert result['meta']['files'] and result['meta']['tools']==['build_website']
     assert (tmp_path/result['meta']['files'][0]).read_text(encoding='utf-8')==text
     assert 'dilampirkan' in result['text']

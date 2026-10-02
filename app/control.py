@@ -96,6 +96,11 @@ async def engine_runtime(request):
     preparing = (config.DATA_DIR / 'runtime-processing').exists()
     if pending or preparing:
         return web.json_response({'phase': 'queued' if pending else 'preparing', 'message': 'Menunggu supervisor VPS.' if pending else 'Menyiapkan layanan AI di VPS.', 'ready': False})
+    if mode=='auto':
+        from . import auto_router
+        routes=await auto_router.discover()
+        ready=any(route.get('ready') for route in routes)
+        return web.json_response({'phase':'ready' if ready else 'stopped','ready':ready,'message':str(len(routes))+' kandidat router terdeteksi. Model aktual dan galat dicatat ketika digunakan.' if routes else 'Belum ada kandidat. Hubungkan provider atau siapkan lokal di Koneksi.'})
     if mode in ('router', 'compatible', 'freellmapi'):
         base, path = (free_router.base(), '/api/ping') if mode == 'freellmapi' else (router.base(), '/api/health')
         try:
@@ -374,11 +379,14 @@ async def update_action(request):
 async def change_mode(request):
     data = await request.json()
     mode = data.get('mode')
-    if mode not in ('local', 'router', 'online', 'ollama', 'freellmapi'):
+    if mode not in ('auto','local', 'router', 'online', 'ollama', 'freellmapi'):
         raise ValueError('Mode tidak dikenal.')
     if office.presence:
         raise ValueError('Tunggu tugas aktif selesai sebelum mengganti mode.')
-    if mode == 'router':
+    if mode == 'auto':
+        runtime_status.request('reconcile')
+        db.set_setting('llm_backend','auto'); db.set_setting('model','smart')
+    elif mode == 'router':
         runtime_status.request('api')
         db.set_setting('llm_backend', 'router')
         if db.setting('router_last_model'):
@@ -498,4 +506,59 @@ async def free_model(request):
     if data.get('model') not in ids: raise ValueError('Model tidak tersedia pada server FreeLLMAPI.')
     db.set_setting('freellmapi_model',data['model'])
     if db.setting('llm_backend')=='freellmapi': db.set_setting('model',data['model'])
+    return web.json_response({'ok':True})
+
+@routes.get('/api/auto-router')
+async def auto_router_state(request):
+    from . import auto_router
+    return web.json_response(await auto_router.status())
+
+@routes.post('/api/auto-router')
+async def auto_router_settings(request):
+    data=await request.json()
+    order=data.get('order',['freellmapi','router','online','local'])
+    if not isinstance(order,list) or sorted(order)!=sorted(['freellmapi','router','online','local']):raise ValueError('Urutan mesin router tidak valid.')
+    if office.presence or llm.gate.busy:raise ValueError('Tunggu tugas aktif selesai.')
+    runtime_status.request('reconcile')
+    db.set_setting('auto_route_order',','.join(order))
+    db.set_setting('auto_9router','1' if data.get('router') else '0');db.set_setting('auto_local','1' if data.get('local') else '0')
+    return web.json_response({'ok':True,'message':'Router disimpan. Layanan yang dipilih disiapkan supervisor; kandidat baru muncul setelah siap.'})
+
+@routes.post('/api/ai/test')
+async def ai_connection_test(request):
+    data=await request.json();backend=data.get('backend') or db.setting('llm_backend')
+    if backend not in ('auto','local','router','freellmapi','online'):raise ValueError('Mesin tidak dikenal.')
+    token=llm.backend_context.set(backend);started=time.monotonic()
+    try:
+        result=await llm.chat([{'role':'system','content':'This is a connection instruction-following test. Output only the exact text AGEN_OK. No explanation or formatting.'},{'role':'user','content':'AGEN_OK'}],model=data.get('model') or llm.default_model(backend),max_tokens=32)
+        return web.json_response({'ok':result['content'].strip()=='AGEN_OK','text':result['content'][:100], 'seconds':round(time.monotonic()-started,1),'model':result.get('stats',{}).get('served_model',''), 'routing':result.get('stats',{}).get('routing',{})})
+    finally:llm.backend_context.reset(token)
+
+@routes.get('/api/projects')
+async def project_list(request):
+    from . import project_jobs
+    return web.json_response({'projects':project_jobs.rows()})
+
+@routes.post('/api/projects')
+async def project_create(request):
+    from . import project_jobs
+    data=await request.json();bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
+    return web.json_response({'id':project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))})
+
+@routes.post('/api/projects/{id}')
+async def project_action(request):
+    from . import project_jobs
+    project_jobs.init();pid=int(request.match_info['id']);job=db.one('SELECT * FROM project_jobs WHERE id=?',(pid,))
+    if not job:raise ValueError('Proyek tidak ditemukan.')
+    data=await request.json();action=data.get('action')
+    if action=='pause':state='paused'
+    elif action=='resume':
+        if job['approval_id'] and (db.one('SELECT status FROM approvals WHERE id=?',(job['approval_id'],)) or {}).get('status')=='menunggu':raise ValueError('Izinkan atau tolak tindakan proyek terlebih dahulu.')
+        state='queued'
+    elif action=='replan' and job['status'] in ('failed','paused','review'):
+        if job['approval_id'] and (db.one('SELECT status FROM approvals WHERE id=?',(job['approval_id'],)) or {}).get('status')=='menunggu':raise ValueError('Selesaikan izin tertunda sebelum menyusun ulang.')
+        db.run("UPDATE project_jobs SET plan='{}',cursor=0 WHERE id=?",(pid,));state='queued'
+    elif action=='accept' and job['status']=='review':state='done'
+    else:raise ValueError('Tindakan proyek tidak valid.')
+    db.run('UPDATE project_jobs SET status=?,updated_at=? WHERE id=?',(state,time.time(),pid));project_jobs.event(pid,state,'Pemilik: '+action)
     return web.json_response({'ok':True})
