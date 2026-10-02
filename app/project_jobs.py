@@ -16,11 +16,28 @@ def event(pid,phase,text):
     db.run('INSERT INTO project_events(project_id,phase,text,created_at) VALUES(?,?,?,?)',(pid,phase,text[:10000],time.time()))
 
 
+def repository_protected(brief, repository):
+    """Honor explicit do-not-touch lists before a project worker edits a repo."""
+    if not repository:return False
+    normalized=repository.rstrip('/').removesuffix('.git').lower()
+    protected=False
+    for line in brief.splitlines():
+        if re.search(r'jangan\s*(?:di\s*)?sentuh|do[ -]not[ -]touch|protected repositories',line,re.I):
+            protected=True
+        elif protected and line.strip() and not re.match(r'\s*[-*•]',line):
+            protected=False
+        if protected:
+            urls=re.findall(r'https://github\.com/[\w.-]+/[\w.-]+',line)
+            if any(u.rstrip('/').removesuffix('.git').lower()==normalized for u in urls):return True
+    return False
+
+
 def create(ctx,brief,repository=''):
     init()
     if not str(brief).strip():raise ValueError('Tujuan proyek belum diisi.')
-    if repository and not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+(?:\.git)?/?',repository):raise ValueError('Gunakan URL repo publik GitHub tanpa token.')
+    if repository and not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+(?:\.git)?/?',repository):raise ValueError('Gunakan URL GitHub tanpa token; repo privat memakai login host yang terverifikasi.')
     if db.one("SELECT count(*) n FROM project_jobs WHERE status IN ('queued','working','planning')")['n']>=5:raise ValueError('Selesaikan atau jeda proyek sebelumnya; maksimal lima antrean.')
+    if repository_protected(brief,repository):raise ValueError('Repo ini ada dalam daftar jangan disentuh. Pilih repo lain; proyek lama tetap dipertahankan.')
     pid=db.run('INSERT INTO project_jobs(brief,repository,status,channel,ext_id,engine,model,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
                (brief[:12000],repository,'queued',ctx.channel,ctx.ext_id,ctx.bot.get('backend') or db.setting('llm_backend'),ctx.bot.get('model') or '',time.time(),time.time()))
     folder='projects/project-'+str(pid);db.run('UPDATE project_jobs SET folder=? WHERE id=?',(folder,pid));event(pid,'queued','Proyek dijadwalkan. Progress dihitung dari tahap yang benar-benar selesai.');return pid
@@ -78,6 +95,11 @@ def acceptance_problems(milestone,response,before,after):
 async def step():
     init();job=db.one("SELECT * FROM project_jobs WHERE status='queued' ORDER BY id LIMIT 1")
     if not job:return False
+    if repository_protected(job['brief'],job['repository']):
+        reason='Dijeda: repo tujuan ada dalam daftar jangan disentuh. Repo sumber dan salinan lokal dipertahankan. Pilih repo lain untuk implementasi.'
+        event(job['id'],'protected',reason)
+        db.run("UPDATE project_jobs SET status='paused',result=?,updated_at=? WHERE id=?",(reason,time.time(),job['id']))
+        return True
     pid=job['id'];db.run("UPDATE project_jobs SET status='working',updated_at=? WHERE id=?",(time.time(),pid))
     token=office.start('orchestrator','Proyek #'+str(pid)+': '+job['brief'][:90]);backend=llm.backend_context.set(job['engine']);response=None
     try:
@@ -90,6 +112,10 @@ async def step():
                 if not r.startswith('[kode keluar 0]'):raise ValueError(r)
             else:
                 root.mkdir(parents=True);__import__('os').chown(root,config.KERJA_UID,config.KERJA_GID)
+        if job['repository']:
+            verified=await tools._run_sandboxed(['git','-C',str(root),'rev-parse','--verify','HEAD'],timeout=20,project=True)
+            if not verified.startswith('[kode keluar 0]'):
+                raise ValueError('Folder proyek dipertahankan, tetapi repo belum valid. '+verified)
         plan=json.loads(job['plan'] or '{}')
         if not plan:
             report=await inspect(job['folder']);event(pid,'inspect',json.dumps(report,ensure_ascii=False)[:8000])

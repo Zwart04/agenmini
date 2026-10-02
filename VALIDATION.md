@@ -114,3 +114,9 @@ Limits: no claim of having reproduced Studio ZAI, ZwartOS, NTPro, Paperclip, Pos
 Sidebar shows Orchestrator and the selected specialist, with a Tim bot link to the complete Workspace team. Mobile selection offers the same short list. No bots, credentials or history are removed. Host accounts use compact cards with actual verification status; installed commands and diagnostic messages are collapsed. Account status reloads when opening Koneksi and unchanged polling preserves expanded details.
 
 Validation: JavaScript syntax checks and Chromium integration on an isolated copy of VPS data. Bot switching, full team access, detail expansion, account status and horizontal overflow checked at desktop 1280 and mobile 320, 390, 430 pixels. UI changes do not exercise new provider inference or external writes.
+
+## 0.3.8 — private GitHub clone
+
+Project #1 requested Zwart04/ntpro, a private repository. The host GitHub account could read it but the old clone tool was anonymous-only and misleadingly appended a success-style repo path after exit 128. A privileged fetch broker now uses host credentials for GitHub HTTPS clone without checkout, hooks, global Git configuration or submodules. Only a credential-free checkout runs as the sandbox user. Credentials remain outside sandbox permissions and outside repository config. Existing folders are never overwritten. Clone failures stay failures; the background worker verifies HEAD before planning against an existing repository folder.
+
+Live authenticated clone of ntpro: exit 0, HEAD df2556fbab4f7a78b7ca48017843c6438534b289, clean working tree, sandbox denied access to secrets. Original GitHub repository is unchanged; project execution uses a private local backup and checkpoints. Completion of its requested milestones must be reported separately from repairing clone.

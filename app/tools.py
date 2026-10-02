@@ -579,17 +579,11 @@ async def delegate_task(ctx,bot='',task='',**_):
     if result.get('approval'):ctx.pending_approval=result['approval']
     return result.get('text','Error: delegasi tidak menghasilkan jawaban.')
 
-@tool('clone_repository','Mengambil repositori publik','Clone a public GitHub repository into a NEW workspace folder. No tokens, push, force, submodules or overwriting existing work.',{'url':S('https://github.com/owner/repo'),'folder':S('new relative workspace folder')},['url','folder'])
+@tool('clone_repository','Mengambil repositori GitHub','Clone a public or authorized private GitHub repository into a NEW workspace folder. Uses verified host login when available without exposing tokens. No push, submodules or overwriting existing work.',{'url':S('https://github.com/owner/repo'),'folder':S('new relative workspace folder')},['url','folder'])
 async def clone_repository(ctx,url='',folder='',**_):
-    if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?/?',url):return 'Error: gunakan URL repo publik GitHub tanpa token.'
     if not folder or folder=='.':return 'Error: pilih folder kerja baru.'
-    target=_workpath(folder)
-    if target.exists():return 'Error: folder sudah ada; tidak menimpa perubahan sebelumnya.'
-    target.parent.mkdir(parents=True,exist_ok=True)
-    try:os.chown(target.parent,config.KERJA_UID,config.KERJA_GID)
-    except OSError:pass
-    result=await _run_sandboxed(['git','-c','core.hooksPath=/dev/null','clone','--depth','1','--',url,str(target)],timeout=120)
-    return result+'\nRepo di '+folder+'. Baca AGENTS.md/README dan manifest sebelum mengubah kode. Token GitHub/push tidak termasuk koneksi ini.'
+    from . import repository
+    return await repository.clone(url,_workpath(folder))
 
 _project_command_lock=asyncio.Lock()
 
