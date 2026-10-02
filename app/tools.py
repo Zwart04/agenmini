@@ -277,6 +277,7 @@ async def build_website(ctx: Ctx, brief: str = '', on_token=None, **_):
     from . import coding, office
     office.phase('Menulis HTML dan CSS…', 'writing')
     html, stats = await coding.generate(brief, ctx.bot.get('model') or llm.default_model(), on_token=on_token)
+    ctx.served_model = stats.get('served_model', '')
     office.phase('Memeriksa dan menyimpan halaman…', 'tool')
     path = 'website-' + str(time.time_ns()) + '/index.html'
     await write_file(ctx, path, html)

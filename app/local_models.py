@@ -3,7 +3,7 @@ import json, os, platform
 from . import config
 CATALOG = [
  {'id':'qwenpaw-2b','name':'QwenPaw Flash 2B','repo':'agentscope-ai/QwenPaw-Flash-2B-Q4_K_M','file':'QwenPaw-flash-2B-20260330-q4.gguf','download_gb':1.3,'min_ram_gb':4,'runtime_mb':2300,'rank':2,'note':'Pilihan agen ringan; smoke test model nyata tersedia.'},
- {'id':'qwen35-08b','name':'Qwen3.5 0.8B','repo':'bartowski/Qwen_Qwen3.5-0.8B-GGUF','file':'Qwen_Qwen3.5-0.8B-Q4_K_M.gguf','download_gb':0.58,'min_ram_gb':3,'runtime_mb':1700,'rank':1,'note':'Paling hemat; tugas kompleks lebih mudah salah.'},
+ {'id':'qwen35-08b','name':'Qwen3.5 0.8B','repo':'bartowski/Qwen_Qwen3.5-0.8B-GGUF','file':'Qwen_Qwen3.5-0.8B-Q4_K_M.gguf','download_gb':0.58,'min_ram_gb':3,'runtime_mb':1400,'rank':1,'note':'Paling hemat; tugas kompleks lebih mudah salah.'},
  {'id':'qwen35-2b','name':'Qwen3.5 2B','repo':'bartowski/Qwen_Qwen3.5-2B-GGUF','file':'Qwen_Qwen3.5-2B-Q4_K_M.gguf','download_gb':1.4,'min_ram_gb':5,'runtime_mb':3000,'rank':3,'note':'Keluarga baru untuk tugas umum; kualitas perlu diuji pada tugas Anda.'},
  {'id':'qwen35-4b','name':'Qwen3.5 4B','repo':'bartowski/Qwen_Qwen3.5-4B-GGUF','file':'Qwen_Qwen3.5-4B-Q4_K_M.gguf','download_gb':3.01,'min_ram_gb':8,'runtime_mb':5500,'rank':4,'note':'Kandidat kualitas lebih tinggi; CPU lebih lambat.'},
  {'id':'qwen35-9b','name':'Qwen3.5 9B','repo':'bartowski/Qwen_Qwen3.5-9B-GGUF','file':'Qwen_Qwen3.5-9B-Q4_K_M.gguf','download_gb':6.17,'min_ram_gb':16,'runtime_mb':11000,'rank':5,'note':'Kandidat kapasitas terbesar dalam katalog; bukan jaminan paling pintar.'},

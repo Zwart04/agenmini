@@ -162,7 +162,8 @@ if AGEN_OTOMATIS=1 bash "$TMP/pasang-vps.sh" > "$BACKUP/install.log" 2>&1; then
   write_status update-status.json "Update $TAG berhasil."
 else
   tar -xzf "$BACKUP/code.tar.gz" -C "$DIR"
-  compose --profile router up -d --build || true
+  compose up -d --build agen || true
+  echo reconcile > data/runtime-request
   write_status update-status.json "Update gagal. Kode sebelumnya dipulihkan; lihat $BACKUP/install.log."
   exit 1
 fi

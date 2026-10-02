@@ -66,3 +66,23 @@ Pengaturan > Diagnostik > Uji alat inti memperlihatkan hasil nyata pada VPS.
 Untuk landing page, minta buat website/landing page dan jelaskan produk.
 Model lokal memakai layout ringan bawaan; aplikasi AI lengkap memerlukan backend.
 GitHub/email/API/gambar memerlukan koneksi dan kuota penyedianya masing-masing.
+
+PEMULIHAN UPDATE 0.3.4
+Pemasang menyimpan kode lama di /opt/agenmini/data/backup/install-*/code.tar.gz.
+Supervisor menyimpan backup update-* dan SQLite memakai online backup (termasuk WAL).
+Untuk memulihkan kode, pilih direktori backup yang sesuai, ekstrak code.tar.gz
+ke /opt/agenmini, lalu bangun ulang hanya agen:
+  cd /opt/agenmini
+  tar -xzf data/backup/install-TANGGAL/code.tar.gz -C /opt/agenmini
+  docker compose -f docker-compose.standalone.yml up -d --build agen
+  echo reconcile > data/runtime-request
+  bash agen-supervisor.sh
+Data/database tidak dikembalikan otomatis. Jangan hapus data atau .env.
+
+SETUP AWAL (instalasi baru)
+Pemasang menawarkan 1 lokal, 2 9router, 3 FreeLLMAPI, 4 keduanya, 5 API langsung.
+Otomatis: AGEN_AI_PROFILE=free AGEN_OTOMATIS=1 bash pasang-vps.sh
+Nilai profil: local/router/free/both/online. Update selalu mempertahankan data
+dan pengaturan Anda. Komponen tambahan diunduh saat dipilih melalui Koneksi.
+Profil both mengunduh image kedua tanpa menjalankan router yang tidak digunakan.
+Mode lokal mengunduh Qwen3.5 0.8B dan memerlukan RAM/disk yang cukup.

@@ -3,6 +3,10 @@
 DIR=/opt/agenmini
 C=agenmini
 cd "$DIR" 2>/dev/null || { echo "Agen Mini belum terpasang di $DIR"; exit 1; }
+# The standalone installation uses Compose service names, never the old fixed container name.
+if [[ -f "$DIR/docker-compose.standalone.yml" ]] && ! grep -q '^OLLAMA_NETWORK=.' "$DIR/.env"; then
+  exec bash "$DIR/agen-standalone" "$@"
+fi
 TT=""; [ -t 0 ] && [ -t 1 ] && TT="-t"
 
 env_get() { grep -E "^$1=" "$DIR/.env" 2>/dev/null | head -1 | cut -d= -f2-; }

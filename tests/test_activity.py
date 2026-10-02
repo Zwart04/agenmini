@@ -266,3 +266,23 @@ async def test_repeated_failed_tool_cannot_become_success(monkeypatch):
     assert result['text'].startswith('Tugas belum berhasil')
     assert all(t['hasil'].startswith('Error:') for t in result['meta']['trace'])
     assert office.outcome(result)=='failed'
+
+@pytest.mark.asyncio
+async def test_same_local_selection_repairs_disconnected_runtime(monkeypatch):
+    from app import chat_models
+    requested=[]
+    monkeypatch.setattr(chat_models.runtime_status,'request',lambda *args:requested.append(args))
+    async def choices(mode): return [{'id':'qwen35-08b','fits':True}]
+    async def state(): return {'ready':False,'phase':'failed'}
+    monkeypatch.setattr(chat_models,'choices',choices)
+    monkeypatch.setattr(chat_models.runtime_status,'state',state)
+    old=db.setting('local_model_id')
+    db.set_setting('local_model_id','qwen35-08b')
+    chat=db.new_chat('asisten','repair-test','same-model')
+    db.run('UPDATE chats SET backend=?,model=? WHERE id=?',('local','qwen35-08b',chat['id']))
+    try:
+        chat=db.one('SELECT * FROM chats WHERE id=?',(chat['id'],))
+        await chat_models.select(chat,'local','qwen35-08b')
+        assert requested==[('local','qwen35-08b')]
+    finally:
+        db.delete_chat(chat['id']);db.set_setting('local_model_id',old)

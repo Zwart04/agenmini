@@ -32,15 +32,16 @@ async def select(chat, backend, model=''):
     else: model = ''
     current = db.setting('local_model_id')
     needs_local = backend == 'local' and current != model
+    repair_local = backend == 'local' and not (await runtime_status.state())['ready']
     old_engine = chat.get('backend') or (db.bot(chat['bot_id']) or {}).get('backend') or db.setting('llm_backend')
     # Schedule host services before committing preferences. An existing request must not be overwritten.
     target_engine = backend or (db.bot(chat['bot_id']) or {}).get('backend') or db.setting('llm_backend')
     changed = old_engine != target_engine
-    if needs_local or changed:
-        runtime_status.request({'router':'api', 'freellmapi':'free'}.get(target_engine, target_engine), model if needs_local else None)
+    if needs_local or repair_local or changed:
+        runtime_status.request({'router':'api', 'freellmapi':'free'}.get(target_engine, target_engine), model if backend == 'local' else None)
     if needs_local: db.set_setting('local_model_id', model)
     db.run('UPDATE chats SET backend=?,model=? WHERE id=?', (backend, model, chat['id']))
-    return {'backend': backend, 'model': model, 'message': 'Model percakapan disimpan.' + (' VPS menyiapkan layanan; ikuti status di Koneksi.' if needs_local or changed else '')}
+    return {'backend': backend, 'model': model, 'message': 'Model percakapan disimpan.' + (' VPS menyiapkan layanan; ikuti status di Koneksi.' if needs_local or repair_local or changed else '')}
 
 
 def engines():

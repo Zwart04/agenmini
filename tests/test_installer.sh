@@ -12,6 +12,7 @@ cat > /mock/docker-template <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> /tmp/docker-calls
 if [[ "${MOCK_FAIL:-0}" == 1 && "$*" == *"up -d --build"* ]]; then exit 1; fi
+if [[ "$*" == *'python -m app.model_runtime plan'* ]]; then echo '{"mode":"router","local":false,"router":true,"free":false}'; fi
 exit 0
 EOF
 cat > /mock/curl <<'EOF'
@@ -39,7 +40,7 @@ bash /src/dist/pasang-vps.sh > /tmp/install-output
 [[ -f /opt/agenmini/app/main.py && -f /opt/agenmini/.env ]]
 grep -q 'TERPASANG' /tmp/install-output
 grep -q 'docker-ce' /tmp/apt-calls
-grep -q 'LLM_BACKEND=compatible' /opt/agenmini/.env
+grep -q 'LLM_BACKEND=router' /opt/agenmini/.env
 grep -q 'http://router:20128/v1' /opt/agenmini/.env
 [[ $(stat -c '%a' /opt/agenmini/.env) == 600 ]]
 echo keep-me > /opt/agenmini/data/marker
@@ -65,4 +66,14 @@ for caller in /opt/agenmini/agen-supervisor.sh /usr/local/bin/agen; do
   grep -q TERPASANG /tmp/live-update-output
   grep -q keep-me /opt/agenmini/data/marker
 done
+# Fresh FreeLLMAPI setup must not start 9router. Isolated fixture only.
+rm -rf /opt/agenmini
+: > /tmp/docker-calls
+AGEN_AI_PROFILE=free bash /src/dist/pasang-vps.sh > /tmp/free-install-output
+grep -q 'LLM_BACKEND=freellmapi' /opt/agenmini/.env
+# Mock plan controls runtime independently of the fresh env.
+! grep -q 'profile router up -d --build' /tmp/docker-calls
+rm -rf /opt/agenmini
+AGEN_AI_PROFILE=online bash /src/dist/pasang-vps.sh > /tmp/online-install-output
+grep -q 'LLM_BACKEND=online' /opt/agenmini/.env
 echo 'PASS: install, preserve data/config, failure handling, atomic updates of running supervisor and CLI.'

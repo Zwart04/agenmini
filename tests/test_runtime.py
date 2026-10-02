@@ -68,6 +68,7 @@ async def test_ready_requires_live_matching_model(monkeypatch, tmp_path):
     try:
         assert (await runtime_status.state())['phase']=='failed'
         current['model']='fixture'
+        model_runtime.write_status('failed','Previous failure')
         assert (await runtime_status.state())['ready'] is True
         (tmp_path/'runtime-request').write_text('local')
         assert (await runtime_status.state())['phase']=='queued'

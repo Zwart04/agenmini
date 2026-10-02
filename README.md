@@ -1,4 +1,4 @@
-# Agen Mini 0.3.3
+# Agen Mini 0.3.4
 
 Asisten pribadi ringan dengan web, Telegram, MCP, skill, memori, dan workspace bot.
 
@@ -82,3 +82,13 @@ Pilih mesin/model di bar **Model chat**. Pilihan berlaku untuk percakapan terseb
 **Koneksi → AI → Buka dashboard** membuka 9router/FreeLLMAPI melalui domain Agen Mini dengan sesi pemilik. Tidak perlu membuka port dashboard ke publik. **Tambah model Anda** membaca repo GGUF publik Hugging Face atau tag Ollama, mengunci revisi/hash, dan memeriksa RAM sebelum unduhan. Bobot Ollama dijalankan oleh llama.cpp; daemon Ollama tidak dipasang. Model split, privat, proyektor gambar, dan arsitektur yang tidak didukung llama.cpp tidak termasuk; model tambahan belum memiliki jaminan kualitas.
 
 Pembuatan landing page memakai alat `build_website`: mode lokal membuat isi JSON pendek dengan schema, kemudian memakai layout HTML responsif bawaan. Model API menghasilkan HTML bebas. Berkas diperiksa dan otomatis dilampirkan; ini prototipe halaman, bukan aplikasi AI/payment yang sudah terhubung atau dipublikasikan. Coding lain tetap menggunakan berkas/Python/shell sesuai izin bot. Pengulangan alat yang gagal mempertahankan galatnya. **Pengaturan → Diagnostik → Uji alat inti** menjalankan pemeriksaan berkas, Python Linux, dan MCP hardware pada VPS Anda.
+
+### 0.3.4: pemulihan runtime dan update VPS
+
+Memilih ulang model lokal memulihkan layanan yang terputus. Readiness diperiksa dari health dan ID model aktual meskipun status kegagalan lama masih tersimpan. Anggaran Qwen3.5 0.8B CPU dikalibrasi menjadi 1400 MiB dengan cadangan host 700 MiB setelah inferensi nyata pada VPS 3,6 GiB; model lebih besar tetap dibatasi. Landing page mencatat model yang benar-benar melayani jawaban. Pemasang mencadangkan kode/SQLite, menerima instalasi FreeLLMAPI/API langsung, dan menyalakan layanan berdasarkan konfigurasi bot/percakapan yang tersimpan.
+
+`python build_release.py` membuat ZIP pemasangan, ZIP source dari berkas Git, dan SHA256SUMS. Lihat VALIDATION.md untuk bukti VPS dan batas pengujian.
+
+Pemasangan baru menyediakan setup awal: lokal saja, 9router saja, FreeLLMAPI saja, keduanya, atau API langsung. Untuk pemasangan otomatis gunakan `AGEN_AI_PROFILE=free AGEN_OTOMATIS=1 bash pasang-vps.sh` (nilai: `local`, `router`, `free`, `both`, `online`). Update mempertahankan pilihan di database dan `.env`; pilihan ini tidak mereset instalasi lama. Pada pilihan keduanya, image kedua disiapkan tetapi hanya mesin yang digunakan bot/percakapan yang dijalankan.
+
+Kandidat ringan [9router-go](https://github.com/luqman-v1/9router-go) diuji terpisah: v1.9.7 binary idle RSS sekitar 32 MiB; image Docker teruji memakai sekitar 12 MiB cgroup. Integrasi dashboard/providers/combos memakai JWT kompatibel, tetapi `/api/models` menolak autentikasi adapter saat ini. Karena kompatibilitas model/akun belum lulus, fork ini belum menjadi opsi pemasang atau pengganti otomatis. Upstream yang dipin tetap tersedia secara opsional; instalasi FreeLLMAPI/API langsung tidak menjalankan 9router tanpa kebutuhan bot/chat.

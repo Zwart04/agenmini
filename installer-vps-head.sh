@@ -56,6 +56,17 @@ TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT
 sed -n '/^__ARSIP_DI_BAWAH__$/,$p' "$0" | tail -n +2 | base64 -d | tar -xz -C "$TMP"
 mkdir -p "$DIR/data"
+if [[ -f "$DIR/app/__init__.py" ]]; then
+  BACKUP="$DIR/data/backup/install-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BACKUP"; chmod 700 "$BACKUP"
+  tar --exclude='./data' --exclude='./.git' --exclude='./dist' -czf "$BACKUP/code.tar.gz" -C "$DIR" .
+  if [[ -f "$DIR/.env" ]]; then cp -p "$DIR/.env" "$BACKUP/env"; chmod 600 "$BACKUP/env"; fi
+  # SQLite online backup includes WAL; never copy an open database file alone.
+  if [[ -f "$DIR/data/db/agen.sqlite" ]]; then
+    docker compose --project-directory "$DIR" -f "$DIR/docker-compose.standalone.yml" exec -T agen python -c 'from app import scheduler; scheduler.backup_db()'
+  fi
+  echo "Backup kode: $BACKUP/code.tar.gz"
+fi
 # Replace running shell scripts by rename: their open descriptors must keep
 # reading the original inode until the current update command completes.
 for script in agen-supervisor.sh agen-standalone agen; do
@@ -77,6 +88,16 @@ if [[ ! -f "$DIR/.env" ]]; then
   IP=$(curl -4fsS --max-time 8 https://api.ipify.org || true)
   IP=$(ask "IPv4 publik VPS" "${IP:-127.0.0.1}")
   [[ "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "Masukkan IPv4 publik VPS."
+  echo "Setup awal: 1=lokal tanpa Ollama, 2=9router, 3=FreeLLMAPI, 4=keduanya, 5=API langsung"
+  PROFILE="${AGEN_AI_PROFILE:-$(ask 'Pilih komponen AI' '2')}"
+  case "$PROFILE" in
+    1|local) PROFILE=local; BACKEND=local; INITIAL_MODEL=local ;;
+    2|router) PROFILE=router; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;
+    3|free|freellmapi) PROFILE=free; BACKEND=freellmapi; INITIAL_MODEL=auto:smart ;;
+    4|both) PROFILE=both; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;
+    5|online) PROFILE=online; BACKEND=online; INITIAL_MODEL=online ;;
+    *) fail "Pilihan tidak valid: local/router/free/both/online." ;;
+  esac
   PW=$(openssl rand -hex 12)
   umask 077
   cat > "$DIR/.env" <<EOF
@@ -84,13 +105,14 @@ WEB_PASSWORD=$PW
 WEB_PORT=$PORT
 PUBLIC_IP=$IP
 TZ=Asia/Jakarta
-LLM_BACKEND=compatible
+LLM_BACKEND=$BACKEND
 COMPATIBLE_BASE=http://router:20128/v1
 COMPATIBLE_KEY=
-MODEL=pilih-model-di-9router
+MODEL=$INITIAL_MODEL
 TOOL_MODE=text
 NUM_CTX=4096
 CHROMIUM=0
+AGEN_AI_PROFILE=$PROFILE
 AGEN_MEM_LIMIT=800m
 ROUTER_MEM_LIMIT=768m
 NINE_ROUTER_IMAGE=decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1
@@ -100,7 +122,7 @@ else
   echo "Pengaturan dan data lama dipertahankan."
 fi
 get_env() { sed -n "s/^$1=//p" "$DIR/.env" | head -1; }
-[[ $(get_env LLM_BACKEND) =~ ^(compatible|router|local)$ ]] || fail "Instalasi lama memakai backend lain. Ganti backend lewat web dahulu; pemasang ini khusus mode tanpa Ollama."
+[[ $(get_env LLM_BACKEND) =~ ^(compatible|router|local|freellmapi|online)$ ]] || fail "Instalasi lama memakai backend lain. Ganti backend lewat web dahulu; pemasang ini khusus mode tanpa Ollama."
 if ! grep -q '^ROUTER_JWT_SECRET=.' "$DIR/.env"; then
   printf '\nROUTER_JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$DIR/.env"
 fi
@@ -117,12 +139,18 @@ step "4/5 Membangun dan menyalakan"
 cd "$DIR"
 rm -f data/maintenance
 docker compose -f docker-compose.standalone.yml --profile router config --quiet
-docker compose -f docker-compose.standalone.yml --profile router up -d --build
+docker compose -f docker-compose.standalone.yml up -d --build agen
 ACTIVE_MODE=$(docker compose -f docker-compose.standalone.yml exec -T agen python -c 'from app import db; print(db.setting("llm_backend"))' 2>/dev/null || true)
+# Reconcile the full DB plan (bots and conversations), not only the global engine.
+# Readiness can briefly lag container creation; wait below before asking the supervisor.
 if [[ "$ACTIVE_MODE" == local ]]; then
-  docker compose exec -T agen python -c 'from app import db,config; (config.DATA_DIR/"local-model-request").write_text(db.setting("local_model_id") or "qwenpaw-2b")'
-  echo local > data/runtime-request
-elif [[ "$ACTIVE_MODE" == freellmapi ]]; then echo free > data/runtime-request; fi
+  docker compose -f docker-compose.standalone.yml exec -T agen python -c 'from app import db; db.set_setting("local_model_id", db.setting("local_model_id") or "qwen35-08b")'
+fi
+# "Both" installs the optional FreeLLMAPI image without running an idle second router.
+if [[ "${PROFILE:-}" == both ]]; then
+  docker compose -f docker-compose.standalone.yml --profile free pull freellmapi
+fi
+echo reconcile > data/runtime-request
 if command -v systemctl >/dev/null; then
   cat > /etc/systemd/system/agenmini-supervisor.service <<EOF
 [Unit]
@@ -153,18 +181,15 @@ for _ in $(seq 1 90); do
   sleep 2
 done
 [[ $READY == 1 ]] || { docker compose -f docker-compose.standalone.yml --profile router logs --tail 60; fail "Agen belum sehat. Periksa log di atas."; }
-ROUTER_READY=0
-for _ in $(seq 1 60); do
-  if curl -fsS --max-time 3 http://127.0.0.1:20128/api/health >/dev/null 2>&1; then ROUTER_READY=1; break; fi
-  sleep 2
-done
-[[ $ROUTER_READY == 1 ]] || fail "9router belum sehat. Lihat agen router-log."
+# Prepare only the services required by the saved configuration.
+# Run synchronously so installer failures cannot be reported as successful.
+bash "$DIR/agen-supervisor.sh"
 IP=$(get_env PUBLIC_IP)
 SUFFIX=""; [[ "$PORT" == 443 ]] || SUFFIX=":$PORT"
 printf '\nTERPASANG\nWeb Agen Mini: https://%s%s\n' "$IP" "$SUFFIX"
 if [[ -n "${PW:-}" ]]; then printf 'Kata sandi web: %s\n' "$PW"; else echo "Gunakan kata sandi lama; reset dengan: agen sandi"; fi
 printf '\nBuka port TCP %s di firewall panel VPS.\n' "$PORT"
-echo "Buka Koneksi > AI di web: API key penghubung dibuat otomatis."
+echo "Buka Koneksi > AI untuk setup provider/model. Komponen lain dipasang saat dipilih."
 echo "Login provider atau masukkan API key provider langsung di menu tersebut, lalu pilih model."
 echo "Mode lokal tanpa Ollama juga tersedia di menu yang sama; unduhan model dilakukan saat dipilih."
 echo "MCP: Koneksi > MCP | skill: Pengaturan > Skill | bot: Workspace | update: Pengaturan > Update"

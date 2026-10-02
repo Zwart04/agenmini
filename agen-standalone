@@ -4,7 +4,10 @@ cd /opt/agenmini
 touch data/local-runtime.env
 compose() { docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml --profile router --profile local --profile free "$@"; }
 case "${1:-bantuan}" in
-  status) compose ps ;;
+  status)
+    compose ps --all
+    compose exec -T agen python -c 'from app import db,VERSION,runtime_status; import json; print("Agen Mini", VERSION, "· mesin:", db.setting("llm_backend")); print(json.dumps(runtime_status.stored(),ensure_ascii=False))' ;;
+  backup|cadangan) compose exec -T agen python -c 'from app import scheduler; scheduler.backup_db()' ;;
   log) compose logs -f --tail 100 agen ;;
   lokal-log) shift; compose logs --tail 80 local "$@" ;;
   free-log) shift; compose logs --tail 80 freellmapi "$@" ;;

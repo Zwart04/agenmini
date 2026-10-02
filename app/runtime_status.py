@@ -21,7 +21,7 @@ async def state():
     from .chat_models import engines
     if llm.active_backend() != 'local' and 'local' not in engines() and not any(b.get('backend') == 'local' for b in db.bots(active_only=True)):
         return {**result, 'phase': 'stopped', 'message': 'Model lokal berhenti saat mode API aktif.'}
-    if result.get('phase') in ('preparing', 'downloading', 'verifying', 'failed'):
+    if (config.DATA_DIR / 'runtime-processing').exists() and result.get('phase') in ('preparing', 'downloading', 'verifying'):
         return result
     base = os.environ.get('LOCAL_API_BASE', 'http://local:8080/v1').removesuffix('/v1')
     try:
@@ -34,7 +34,8 @@ async def state():
                 return {**result, 'ready': True, 'phase': 'ready', 'message': 'Model terverifikasi dan siap untuk chat.'}
             return {**result, 'phase': 'failed', 'message': 'Model yang berjalan berbeda dari pilihan. Klik Unduh / perbaiki.'}
         return {**result, 'phase': 'loading', 'message': 'Server sedang memuat model ke RAM.'}
-    except (aiohttp.ClientError, TimeoutError):
+    except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
+        if result.get('phase') == 'failed': return result
         age = time.time() - float(result.get('started_at', time.time()))
         failed = age > 180 or result.get('phase') == 'ready'
         return {**result, 'phase': 'failed' if failed else 'loading', 'message': 'Model tidak terhubung. Periksa log lokal lalu coba perbaiki.' if failed else 'Menunggu server model. Chat belum siap.'}

@@ -406,7 +406,8 @@ class Turn:
             except (ValueError, llm.LLMError, OSError) as exc:
                 answer = 'Pembuatan halaman belum berhasil: ' + str(exc)
             meta = {'tools': ['build_website'], 'skills': skill_ids, 'seconds': round(time.time()-t0,1), 'files':ctx.attachments,
-                    'trace':[{'alat':'build_website','hasil':answer}], 'model':self.bot.get('model') or llm.default_model()}
+                    'trace':[{'alat':'build_website','hasil':answer}], 'model':self.bot.get('model') or llm.default_model(),
+                    'stats': {'served_model': getattr(ctx, 'served_model', '')}}
             mid = db.add_message(chat['id'], 'assistant', answer, meta)
             await self.on_event('done', {'text':answer,'message_id':mid,'meta':meta})
             return {'text':answer,'message_id':mid,'meta':meta}
