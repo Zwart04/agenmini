@@ -1,4 +1,4 @@
-# Validation â€” Agen Mini 0.3.1
+# Validation - Agen Mini 0.3.2
 
 Checked on 2026-10-02. Testing is separated from deployment and model-quality claims.
 
