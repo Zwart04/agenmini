@@ -243,7 +243,7 @@ async def read_file(ctx: Ctx, path: str = "", **_):
     p = _workpath(path)
     if not p.is_file():
         return "Berkas tidak ada."
-    t = p.read_text(errors="replace")
+    t = p.read_text(encoding="utf-8", errors="replace")
     return t[:8000] + ("\n…(dipotong)" if len(t) > 8000 else "")
 
 
@@ -251,13 +251,38 @@ async def read_file(ctx: Ctx, path: str = "", **_):
       {"path": S("file path"), "content": S("text to write")}, ["path", "content"])
 async def write_file(ctx: Ctx, path: str = "", content: str = "", **_):
     p = _workpath(path)
+    missing = []
+    parent = p.parent
+    while not parent.exists():
+        missing.append(parent); parent = parent.parent
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content)
+    # Newly created subfolders must also be writable by the isolated coding user.
+    for folder in missing:
+        try: os.chown(folder, config.KERJA_UID, config.KERJA_GID)
+        except (OSError, AttributeError): pass
+    p.write_text(content, encoding='utf-8')
     try:
         os.chown(p, config.KERJA_UID, config.KERJA_GID)
     except Exception:
         pass
-    return f"Tersimpan: {p.relative_to(config.WORK_DIR.resolve())} ({len(content)} karakter)"
+    rel = str(p.relative_to(config.WORK_DIR.resolve())).replace('\\', '/')
+    if rel not in ctx.attachments: ctx.attachments.append(rel)
+    return f"Tersimpan dan otomatis dikirim: {rel} ({len(content)} karakter)"
+
+
+@tool('build_website', 'Membuat landing page',
+      'Create and verify a complete responsive HTML landing page from a short brief. Automatically sends the file. No deployment or AI backend.',
+      {'brief': S('website requirements, product name and audience')}, ['brief'])
+async def build_website(ctx: Ctx, brief: str = '', on_token=None, **_):
+    from . import coding, office
+    office.phase('Menulis HTML dan CSS…', 'writing')
+    html, stats = await coding.generate(brief, ctx.bot.get('model') or llm.default_model(), on_token=on_token)
+    office.phase('Memeriksa dan menyimpan halaman…', 'tool')
+    path = 'website-' + str(time.time_ns()) + '/index.html'
+    await write_file(ctx, path, html)
+    saved = _workpath(path)
+    if saved.read_text(encoding='utf-8') != html: return 'Error: verifikasi berkas gagal.'
+    return f'Landing page HTML lengkap terverifikasi dan otomatis dikirim: {path}. Belum dipublikasikan; fitur AI/pembayaran membutuhkan backend nyata.'
 
 
 # ---------- gambar & kiriman berkas ----------

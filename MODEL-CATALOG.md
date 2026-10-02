@@ -20,3 +20,9 @@ QwenPaw 2B was actually loaded in the pinned llama.cpp image and evaluated throu
 0.3.1 pins every artifact to a Hugging Face commit and LFS SHA256. The downloader checks size, GGUF header and SHA256 before starting llama.cpp; interrupted downloads can resume by HTTP Range. Cached older HF blobs are reused only after validation. Existing model caches/data are not deleted. The runtime loads an explicit local file with --no-mmproj, so the text profile no longer silently downloads/loads an image projector.
 
 Qwen3.5 0.8B was downloaded and verified, then actually loaded at context 4096 / one CPU thread / 1700m container limit. Full Agen Mini arithmetic used actual Python and returned 1000 in 37.6 seconds. This is a smoke test, not a quality leaderboard or a guarantee of throughput on the user's VPS.
+
+## Model tambahan (0.3.3)
+
+Koneksi → AI → Tambah model Anda mendukung repo GGUF publik Hugging Face dan satu layer model dari registry Ollama. Metadata menghasilkan URL revisi/digest tetap, ukuran, SHA256, dan perkiraan RAM konservatif. Pemilihan mengunduh ke cache terpisah dan memeriksa seluruh byte/SHA256/magic GGUF; tidak menghapus model sebelumnya. Ollama hanya sumber bobot, llama.cpp tetap runtime.
+
+Import tambahan tidak otomatis menjadi rekomendasi. Kesesuaian arsitektur diketahui ketika llama.cpp memuatnya; status siap hanya diberikan jika health dan model ID sesuai. Model split, privat, dan mmproj belum didukung. Perkiraan RAM tidak menjamin muat di semua VPS. Qwen3.5 0.8B berhasil membuat prototipe Seller Studio melalui schema isi pendek dan layout HTML aplikasi; percobaan menghasilkan seluruh HTML bebas dengan model itu sebelumnya terpotong/melewati waktu. Untuk coding aplikasi kompleks gunakan model API yang lebih kuat dan verifikasi hasilnya.

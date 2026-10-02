@@ -30,6 +30,7 @@ DECISIONS = [
     ("run_python", "any calculation (percent, installments, interest, big multiplication): run_python and print"),
     ("remember", "the user says 'ingat/catat ...' or states a personal fact: remember"),
     ("schedule", "'ingatkan saya ...' or 'setiap hari/pagi ...': schedule (kind task for repeated work)"),
+    ("build_website", "asked to create a website or landing page: build_website with a short brief, never send nonexistent index.html"),
     ("write_file", "asked to save something to a file: write_file"),
     ("generate_image", "asked to make/draw/create a picture, illustration, poster or logo: generate_image"),
     ("send_file", "the user wants a file or chart sent to them: send_file with the file path"),
@@ -70,6 +71,7 @@ INTENTS = [
      "Pengguna minta sesuatu diingat: simpan dengan remember."),
     ("schedule", r"\b(ingatkan|reminder|jadwalkan|(setiap|tiap) (hari|pagi|siang|sore|malam|minggu|bulan|jam))\b",
      "Ini permintaan pengingat/jadwal: pakai schedule dengan waktu pasti (YYYY-MM-DD HH:MM)."),
+    ('build_website', r'\b(buat(?:kan|in)?|bikin(?:kan)?|desain|create|build)\b.{0,80}\b(website|landing\s?page|halaman\s+(web|html)|situs\s+web)\b', 'Buat HTML dengan build_website berisi brief singkat. Alat menyimpan, memeriksa dan mengirim berkas otomatis.'),
     ("write_file", r"\b(simpan|save)\b.{0,40}\b(berkas|file|\.txt|\.md|\.csv)",
      "Setelah informasinya didapat, simpan dengan write_file."),
     ("create_bot", r"\bbuat(kan|in)? (sebuah |satu )?bot\b", "Ini permintaan membuat bot: pakai create_bot."),
@@ -300,8 +302,24 @@ class Turn:
         self.channel = channel
         self.ext_id = str(ext_id)
         self.chat = db.chat_for(bot["id"], channel, self.ext_id)
-        self.on_event = on_event or _noop
+        self._callback = on_event or _noop
+        self._phase = None
+        from .chat_models import effective
+        self.bot = effective(bot, self.chat)
         self.prio = prio
+
+    async def on_event(self, kind, data):
+        from . import office
+        if kind == 'status':
+            self._phase = 'thinking'
+            office.phase(str(data), self._phase)
+        elif kind == 'token' and self._phase != 'writing':
+            self._phase = 'writing'
+            office.phase('Menulis jawaban…', 'writing')
+            await self._callback('status', 'Menulis jawaban…')
+        elif kind == 'approval':
+            office.phase('Menunggu izin Anda', 'alert')
+        await self._callback(kind, data)
 
     async def run(self, *args, **kwargs):
         from . import office
@@ -371,6 +389,27 @@ class Turn:
 
         ctx = tools.Ctx(bot=bot, chat=chat, channel=self.channel, ext_id=self.ext_id, skills_used=skill_ids,
                         user_text=text if save_user else "")
+        from . import coding, office
+        if coding.website_request(text) and 'build_website' in bot['tools'] and not extra_msgs:
+            await self.on_event('status', 'Menulis HTML dan CSS…')
+            try:
+                office.log(bot['id'], 'tool', 'Membuat landing page')
+                async def code_token(_):
+                    if self._phase != 'code-writing':
+                        self._phase = 'code-writing'
+                        office.phase('Menulis HTML dan CSS…', 'writing')
+                        await self._callback('status', 'Menulis HTML dan CSS…')
+                result = await tools.build_website(ctx, brief=text, on_token=code_token)
+                office.log(bot['id'], 'result', result)
+                answer = 'Landing page HTML sudah dibuat, diperiksa, dan dilampirkan. Buka index.html di browser. Fitur AI atau pembayaran belum dihubungkan ke backend.'
+                if result.startswith('Error:'): answer = result
+            except (ValueError, llm.LLMError, OSError) as exc:
+                answer = 'Pembuatan halaman belum berhasil: ' + str(exc)
+            meta = {'tools': ['build_website'], 'skills': skill_ids, 'seconds': round(time.time()-t0,1), 'files':ctx.attachments,
+                    'trace':[{'alat':'build_website','hasil':answer}], 'model':self.bot.get('model') or llm.default_model()}
+            mid = db.add_message(chat['id'], 'assistant', answer, meta)
+            await self.on_event('done', {'text':answer,'message_id':mid,'meta':meta})
+            return {'text':answer,'message_id':mid,'meta':meta}
         max_steps = int(db.setting("max_steps") or 6)
         nudged = finalized = file_checked = False
         evidence: list[str] = []
@@ -378,7 +417,7 @@ class Turn:
         used: list[str] = []
         failures: list[str] = []
         successes: list[str] = []
-        seen_calls: set[str] = set()
+        seen_calls: dict[str, str] = {}
         turn_start = len(msgs) - 1
         answer, stats, mode = "", {}, "lengkap"
         model = bot.get("model") or None
@@ -441,16 +480,16 @@ class Turn:
                     name, args = c["name"], c["arguments"]
                     validation = tools.validate_arguments(name, args)
                     if validation:
+                        failures.append(f"Error: {name}: {validation}")
                         msgs.append({"role": "tool", "content": f"Error: {validation}. Correct the arguments; do not claim success.", "tool_name": name})
                         continue
                     key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
                     t = tools.REGISTRY.get(name)
                     if key in seen_calls:
-                        result = "You already did exactly this. Use the earlier result and answer now."
+                        result = seen_calls[key] + "\nYou already did exactly this. Do not repeat it; use the original result above."
                     elif not t or name not in bot["tools"]:
                         result = f"Tool '{name}' is not available."
                     else:
-                        seen_calls.add(key)
                         reason = t.danger(args) if t.danger else None
                         if reason:
                             aid = db.run("INSERT INTO approvals(chat_id,bot_id,tool,args,reason,created_at) VALUES(?,?,?,?,?,?)",
@@ -467,8 +506,11 @@ class Turn:
                         used.append(name)
                         try:
                             from . import office
-                            office.presence.setdefault(bot["id"], {})["action"] = tool_label(name, args)
-                            office.presence[bot["id"]]["phase"] = "writing"
+                            label = tool_label(name, args)
+                            if name == 'ask_bot':
+                                target = args.get('bot_id') or args.get('target') or args.get('bot') or ''
+                                label = 'Berdiskusi dengan ' + ((db.bot(target) or {}).get('name') or target)
+                            office.phase(label, 'delegating' if name == 'ask_bot' else 'tool')
                             office.log(bot["id"], "tool", tool_label(name,args))
                             result = await asyncio.wait_for(t.fn(ctx, **args), 150)
                         except TypeError as e:
@@ -476,8 +518,11 @@ class Turn:
                         except Exception as e:
                             result = f"Error: {e}"
                     result = str(result)
-                    if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ")) or re.search(r"\[kode keluar (?!0\])", result):
+                    if key not in seen_calls: seen_calls[key] = result
+                    if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan", "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:")) or re.search(r"\[kode keluar (?!0\])", result):
                         failures.append(result[:500])
+                        if name == 'send_file':
+                            result += '\nPerbaiki: berkas belum ada. Panggil write_file dengan isi lengkap terlebih dahulu, atau build_website untuk HTML. Jangan mengulang send_file pada berkas yang belum dibuat.'
                     elif name in used:
                         successes.append(name)
                         if name in ("web_search", "read_webpage"):

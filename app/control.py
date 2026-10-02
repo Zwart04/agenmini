@@ -12,6 +12,101 @@ routes = web.RouteTableDef()
 _oauth = {}
 _mcp_lock = asyncio.Lock()
 _approval_lock = asyncio.Lock()
+_tool_check_lock = asyncio.Lock()
+
+
+@routes.post('/api/tools/check')
+async def check_core_tools(request):
+    """Harmless workspace roundtrip + real isolated Python; never sends external messages."""
+    async with _tool_check_lock:
+        rows = []
+        chat = db.chat_for('teknisi', 'diagnostic', 'owner')
+        ctx = tools.Ctx(db.bot('teknisi'), chat, 'web', 'web')
+        name = '.agen-check-' + secrets.token_hex(12) + '.txt'
+        try:
+            await tools.write_file(ctx, name, 'Agen Mini · 1000')
+            assert await tools.read_file(ctx, name) == 'Agen Mini · 1000'
+            assert not (await tools.send_file(ctx, name)).startswith('Error:')
+            rows.append({'name': 'Menulis, membaca, dan melampirkan berkas', 'ok': True, 'message': 'Roundtrip berkas UTF-8 berhasil.'})
+        except Exception as exc:
+            rows.append({'name': 'Berkas', 'ok': False, 'message': str(exc)[:200]})
+        finally:
+            tools._workpath(name).unlink(missing_ok=True)
+        try:
+            result = await tools._run_sandboxed(['python3', '-I', '-c', 'print(125*8)'], timeout=10)
+            rows.append({'name': 'Python terisolasi', 'ok': result.strip() == '[kode keluar 0]\n1000', 'message': result[:200]})
+        except Exception as exc:
+            rows.append({'name': 'Python terisolasi', 'ok': False, 'message': str(exc)[:200]})
+        builtin = 'mcp_agen_local_hardware'
+        if builtin in tools.REGISTRY:
+            try:
+                result = await asyncio.wait_for(tools.REGISTRY[builtin].fn(ctx), 15)
+                rows.append({'name': 'MCP hardware bawaan', 'ok': not str(result).startswith('Error:'), 'message': 'MCP menjawab permintaan.'})
+            except Exception as exc:
+                rows.append({'name': 'MCP hardware bawaan', 'ok': False, 'message': str(exc)[:200]})
+        else:
+            rows.append({'name': 'MCP hardware bawaan', 'ok': False, 'message': 'Belum terdaftar; periksa koneksi MCP.'})
+        return web.json_response({'checks': rows, 'note': 'Layanan API, GitHub/email, dan pembuat gambar memerlukan koneksi/kuota penyedia masing-masing. Uji ini tidak mengirim pesan keluar.'})
+
+
+@routes.get('/api/chat-models/{bot}')
+async def chat_model_choices(request):
+    from . import chat_models
+    bot = db.bot(request.match_info['bot'])
+    if not bot: raise ValueError('Bot tidak ditemukan.')
+    chat = db.chat_for(bot['id'], 'web', 'web')
+    backend = request.query.get('backend', chat.get('backend') or '')
+    return web.json_response({'models': await chat_models.choices(backend), 'backend': chat.get('backend') or '',
+                             'model': (db.setting('local_model_id') if chat.get('backend') == 'local' else chat.get('model')) or '', 'default_backend': bot.get('backend') or db.setting('llm_backend'),
+                             'default_model': bot.get('model') or llm.default_model(bot.get('backend'))})
+
+
+@routes.post('/api/chat-models/{bot}')
+async def chat_model_select(request):
+    from . import chat_models
+    bot = db.bot(request.match_info['bot'])
+    if not bot: raise ValueError('Bot tidak ditemukan.')
+    data = await request.json()
+    chat = db.chat_for(bot['id'], 'web', 'web')
+    return web.json_response(await chat_models.select(chat, str(data.get('backend', '')), str(data.get('model', ''))))
+
+
+@routes.post('/api/local-models/inspect')
+async def import_inspect(request):
+    from . import model_import
+    data = await request.json()
+    return web.json_response({'models': await model_import.inspect(data.get('source'), data.get('name'))})
+
+
+@routes.post('/api/local-models/import')
+async def import_save(request):
+    from . import model_import
+    data = await request.json()
+    rows = await model_import.inspect(data.get('source'), data.get('name'))
+    selected = next((m for m in rows if m['id'] == data.get('id')), None)
+    if not selected: raise ValueError('Berkas berubah atau tidak ditemukan. Periksa sumber lagi.')
+    return web.json_response({'model': model_import.save(selected)})
+
+
+@routes.get('/api/runtime')
+async def engine_runtime(request):
+    mode = db.setting('llm_backend')
+    if mode == 'local': return web.json_response(await runtime_status.state())
+    pending = (config.DATA_DIR / 'runtime-request').exists()
+    preparing = (config.DATA_DIR / 'runtime-processing').exists()
+    if pending or preparing:
+        return web.json_response({'phase': 'queued' if pending else 'preparing', 'message': 'Menunggu supervisor VPS.' if pending else 'Menyiapkan layanan AI di VPS.', 'ready': False})
+    if mode in ('router', 'compatible', 'freellmapi'):
+        base, path = (free_router.base(), '/api/ping') if mode == 'freellmapi' else (router.base(), '/api/health')
+        try:
+            import aiohttp
+            async with llm.session().get(base + path, timeout=aiohttp.ClientTimeout(total=2)) as response:
+                if response.status == 200:
+                    return web.json_response({'phase': 'ready', 'ready': True, 'message': 'Layanan terhubung. Pilih model dari provider yang telah disambungkan.'})
+        except (ClientError, TimeoutError): pass
+        return web.json_response({'phase': 'loading', 'ready': False, 'message': 'Menunggu layanan AI. Periksa log jika berlangsung lama.'})
+    return web.json_response({'phase': 'ready' if llm.online_ready() else 'stopped', 'ready': llm.online_ready(),
+                              'message': 'Konfigurasi API tersimpan; koneksi dan model diuji saat mengirim pesan.' if llm.online_ready() else 'Isi URL, kunci API, dan ID model terlebih dahulu.'})
 
 
 @web.middleware

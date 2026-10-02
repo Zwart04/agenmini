@@ -11,7 +11,7 @@ jobs:
       - run: docker build --build-arg CHROMIUM=0 -t agenmini-ci .
       - run: docker run --rm -v "$PWD:/src" -w /src agenmini-ci sh -c 'pip install pytest pytest-asyncio && python -m pytest tests -q -p no:cacheprovider'
       - run: bash -n installer-vps-head.sh && bash -n agen-supervisor.sh && bash -n agen-standalone
-      - run: node --check app/static/control.js
+      - run: node --check app/static/control.js && node --check app/static/activity.js
       - run: python build_installer.py
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_installer.sh
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_supervisor.sh

@@ -1,21 +1,27 @@
 /* Native admin panels. No framework, external font, image bundle or animation loop. */
 const dotShapes=['round','triangle','square','cloud','star','flame'];
-const dotState=(b,t)=>b.status==='working'?(b.phase||'thinking'):({done:'success',failed:'error',waiting:'alert',queued:'listening'})[b.last_status||t?.status]||'idle';
+const dotState=(b,t)=>b.status==='working'?({tool:'writing',delegating:'listening',queued:'listening'}[b.phase]||b.phase||'thinking'):({done:'success',failed:'error',waiting:'alert',queued:'listening'})[b.last_status||t?.status]||'idle';
 const officeColors=['#f5ba92','#b1c9e9','#beb2db','#b6d4b4','#e7c578','#dfa6bb'];
-let openedOfficeLog=null,officeLogFingerprint="",officeTimer, aiTimer, oauthFlow=null, oauthTimer, mcpDiscovered=[], editedSkill=null;
+let openedOfficeLog=null,officeRoomFingerprint="",officeLogFingerprint="",officeTimer, aiTimer, oauthFlow=null, oauthTimer, mcpDiscovered=[], editedSkill=null;
 const sayError=e=>toast(e.message || String(e));
 async function loadOffice(){
   clearTimeout(officeTimer);
   try{
     const d=await api('/api/office');
-    $('#officeRoom').innerHTML=d.bots.map((b,i)=>`<div class="office-station"><button class="office-desk avatar-${i%6} state-${b.status==='working'?(b.action?'writing':'thinking'):(d.tasks.find(t=>t.target===b.id)?.status||'idle')} ${b.status==='working'?'working':''}" data-bot="${esc(b.id)}" title="${esc(b.task||'Buka percakapan')}"><div class="mini-dot" style="--dot-color:${officeColors[i%officeColors.length]}"><img class="dot-asset" src="/static/dots/${dotShapes[i%6]}-${dotState(b,d.tasks.find(t=>t.target===b.id))}.svg" alt=""><i class="state-eyes"></i><i class="accessory"></i></div><div class="desk-line"></div><b>${esc(b.name)}</b><div class="sub">${b.status==='working'?esc(b.action||'Berpikir'):({done:'Selesai',failed:'Tugas terakhir gagal',waiting:'Menunggu izin'})[b.last_status]||'Siap membantu'}</div><div class="office-task">${esc(b.task||'Menunggu tugas baru')}</div></button><button class="btn sm office-log" data-log="${esc(b.id)}">Lihat log ${esc(b.name)}</button></div>`).join('');
+    const roomFingerprint=JSON.stringify(d.bots);
+    if(roomFingerprint!==officeRoomFingerprint){officeRoomFingerprint=roomFingerprint;
+    $('#officeRoom').innerHTML=d.bots.map((b,i)=>`<div class="office-station"><button class="office-desk avatar-${i%6} phase-${b.phase||'idle'} state-${b.status==='working'?(b.phase||'thinking'):(d.tasks.find(t=>t.target===b.id)?.status||'idle')} ${b.status==='working'?'working':''}" data-bot="${esc(b.id)}" title="${esc(b.task||'Buka percakapan')}"><div class="mini-dot" style="--dot-color:${officeColors[i%officeColors.length]}"><img class="dot-asset" src="/static/dots/${dotShapes[i%6]}-${dotState(b,d.tasks.find(t=>t.target===b.id))}.svg" alt=""><i class="state-eyes"></i><i class="accessory"></i></div><div class="desk-line"></div><b>${esc(b.name)}</b><div class="sub">${b.status==='working'?esc(b.action||'Berpikir'):({done:'Selesai',failed:'Tugas terakhir gagal',waiting:'Menunggu izin'})[b.last_status]||'Siap membantu'}</div><div class="office-task">${esc(b.task||'Menunggu tugas baru')}</div></button><button class="btn sm office-log" data-log="${esc(b.id)}">Lihat log ${esc(b.name)}</button></div>`).join('');
     $$('#officeRoom [data-bot]').forEach(x=>x.onclick=()=>pickBot(x.dataset.bot));
     $$('#officeRoom [data-log]').forEach(x=>x.onclick=()=>showOfficeLog(x.dataset.log));
+    }
+    const target=$('#officeTarget').value;
     $('#officeTarget').innerHTML=d.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
-    const labels={queued:'Menunggu',working:'Dikerjakan',done:'Selesai',failed:'Gagal',waiting:'Butuh tindakan'};
+    if(target)$('#officeTarget').value=target;
+ const labels={queued:'Menunggu',working:'Dikerjakan',done:'Selesai',failed:'Gagal',waiting:'Butuh tindakan'};
     $('#officeTasks').innerHTML=d.tasks.map(t=>`<div class="r"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p>${esc(t.text)}</p>${t.approval?`<div class="approval-preview"><p>${esc(t.approval.reason)}</p><pre class="task-result">${esc(t.approval.args)}</pre><button class="btn pri" data-office-approve="${t.id}">Izinkan tindakan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div>`:''}${t.result?`<details><summary>Lihat hasil</summary><div class="task-result">${esc(t.result)}</div></details>`:''}</div></div>`).join('')||empty('Belum ada tugas. Kirim satu tugas ke bot di atas.');
     $$('[data-office-approve],[data-office-deny]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('/api/office/approval/'+(b.dataset.officeApprove||b.dataset.officeDeny),{method:'POST',body:{ok:!!b.dataset.officeApprove}});toast('Keputusan disimpan');loadOffice()}catch(e){sayError(e);b.disabled=false}});
     if(openedOfficeLog)await showOfficeLog(openedOfficeLog,true);
+    if(typeof wireBusy==='function')wireBusy($('#v-office'));
     if(S.view==='office'&&!document.hidden) officeTimer=setTimeout(loadOffice,5000);
   }catch(e){sayError(e)}
 }
@@ -31,13 +37,17 @@ async function loadAI(){
   $('#routerHeading').classList.toggle('hidden',!['router','compatible'].includes(settings.llm_backend));
   $('#routerStatus').classList.toggle('hidden',!['router','compatible'].includes(settings.llm_backend));
   $('#localModelSection').classList.toggle('hidden',settings.llm_backend!=='local');
-  $('#localRuntime').classList.toggle('hidden',settings.llm_backend!=='local');
+  $('#localRuntime').classList.remove('hidden');
+  if(settings.llm_backend!=='local')renderRuntime(await api('/api/runtime'));
+
+  $('#localRuntime details').classList.toggle('hidden',settings.llm_backend!=='local');
   $('#directApiForm').classList.toggle('hidden',settings.llm_backend!=='online');
   if(settings.llm_backend==='online'){['Url','Key','Model'].forEach((field,i)=>$('#directApi'+field).value=settings[['online_base','online_key','online_model'][i]]||'');}
   const update=await api('/api/update');
   if(settings.llm_backend==='freellmapi'){await loadFree();if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),10000);return;}
-  if(settings.llm_backend==='online'){$('#routerStatus').textContent='API langsung: atur URL dan kunci di Pengaturan umum.';return;}
+  if(settings.llm_backend==='online'){$('#routerStatus').textContent='API langsung: atur URL dan kunci di bawah.';return;}
   if(settings.llm_backend==='local'){$('#routerStatus').textContent='Mode lokal aktif. Pilih 9router untuk menyambungkan provider.';if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),5000);return;}
+  $('#routerStatus').innerHTML='<span class="runtime-spinner"></span> Membaca provider dan model…';
   try{
     const d=await api('/api/router');
     $('#routerStatus').textContent='Terhubung. API key dikelola otomatis di server.';
@@ -88,6 +98,7 @@ $('#officeLogClose').onclick=()=>{openedOfficeLog=null;$('#officeLog').classList
 
 async function loadLocalModels(){
  const d=await api('/api/local-models'), h=d.hardware, r=d.runtime;
+ renderRuntime(r);
  const labels={queued:'Menunggu',preparing:'Menyiapkan',downloading:'Mengunduh',verifying:'Memeriksa SHA256',loading:'Memuat model',ready:'Siap',failed:'Gagal',stopped:'Tidak aktif'};
  const busy=['queued','preparing','downloading','verifying','loading'].includes(r.phase);
  $('#runtimePhase').textContent=labels[r.phase]||'Memeriksa';$('#runtimeStatus').textContent=r.message||'';
@@ -98,8 +109,9 @@ async function loadLocalModels(){
  $$('[data-mode]').forEach(b=>b.disabled=busy);
  $('#hardwareSummary').textContent=h.source==='host'?`${(h.ram_mb/1024).toFixed(1)} GB RAM · ${(h.available_mb/1024).toFixed(1)} GB tersedia · ${h.cpus} CPU · ${h.architecture}`:'Hardware host belum tersedia. Supervisor VPS akan membacanya secara otomatis.';
  if(h.source==='host'&&!d.recommended)$('#hardwareSummary').textContent+=' · RAM tersedia belum cukup; gunakan API.';
- $('#localModelCards').innerHTML=d.models.map(m=>`<article class="model-card ${m.id===d.recommended?'recommended':''}"><div class="row"><b class="grow">${esc(m.name)}</b>${m.id===d.recommended?'<span class="pill">Rekomendasi</span>':''}</div><p>${esc(m.note)}</p><div class="hint">Unduh ${m.download_gb} GB · RAM ≥ ${m.min_ram_gb} GB · Q4 · teks</div><div class="row"><button class="btn sm" data-local-model="${esc(m.id)}" ${!m.fits||busy||r.ready&&m.id===d.selected?'disabled':''}>${busy&&m.id===d.selected?'Sedang diproses':r.ready&&m.id===d.selected?'Sudah siap':m.id===d.selected?'Unduh / perbaiki':'Pilih & unduh'}</button><a href="${esc(m.source)}" target="_blank" rel="noopener noreferrer">Detail model</a></div></article>`).join('');
+ $('#localModelCards').innerHTML=d.models.map(m=>`<article class="model-card ${m.id===d.recommended?'recommended':''}"><div class="row"><b class="grow">${esc(m.name)}</b>${m.id===d.recommended?'<span class="pill">Rekomendasi</span>':''}</div><p>${esc(m.note)}</p><div class="hint">Unduh ${m.download_gb} GB · RAM ≥ ${m.min_ram_gb} GB · ${m.custom?"GGUF pilihan Anda":"Q4"} · teks</div><div class="row"><button class="btn sm" data-local-model="${esc(m.id)}" ${!m.fits||busy||r.ready&&m.id===d.selected?'disabled':''}>${busy&&m.id===d.selected?'Sedang diproses':r.ready&&m.id===d.selected?'Sudah siap':m.id===d.selected?'Unduh / perbaiki':'Pilih & unduh'}</button><a href="${esc(m.source)}" target="_blank" rel="noopener noreferrer">Detail model</a></div></article>`).join('');
  $$('[data-local-model]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const d=await api('/api/local-models',{method:'POST',body:{id:b.dataset.localModel}});toast(d.message);loadAI().catch(sayError)}catch(e){sayError(e);b.disabled=false}});
+ if(typeof wireBusy==='function')wireBusy($('#v-ai'));
 }
 $('#refreshHardware').onclick=()=>loadLocalModels().catch(sayError);
 $('#mcpGithubPreset').onclick=()=>{$('#mcpName').value='github';$('#mcpUrl').value='https://api.githubcopilot.com/mcp/';$('#mcpCommand').value='';$('#mcpArgs').value='[]';$('#mcpToken').value='';$('#mcpAllowed').value='';$('#mcpReadonly').value='';$('#mcpKeepToken').checked=false;$('#mcpForm').scrollIntoView({block:'start'});$('#mcpToken').focus();toast('Isi token GitHub lalu uji koneksi. Pilih alat baca saja yang diperlukan.')};
@@ -107,7 +119,7 @@ $('#mcpGithubPreset').onclick=()=>{$('#mcpName').value='github';$('#mcpUrl').val
 function askCorrection(){return new Promise(resolve=>{const dialog=$('#feedbackDialog');$('#feedbackNote').value='';dialog.onclose=()=>resolve(dialog.returnValue==='save'?$('#feedbackNote').value.trim():'');dialog.showModal();$('#feedbackNote').focus()})}
 
 
-async function loadFree(){try{
+async function loadFree(){$('#freeStatus').innerHTML='<span class="runtime-spinner"></span> Membaca provider dan model…';try{
  const d=await api('/api/freellmapi');$('#freeStatus').textContent='Terhubung. Strategi auto membutuhkan provider yang siap; kunci penghubung dikelola di server.';
  $('#freeProvider').innerHTML=d.providers.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}${p.keyless?' (tanpa key jika didukung)':''}</option>`).join('');
  $('#freeModel').innerHTML=d.models.map(m=>`<option value="${esc(m.id)}" ${m.id===d.active_model?'selected':''}>${esc(m.name)} · ${esc(m.id)} ${esc(m.status)}</option>`).join('');

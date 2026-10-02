@@ -123,6 +123,9 @@ def _migrate(c: sqlite3.Connection):
                             (ch["bot_id"], ch["channel"], ch["ext_id"], old["b"], old["a"]))
             c.execute("UPDATE messages SET chat_id=? WHERE chat_id=? AND created_at<=?", (cur.lastrowid, ch["id"], ch["reset_at"]))
             c.execute("UPDATE chats SET reset_at=0 WHERE id=?", (ch["id"],))
+    chat_columns = {r[1] for r in c.execute("PRAGMA table_info(chats)")}
+    for field in ('backend', 'model'):
+        if field not in chat_columns: c.execute("ALTER TABLE chats ADD COLUMN " + field + " TEXT DEFAULT ''")
     c.execute("CREATE INDEX IF NOT EXISTS chats_aktif ON chats(bot_id, channel, ext_id, archived)")
     # judul dari pesan pertama pengguna
     for ch in c.execute("SELECT id FROM chats WHERE title IS NULL OR title=''").fetchall():
@@ -265,6 +268,18 @@ def export_chat(chat_id: int) -> str:
         who = "Anda" if m["role"] == "user" else (b["name"] if b else "Bot")
         lines += [f"**{who}** ({datetime.fromtimestamp(m['created_at']):%d/%m %H.%M}):", "", m["content"], ""]
     return "\n".join(lines)
+
+
+def copy_chat(chat_id: int, channel: str, ext_id: str) -> dict:
+    """Continue a copy on another channel; old approvals never become actionable again."""
+    source = one('SELECT * FROM chats WHERE id=?', (chat_id,))
+    if not source or not bot(source['bot_id']): raise ValueError('Percakapan tidak ditemukan.')
+    target = new_chat(source['bot_id'], channel, ext_id)
+    for message in q("SELECT role,content FROM messages WHERE chat_id=? AND role IN ('user','assistant') ORDER BY id DESC LIMIT 200", (chat_id,))[::-1]:
+        add_message(target['id'], message['role'], message['content'], {'copied_from': chat_id})
+    run('UPDATE chats SET title=?,backend=?,model=? WHERE id=?',
+        ('Lanjutan: ' + (source['title'] or 'percakapan'), source.get('backend', ''), source.get('model', ''), target['id']))
+    return one('SELECT * FROM chats WHERE id=?', (target['id'],))
 
 
 def delete_chat(chat_id: int):

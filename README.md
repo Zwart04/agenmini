@@ -1,4 +1,4 @@
-# Agen Mini 0.3.2
+# Agen Mini 0.3.3
 
 Asisten pribadi ringan dengan web, Telegram, MCP, skill, memori, dan workspace bot.
 
@@ -10,13 +10,13 @@ Jalankan `bash /root/pasang-vps.sh` sebagai root. Pemasang memasang Docker/Compo
 membangun aplikasi, dan menampilkan URL serta kata sandi. Update menggunakan
 perintah yang sama dan mempertahankan data. Lupa sandi: `agen sandi`.
 
-Buka **AI & 9router**, hubungkan API key/OAuth provider, lalu pilih model.
+Buka **Koneksi → AI**, hubungkan API key/OAuth provider, lalu pilih model.
 Kunci router dibuat dan disimpan server secara otomatis. Semua pengaturan ada
 pada satu aplikasi; provider OAuth masih memerlukan halaman login provider.
 9router upstream digunakan sebagai container, bukan fork yang mengaku lebih kecil.
 
 Pilihan **Lokal tanpa Ollama** membaca RAM host, RAM tersedia, CPU dan memori model yang dapat dilepas. Pilih rekomendasi atau model di katalog QwenPaw/Qwen3.5 0.8B-9B Q4. Mesin llama.cpp memakai CPU, konteks 4096, 1-4 thread dan satu permintaan; model yang melampaui anggaran RAM dibatasi. Unduhan pertama membutuhkan
-internet dan sekitar 1.3 GB disk. Gunakan VPS 4 GB RAM untuk lokal; 2 GB disarankan
+internet dan sekitar 0.58–6.17 GB disk sesuai model. Gunakan VPS 4 GB RAM untuk lokal; 2 GB disarankan
 untuk mode API. CPU VPS menentukan kecepatan. Model kecil tetap bisa salah;
 penjaga validasi alat dan sumber tidak menggantikan evaluasi model nyata.
 
@@ -59,7 +59,7 @@ Dependensi: [9router](https://github.com/decolua/9router),
 Lisensi dependensi/model mengikuti proyek masing-masing.
 
 
-Model terkurasi diverifikasi metadata/berkasnya pada 2 Oktober 2026, bukan daftar otomatis semua model terbaru. Baca [MODEL-CATALOG.md](MODEL-CATALOG.md). Hanya QwenPaw 2B yang sudah menjalani smoke test inferensi di lingkungan ini; keluarga lain perlu diuji pada VPS Anda. Seed skill adalah prosedur Agen Mini, bukan pemasangan plugin Superpowers pihak ketiga.
+Model terkurasi diverifikasi metadata/berkasnya pada 2 Oktober 2026, bukan daftar otomatis semua model terbaru. Baca [MODEL-CATALOG.md](MODEL-CATALOG.md). QwenPaw 2B dan Qwen3.5 0.8B sudah menjalani smoke test inferensi di lingkungan ini; ukuran lain perlu diuji pada VPS Anda. Seed skill adalah prosedur Agen Mini, bukan pemasangan plugin Superpowers pihak ketiga.
 
 
 ### 0.3.2: status model dan tim
@@ -71,3 +71,14 @@ Koneksi → AI menampilkan unduhan dalam byte/persen, verifikasi SHA256, pemuata
 FreeLLMAPI merupakan profil opsional di Koneksi, dengan akun internal dan kunci penghubung otomatis. Tambahkan API key provider; daftar model berasal dari server yang terhubung, bukan daftar model rekaan. auto:smart/auto:fast adalah strategi routing, dan nama slot Claude di upstream adalah alias kompatibilitas, bukan klaim model Claude asli. Model yang benar-benar melayani permintaan dicatat pada metadata jawaban. Kuota/ketentuan layanan provider tetap berlaku; akun berbayar Premium tidak diperlukan untuk integrasi ini.
 
 Versi 0.3.2 mengganti skrip supervisor/CLI lewat rename atomik agar updater yang sedang berjalan tetap membaca berkas lamanya. Jika updater lama melaporkan potongan perintah setelah update, gunakan pemasang rilis dengan checksum seperti panduan CARA-PASANG-VPS.txt; data dan sandi dipertahankan. Tampilan ponsel diperiksa pada 320/390/430px, dengan menu yang dapat ditutup dari area luar, pilihan mesin dua kolom dan dialog yang dapat digulir.
+
+
+### 0.3.3: aktivitas, model chat, dan coding
+
+Animasi transform/opacity berjalan pada browser: menunggu, menulis, menggunakan alat, dan berbicara antarbot. Status datang dari SSE yang sudah ada; unduhan memakai byte nyata. Tab tersembunyi menjeda animasi/polling. Pengaturan menyediakan pilihan animasi aktif/nonaktif tanpa mengubah layanan VPS.
+
+Pilih mesin/model di bar **Model chat**. Pilihan berlaku untuk percakapan tersebut; semua percakapan lokal tetap berbagi satu model agar hemat RAM. **Riwayat** menampilkan percakapan berbagai bot dan Telegram. Percakapan Telegram dapat disalin ke web dengan **Lanjutkan di sini**, sementara sumber tetap tersimpan. Di Telegram gunakan `/model`, `/model router`, `/model freellmapi`, `/model local`, atau `/model utama` untuk mengikuti bawaan bot.
+
+**Koneksi → AI → Buka dashboard** membuka 9router/FreeLLMAPI melalui domain Agen Mini dengan sesi pemilik. Tidak perlu membuka port dashboard ke publik. **Tambah model Anda** membaca repo GGUF publik Hugging Face atau tag Ollama, mengunci revisi/hash, dan memeriksa RAM sebelum unduhan. Bobot Ollama dijalankan oleh llama.cpp; daemon Ollama tidak dipasang. Model split, privat, proyektor gambar, dan arsitektur yang tidak didukung llama.cpp tidak termasuk; model tambahan belum memiliki jaminan kualitas.
+
+Pembuatan landing page memakai alat `build_website`: mode lokal membuat isi JSON pendek dengan schema, kemudian memakai layout HTML responsif bawaan. Model API menghasilkan HTML bebas. Berkas diperiksa dan otomatis dilampirkan; ini prototipe halaman, bukan aplikasi AI/payment yang sudah terhubung atau dipublikasikan. Coding lain tetap menggunakan berkas/Python/shell sesuai izin bot. Pengulangan alat yang gagal mempertahankan galatnya. **Pengaturan → Diagnostik → Uji alat inti** menjalankan pemeriksaan berkas, Python Linux, dan MCP hardware pada VPS Anda.

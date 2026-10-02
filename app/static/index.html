@@ -253,6 +253,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
         <button class="btn ghost sm" id="histBtn"><span data-ic="history" data-cls="s"></span>Riwayat</button>
         <button class="btn ghost sm" id="newChat"><span data-ic="compose" data-cls="s"></span>Percakapan baru</button>
       </div>
+      <div class="chat-model-bar"><label for="chatBackend">Model chat</label><select id="chatBackend" class="inp"><option value="">Ikuti bot</option><option value="local">Lokal</option><option value="router">9router</option><option value="freellmapi">FreeLLMAPI</option><option value="online">API langsung</option></select><select class="inp" id="chatModel" aria-label="Model percakapan"></select><button class="btn sm" id="chatModelApply">Gunakan</button><small id="chatModelInfo"></small></div>
       <div id="msgs"><div class="oldbar hidden" id="oldBar"></div><div class="thread" id="thread"></div></div>
       <div class="composer">
         <div class="attach-row hidden" id="attachRow"></div>
@@ -275,10 +276,10 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
     </div></div></div>
     <div class="view hidden" id="v-ai"><div class="page"><div class="page-in" style="max-width:760px">
       <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('ai')">AI</button><button class="btn sm " type="button" onclick="go('mcp')">MCP</button></nav><h2>Koneksi AI</h2><p class="lead">Pilih otak dan hubungkan provider di sini. Mode sekarang: <b id="aiMode">Memeriksa…</b>.</p>
-      <div class="mode-buttons"><button class="btn" data-mode="local">Lokal tanpa Ollama</button><button class="btn" data-mode="router">9router / API</button><button class="btn" data-mode="online">API langsung</button><button class="btn" data-mode="freellmapi">FreeLLMAPI</button></div><div class="runtime-box hidden" id="localRuntime" role="status" aria-live="polite"><span class="runtime-spinner hidden" id="runtimeSpinner"></span><b id="runtimePhase"></b><p id="runtimeStatus"></p><progress id="runtimeProgress" max="100" class="hidden" aria-label="Progres unduhan model"></progress><small id="runtimeBytes"></small><details><summary>Log model lokal</summary><pre id="runtimeLog">Belum ada log.</pre></details></div><section class="control-form hidden" id="localModelSection"><div class="row"><h3 class="grow">Model lokal</h3><button class="btn sm" id="refreshHardware">Periksa ulang</button></div><p class="hint" id="hardwareSummary">Membaca hardware...</p><div id="localModelCards" class="local-models"></div><p class="hint">Katalog terkurasi Q4 · CPU · konteks 4096. Ukuran RAM adalah perkiraan dengan cadangan sistem. Model lebih besar bisa lebih lambat, dan tetap dapat salah.</p></section>
+      <div class="mode-buttons"><button class="btn" data-mode="local">Lokal tanpa Ollama</button><button class="btn" data-mode="router">9router / API</button><button class="btn" data-mode="online">API langsung</button><button class="btn" data-mode="freellmapi">FreeLLMAPI</button></div><div class="runtime-box hidden" id="localRuntime" role="status" aria-live="polite"><span class="runtime-spinner hidden" id="runtimeSpinner"></span><b id="runtimePhase"></b><p id="runtimeStatus"></p><progress id="runtimeProgress" max="100" class="hidden" aria-label="Progres unduhan model"></progress><small id="runtimeBytes"></small><details><summary>Log model lokal</summary><pre id="runtimeLog">Belum ada log.</pre></details></div><section class="control-form hidden" id="localModelSection"><div class="row"><h3 class="grow">Model lokal</h3><button class="btn sm" id="refreshHardware">Periksa ulang</button></div><p class="hint" id="hardwareSummary">Membaca hardware...</p><div id="localModelCards" class="local-models"></div><details class="model-import"><summary>Tambah model Anda · Hugging Face / Ollama</summary><form id="modelImportForm"><div class="field"><label for="importSource">Sumber</label><select class="inp" id="importSource"><option value="hf">Hugging Face (repo GGUF publik)</option><option value="ollama">Ollama (unduh bobot, tanpa memasang Ollama)</option></select></div><div class="field"><label for="importName">Repo / nama model</label><input class="inp" id="importName" required placeholder="bartowski/Qwen_Qwen3.5-0.8B-GGUF"></div><button class="btn" type="submit">Periksa sumber</button><div class="field hidden" id="importFileRow"><label for="importFile">Berkas GGUF</label><select class="inp" id="importFile"></select></div><button type="button" class="btn pri hidden" id="importSave">Tambahkan ke daftar</button><p class="hint" id="importInfo">Berkas GGUF tunggal untuk teks. RAM dan SHA256 diperiksa; model baru tetap perlu diuji. Model privat, split, dan proyektor gambar belum didukung.</p></form></details><p class="hint">Katalog terkurasi Q4 · CPU · konteks 4096. Ukuran RAM adalah perkiraan dengan cadangan sistem. Model lebih besar bisa lebih lambat, dan tetap dapat salah.</p></section>
       <div class="setup-note">Lokal mengunduh model sesuai rekomendasi hardware saat pertama dinyalakan dan memakai CPU/RAM VPS. Mode API menghentikan model lokal agar lebih hemat. Kualitas model kecil tetap perlu dinilai dari hasil nyata.</div>
-      <div class="row hidden" id="routerHeading"><h3 class="grow">9router</h3><button class="btn sm" id="routerConnect">Hubungkan otomatis</button></div><p id="routerStatus" class="sub"></p>
-      <form id="directApiForm" class="control-form hidden"><h3>API langsung</h3><div class="field"><label for="directApiUrl">URL API (akhiran /v1)</label><input class="inp" id="directApiUrl" required placeholder="https://api.example.com/v1"></div><div class="field"><label for="directApiKey">API key</label><input class="inp" id="directApiKey" type="password" autocomplete="off"></div><div class="field"><label for="directApiModel">ID model dari provider</label><input class="inp" id="directApiModel" required></div><button class="btn pri">Simpan API</button></form><section id="freePanel" class="control-form hidden"><h3>FreeLLMAPI</h3><p class="hint">Router gratis opsional. Tambahkan kunci provider, lalu pilih dari model yang tersedia pada server. Gratis mengikuti kuota penyedia; bukan API tanpa batas.</p><p id="freeStatus" class="sub"></p><div id="freeConnections"></div><form id="freeProviderForm"><div class="twocol"><div class="field"><label for="freeProvider">Provider</label><select class="inp" id="freeProvider"></select></div><div class="field"><label for="freeKey">API key provider</label><input class="inp" type="password" id="freeKey" autocomplete="off"></div></div><button class="btn" type="submit">Tambah provider</button></form><div class="field"><label for="freeModel">Model / strategi yang tersedia</label><select class="inp" id="freeModel"></select></div><button class="btn pri" id="useFreeModel">Gunakan model</button></section><section class="hidden" id="routerPanel"><div class="group"><div class="rows" id="routerConnections"></div></div>
+      <div class="row hidden" id="routerHeading"><h3 class="grow">9router</h3><a class="btn sm" href="/apps/router/dashboard" target="_blank" rel="noopener">Buka dashboard ↗</a><button class="btn sm" id="routerConnect">Hubungkan otomatis</button></div><p id="routerStatus" class="sub"></p>
+      <form id="directApiForm" class="control-form hidden"><h3>API langsung</h3><div class="field"><label for="directApiUrl">URL API (akhiran /v1)</label><input class="inp" id="directApiUrl" required placeholder="https://api.example.com/v1"></div><div class="field"><label for="directApiKey">API key</label><input class="inp" id="directApiKey" type="password" autocomplete="off"></div><div class="field"><label for="directApiModel">ID model dari provider</label><input class="inp" id="directApiModel" required></div><button class="btn pri">Simpan API</button></form><section id="freePanel" class="control-form hidden"><div class="row"><h3 class="grow">FreeLLMAPI</h3><a class="btn sm" href="/apps/free/" target="_blank" rel="noopener">Buka dashboard ↗</a></div><p class="hint">Router gratis opsional. Tambahkan kunci provider, lalu pilih dari model yang tersedia pada server. Gratis mengikuti kuota penyedia; bukan API tanpa batas.</p><p id="freeStatus" class="sub"></p><div id="freeConnections"></div><form id="freeProviderForm"><div class="twocol"><div class="field"><label for="freeProvider">Provider</label><select class="inp" id="freeProvider"></select></div><div class="field"><label for="freeKey">API key provider</label><input class="inp" type="password" id="freeKey" autocomplete="off"></div></div><button class="btn" type="submit">Tambah provider</button></form><div class="field"><label for="freeModel">Model / strategi yang tersedia</label><select class="inp" id="freeModel"></select></div><button class="btn pri" id="useFreeModel">Gunakan model</button></section><section class="hidden" id="routerPanel"><div class="group"><div class="rows" id="routerConnections"></div></div>
       <div class="row" style="margin:18px 0"><select class="inp grow" id="routerModel" aria-label="Model router"></select><button class="btn pri" id="useRouterModel">Pakai model</button></div>
       <form id="providerForm" class="control-form"><h3>Tambahkan API key</h3><div class="field"><label for="apiProvider">Provider</label><select class="inp" id="apiProvider"></select></div><div class="field"><label for="providerName">Nama koneksi</label><input class="inp" id="providerName" placeholder="Misalnya akun utama"></div><div class="field"><label for="providerKey">API key provider</label><input class="inp" id="providerKey" type="password" autocomplete="off" required></div><button class="btn pri">Simpan koneksi</button></form>
       <div class="control-form"><h3>Login OAuth</h3><div class="field"><label for="oauthProvider">Provider OAuth</label><select class="inp" id="oauthProvider"></select></div><details><summary>Redirect URI (opsional)</summary><input class="inp" id="oauthRedirect" placeholder="Kosong = bawaan provider"></details><button class="btn" id="oauthStart" style="margin-top:12px">Mulai login</button><a class="btn hidden" id="oauthLogin" target="_blank" rel="noopener noreferrer">Buka halaman provider</a><p class="sub" id="oauthInfo"></p><div id="oauthCallbackRow" class="hidden"><input class="inp" id="oauthCallback" placeholder="Tempel URL callback setelah login"><button class="btn" id="oauthFinish">Selesaikan login</button></div><p class="sub">Login tetap dilakukan di situs provider. Device code diperiksa otomatis; alur callback memakai URL yang Anda tempel.</p></div>
@@ -329,6 +330,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
       <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm " type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm tab-active" type="button" onclick="go('models')">Diagnostik</button></nav><h2>Diagnostik server</h2>
       <p class="lead">Kondisi server, model yang terpasang, dan uji adu model.</p>
       <div class="stats" id="stats"></div>
+      <div class="control-form"><h3>Periksa alat</h3><p>Uji berkas, Python terisolasi, dan MCP bawaan di server ini.</p><button class="btn" id="checkTools" type="button">Uji alat inti</button><div id="toolChecks" role="status" aria-live="polite"></div></div>
       <div class="group">
         <div class="group-h">Model Ollama (opsional)</div>
         <div class="group-d">Model aktif dipakai semua bot, kecuali bot yang diatur khusus.</div>
@@ -384,7 +386,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
           <div class="field"><label>DNS aman</label><select class="inp" name="dns_aman"><option value="1">Aktif, nama situs ditanyakan lewat HTTPS</option><option value="0">Mati, pakai DNS server</option></select><span class="hint">Seperti "DNS aman" di Chrome. Membuat pencarian tetap jalan kalau DNS jaringan membelokkan situs.</span></div>
         </div></div>
         <div class="group"><div class="group-h">Keamanan & tampilan</div><div class="group-b">
-          <div class="field"><label>Kata sandi web baru</label><input class="inp" name="new_password" type="password" autocomplete="new-password" placeholder="kosongkan kalau tidak diganti"><span class="hint">Mengganti kata sandi mengeluarkan perangkat lain.</span></div>
+          <div class="field"><label for="motionSetting">Animasi aktivitas (perangkat ini)</label><select class="inp" id="motionSetting"><option value="on">Aktif</option><option value="off">Mati</option></select><span class="hint">Animasi berhenti saat halaman tidak terlihat. Status teks tetap tersedia.</span></div><div class="field"><label>Kata sandi web baru</label><input class="inp" name="new_password" type="password" autocomplete="new-password" placeholder="kosongkan kalau tidak diganti"><span class="hint">Mengganti kata sandi mengeluarkan perangkat lain.</span></div>
           <div class="row" style="margin-bottom:14px"><button type="button" class="btn sm" id="themeBtn"><span data-ic="contrast" data-cls="s"></span>Ganti tema</button><button type="button" class="btn sm danger" id="logoutBtn"><span data-ic="logout" data-cls="s"></span>Keluar</button></div>
         </div></div>
         <button class="btn pri">Simpan</button>
@@ -562,6 +564,7 @@ async function refreshBots() {
 }
 $('#botSelect').onchange = e => pickBot(e.target.value);
 function pickBot(id) {
+  if(S.busy)return toast('Tunggu jawaban selesai sebelum pindah percakapan.');
   S.bot = S.bots.find(b => b.id === id); try { localStorage.setItem('bot', id) } catch (e) {}
   go('chat'); refreshBots(); loadChat();
 }
@@ -574,8 +577,9 @@ const SUGS = {
   teknisi: ['Cek kondisi server', 'Buat skrip Python penghitung bunga majemuk'],
 };
 async function loadChat(chatId) {
-  const b = S.bot; if (!b) return;
+  const b = S.bot; if (!b || S.busy) return;
   S.viewChat = chatId || null;
+  if(typeof loadChatModels==='function')loadChatModels().catch(sayError);
   $('#chAv').outerHTML = `<span class="av" id="chAv">${ic(b.icon, 's')}</span>`;
   $('#chName').textContent = b.name; $('#chDesc').textContent = b.persona;
   const d = await api('/api/chat/' + b.id + (chatId ? '?chat_id=' + chatId : ''));
@@ -583,10 +587,12 @@ async function loadChat(chatId) {
   const bar = $('#oldBar'), c = d.chat || {}, tg = c.channel === 'tg';
   const old = tg || c.archived;
   bar.classList.toggle('hidden', !old);
-  $('#input').disabled = tg; $('#attachBtn').disabled = tg;
+  $('#input').disabled = tg; $('#attachBtn').disabled = tg; $('#sendBtn').disabled = tg;
   $('#input').placeholder = tg ? 'Percakapan Telegram hanya bisa dilihat di sini' : 'Tulis pesan';
-  if (tg) bar.innerHTML = `${ic('history', 's')}<span class="grow">Percakapan dari Telegram. Lanjutkan di Telegram lewat /riwayat.</span><button class="btn sm" id="backNow">Kembali</button>`;
+  if (tg) bar.innerHTML = `${ic('history', 's')}<span class="grow">Percakapan dari Telegram.</span><button class="btn pri sm" id="copyHere">Lanjutkan di sini</button><button class="btn sm" id="backNow">Kembali</button>`;
   else if (c.archived) bar.innerHTML = `${ic('history', 's')}<span class="grow">Percakapan lama: ${esc(c.title || '')}</span><button class="btn pri sm" id="contNow">Lanjutkan</button><button class="btn sm" id="backNow">Kembali</button>`;
+  $('#chatBackend').disabled=old;$('#chatModel').disabled=old;$('#chatModelApply').disabled=old;
+  if (tg)$('#copyHere').onclick=async()=>{await api('/api/chats/'+c.id+'/salin',{method:'POST',body:{}});loadChat()};
   if (old) {
     $('#backNow').onclick = () => loadChat();
     const cn = $('#contNow'); if (cn) cn.onclick = async () => { await api(`/api/chats/${c.id}/buka`, {method: 'POST'}); loadChat() };
@@ -651,14 +657,17 @@ function addApproval(el, id) {
 async function runStream(path, body) {
   S.busy = true; $('#sendBtn').disabled = true;
   const th = $('#thread');
-  const st = document.createElement('div'); st.className = 'status'; st.innerHTML = '<span class="spin"></span><span>Berpikir…</span>'; th.append(st);
+  const st = document.createElement('div'); st.className = 'status'; st.setAttribute('role','status'); st.innerHTML = '<span class="spin"></span><span class="activity-label">Menghubungkan AI…</span><small class="activity-elapsed"></small>'; th.append(st);
+  const started=Date.now(); const clock=setInterval(()=>{if(!document.hidden)st.querySelector('.activity-elapsed').textContent=Math.floor((Date.now()-started)/1000)+' dtk'},1000);
+  $('#chatBackend').disabled=true;$('#chatModel').disabled=true;$('#chatModelApply').disabled=true;
   let draft = null, draftText = '';
   scrollEnd();
   try {
     await stream(path, body, ev => {
-      if (ev.type === 'status') { st.lastChild.textContent = ev.data; if (draft) { draft.remove(); draft = null; draftText = '' } }
+      if (ev.type === 'status') { st.querySelector('.activity-label').textContent = ev.data; if (draft) { draft.remove(); draft = null; draftText = '' } }
       else if (ev.type === 'token') {
-        if (!draft) { draft = addMsg({role: 'assistant', content: ''}); draft.querySelector('.meta').remove(); th.append(st) }
+        st.querySelector('.activity-label').textContent='Menulis jawaban…';
+        if (!draft) { draft = addMsg({role: 'assistant', content: ''}); draft.querySelector('.meta').remove(); draft.innerHTML='<div class="b"></div>'; th.append(st) }
         draftText += ev.data; draft.querySelector('.b').innerHTML = md(draftText);
       } else if (ev.type === 'done') {
         if (draft) draft.remove();
@@ -668,7 +677,7 @@ async function runStream(path, body) {
       scrollEnd();
     });
   } catch (e) { addMsg({role: 'assistant', content: 'Koneksi terputus: ' + e.message + '. Jawaban tetap disimpan, muat ulang halaman.'}) }
-  st.remove(); S.busy = false; $('#sendBtn').disabled = false; $('#input').focus();
+  clearInterval(clock); st.remove(); S.busy = false; $('#chatBackend').disabled=false;$('#chatModel').disabled=false;$('#chatModelApply').disabled=false; $('#sendBtn').disabled = false; $('#input').focus();
 }
 async function send() {
   const t = $('#input').value.trim(); const imgs = S.attach.slice();
@@ -708,21 +717,22 @@ $('#fileIn').onchange = e => { addFiles(e.target.files); e.target.value = '' };
 $('#input').addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs) } });
 /* riwayat */
 async function openHist() {
-  const d = await api('/api/chats?bot=' + encodeURIComponent(S.bot.id));
-  $('#histSub').textContent = `${S.bot.name}: percakapan di web dan Telegram tersimpan di sini.`;
+  if(S.busy)return toast('Tunggu jawaban selesai sebelum membuka riwayat.');
+  const d = await api('/api/chats');
+  $('#histSub').textContent = 'Semua bot · pilih percakapan untuk membukanya.';
   const day = ts => { const d0 = new Date(ts * 1000), n = new Date(); const diff = Math.floor((new Date(n.toDateString()) - new Date(d0.toDateString())) / 864e5);
     return diff === 0 ? 'Hari ini' : diff === 1 ? 'Kemarin' : diff < 7 ? 'Minggu ini' : d0.toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) };
   let last = '', html = '';
   for (const c of d.chats) {
     const g = day(c.updated_at); if (g !== last) { html += `<div class="hist-day">${g}</div>`; last = g }
     const on = !c.archived && c.channel === 'web';
-    html += `<div class="hist-item ${on ? 'on' : ''}" data-id="${c.id}"><div class="grow"><div class="t">${esc(c.title || 'Percakapan')}</div><div class="sub" style="margin:2px 0 0">${c.channel === 'tg' ? 'Telegram' : 'Web'} · ${c.n} pesan · ${ago(c.updated_at)}${on ? ' · sedang aktif' : ''}</div></div>
+    html += `<div class="hist-item ${on ? 'on' : ''}" data-id="${c.id}" data-bot="${esc(c.bot_id)}"><div class="grow"><div class="t">${esc(c.title || 'Percakapan')}</div><div class="sub" style="margin:2px 0 0">${esc(S.bots.find(b=>b.id===c.bot_id)?.name||c.bot_id)} · ${c.channel === 'tg' ? 'Telegram' : 'Web'} · ${c.n} pesan · ${ago(c.updated_at)}${on ? ' · sedang aktif' : ''}</div></div>
       <button class="ib" data-ren="${c.id}" aria-label="Ganti judul" title="Ganti judul">${ic('edit', 's')}</button>
       <a class="ib" href="/api/chats/${c.id}/unduh" aria-label="Unduh" title="Unduh">${ic('download', 's')}</a>
       <button class="ib" data-del="${c.id}" aria-label="Hapus" title="Hapus">${ic('trash', 's')}</button></div>`;
   }
   $('#histList').innerHTML = html || '<p class="muted small">Belum ada riwayat.</p>';
-  $$('#histList .hist-item').forEach(x => x.onclick = e => { if (e.target.closest('[data-ren],[data-del],a')) return; $('#histModal').classList.add('hidden'); loadChat(+x.dataset.id) });
+  $$('#histList .hist-item').forEach(x => x.onclick = e => { if (e.target.closest('[data-ren],[data-del],a')) return; $('#histModal').classList.add('hidden'); S.bot=S.bots.find(b=>b.id===x.dataset.bot);refreshBots();loadChat(+x.dataset.id) });
   $$('#histList [data-ren]').forEach(x => x.onclick = async () => { const t = prompt('Judul baru:'); if (t) { await api('/api/chats/' + x.dataset.ren, {method: 'POST', body: {title: t}}); openHist() } });
   $$('#histList [data-del]').forEach(x => x.onclick = async () => { if (confirm('Hapus percakapan ini selamanya?')) { await api('/api/chats/' + x.dataset.del, {method: 'DELETE'}); openHist(); if (S.viewChat == x.dataset.del) loadChat() } });
   $('#histModal').classList.remove('hidden');
@@ -870,7 +880,7 @@ async function sideStatus() {
 }
 function listen() {
   const es = new EventSource('/api/events');
-  es.onmessage = e => { const ev = JSON.parse(e.data); if (ev.type === 'notice') { toast(ev.text.slice(0, 90)); if (S.view === 'chat' && ev.bot === S.bot?.id && ev.channel === 'web' && !S.busy) loadChat() } };
+  es.onmessage = e => { const ev = JSON.parse(e.data); if(ev.type==='activity'&&typeof showActivity==='function')showActivity(ev); if (ev.type === 'notice') { toast(ev.text.slice(0, 90)); if (S.view === 'chat' && ev.bot === S.bot?.id && ev.channel === 'web' && !S.busy) loadChat() } };
   es.onerror = () => { es.close(); setTimeout(listen, 10000) };
 }
 
@@ -882,5 +892,6 @@ async function start() {
 start();
 </script>
 <script src="/static/control.js"></script>
+<script src="/static/activity.js"></script>
 </body>
 </html>

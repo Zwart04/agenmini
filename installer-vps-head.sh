@@ -164,10 +164,10 @@ SUFFIX=""; [[ "$PORT" == 443 ]] || SUFFIX=":$PORT"
 printf '\nTERPASANG\nWeb Agen Mini: https://%s%s\n' "$IP" "$SUFFIX"
 if [[ -n "${PW:-}" ]]; then printf 'Kata sandi web: %s\n' "$PW"; else echo "Gunakan kata sandi lama; reset dengan: agen sandi"; fi
 printf '\nBuka port TCP %s di firewall panel VPS.\n' "$PORT"
-echo "Buka menu AI & 9router di web: API key penghubung dibuat otomatis."
+echo "Buka Koneksi > AI di web: API key penghubung dibuat otomatis."
 echo "Login provider atau masukkan API key provider langsung di menu tersebut, lalu pilih model."
 echo "Mode lokal tanpa Ollama juga tersedia di menu yang sama; unduhan model dilakukan saat dipilih."
-echo "MCP: Koneksi MCP | prosedur: Skill | karakter bot: Workspace | update: Versi & Update"
+echo "MCP: Koneksi > MCP | skill: Pengaturan > Skill | bot: Workspace | update: Pengaturan > Update"
 echo "Lokasi: /opt/agenmini | status: agen status | log: agen log"
 exit 0
 __ARSIP_DI_BAWAH__

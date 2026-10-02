@@ -9,6 +9,8 @@ import time
 from . import db
 
 NEW_SKILLS_03 = [
+ ('coding-deliver', 'Coding: buat, cek, kirim', 'membuat website, landing page, skrip atau berkas kode',
+  ['Landing page: build_website dengan brief singkat; jangan masukkan seluruh HTML ke argumen JSON panjang.', 'Berkas lain: write_file atau run_python, baca kembali hasil sebelum mengklaim selesai. Berkas baru otomatis dilampirkan.', 'Jika send_file gagal karena belum ada, buat berkas dahulu lalu periksa. Jangan mengirim berkas kosong atau mengaku aplikasi sudah terhubung ke AI/payment tanpa backend nyata.']),
  ("antislop", "Anti-slop: tulisan jelas", "menulis jawaban, rangkuman, artikel, email atau penjelasan",
   ["Mulai dengan jawaban atau hasil yang diminta. Hapus pujian kosong dan pengantar generik.", "Gunakan kalimat konkret; pertahankan angka/sumber. Jangan mengklaim pekerjaan selesai tanpa hasil alat.", "Ringkas sesuai kebutuhan. Bedakan fakta, asumsi dan hal yang belum diperiksa."]),
  ("superpower-problem", "Pemecahan masalah terukur", "debug, galat, masalah teknis, merencanakan solusi atau menguji perubahan",

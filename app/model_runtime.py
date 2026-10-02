@@ -46,9 +46,9 @@ def download(model, opener=urllib.request.urlopen):
         partial.unlink(); received = 0
     if shutil.disk_usage(cache).free < model['bytes'] - received + 256 * 1024 * 1024:
         raise ValueError('Disk tidak cukup untuk model. Kosongkan ruang tanpa menghapus data aplikasi.')
-    url = f"https://huggingface.co/{model['repo']}/resolve/{model['revision']}/{model['file']}"
+    url = model.get("url") or f"https://huggingface.co/{model['repo']}/resolve/{model['revision']}/{model['file']}"
     req = urllib.request.Request(url, headers={'Range': f'bytes={received}-'} if received else {})
-    write_status('downloading', 'Mengunduh model teks dari Hugging Face.', downloaded_bytes=received, **info)
+    write_status('downloading', 'Mengunduh bobot model terverifikasi.', downloaded_bytes=received, **info)
     with opener(req, timeout=60) as response:
         if received and response.status == 206:
             if not response.headers.get('Content-Range', '').startswith(f'bytes {received}-'):
@@ -63,7 +63,7 @@ def download(model, opener=urllib.request.urlopen):
                 f.write(chunk); received += len(chunk)
                 if received > model['bytes']: raise ValueError('Ukuran berkas model melebihi katalog.')
                 if time.monotonic() - last > 1:
-                    write_status('downloading', 'Mengunduh model teks dari Hugging Face.', downloaded_bytes=received, **info)
+                    write_status('downloading', 'Mengunduh bobot model terverifikasi.', downloaded_bytes=received, **info)
                     last = time.monotonic()
     write_status('verifying', 'Memeriksa SHA256 model sebelum dipakai.', downloaded_bytes=received, **info)
     if not valid(partial, model):
@@ -76,12 +76,12 @@ def download(model, opener=urllib.request.urlopen):
 if __name__ == '__main__':
     import sys
     if sys.argv[1] == 'plan':
-        from . import db
+        from . import db, chat_models
         mode=db.setting('llm_backend')
-        engines={mode} | {b.get('backend') for b in db.bots(active_only=True)}
+        engines={mode} | {b.get('backend') for b in db.bots(active_only=True)} | chat_models.engines()
         print(json.dumps({'mode':mode, 'local':'local' in engines, 'router':bool(engines & {'router','compatible'}), 'free':'freellmapi' in engines, 'model':db.setting('local_model_id') or 'qwenpaw-2b'}))
         raise SystemExit(0)
-    model = next((m for m in local_models.CATALOG if m['id'] == sys.argv[1]), None)
+    model = next((m for m in local_models.all_models() if m['id'] == sys.argv[1]), None)
     if not model: raise SystemExit(2)
     try:
         print(download(model))

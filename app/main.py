@@ -61,6 +61,12 @@ def bootstrap():
         for b in TEAM_BOTS:
             if not db.bot(b['id']): db.save_bot(b)
         db.set_setting('team_bots_seeded_031','1')
+    if not db.setting('coding_tools_seeded_033'):
+        for bot in db.bots():
+            if 'write_file' in bot['tools']:
+                extra = [t for t in ('build_website', 'send_file', 'list_files', 'read_file') if t not in bot['tools']]
+                if extra: db.save_bot({'id': bot['id'], 'tools': bot['tools'] + extra})
+        db.set_setting('coding_tools_seeded_033', '1')
     for bot in db.bots():
         if "ask_bot" not in bot["tools"]:
             db.save_bot({**bot, "tools": bot["tools"] + ["ask_bot"]})

@@ -4,6 +4,7 @@ Privat: hanya chat yang sudah mengirim /kode <kode-pasangan> yang dilayani.
 Token utama melayani semua bot (pindah dengan /bot); bot yang punya token sendiri tampil sebagai bot terpisah.
 """
 import asyncio
+import secrets
 import html
 import json
 import re
@@ -152,6 +153,7 @@ class TgBot:
             await self.call("setMyCommands", commands=[
                 {"command": "bot", "description": "Daftar bot dan pindah bot"},
                 {"command": "tokenbot", "description": "Beri bot akun Telegram sendiri"},
+                {"command": "model", "description": "Pilih model AI percakapan"},
                 {"command": "baru", "description": "Mulai percakapan baru"},
                 {"command": "riwayat", "description": "Riwayat percakapan: lanjutkan atau unduh"},
                 {"command": "ingatan", "description": "Lihat ingatan"},
@@ -354,6 +356,24 @@ class TgBot:
             await self.call("answerCallbackQuery", callback_query_id=cq["id"], text="Tidak diizinkan")
             return
         kind, _, rest = data.partition(":")
+        if kind in ('models', 'model'):
+            from . import chat_models
+            await self.call('answerCallbackQuery', callback_query_id=cq['id'], text='Memeriksa model…')
+            if kind == 'models':
+                await self.command(chat_id, '/model ' + rest)
+            else:
+                raw = db.setting('tg_model_choice:' + rest)
+                try:
+                    choice = json.loads(raw or '{}')
+                    bot = self.bot_for_chat(chat_id)
+                    chat = db.chat_for(bot['id'], 'tg', chat_id)
+                    if choice.get('chat') != chat['id'] or choice.get('expires', 0) < time.time():
+                        raise ValueError('Pilihan sudah kedaluwarsa. Buka /model lagi.')
+                    result = await chat_models.select(chat, choice['backend'], choice['model'])
+                    db.set_setting('tg_model_choice:' + rest, '')
+                    await self.send(chat_id, result['message'])
+                except (ValueError, llm.LLMError) as exc: await self.send(chat_id, str(exc))
+            return
         if kind == "learn":
             message = await agent.save_verified_skill(int(rest))
             await self.call("answerCallbackQuery", callback_query_id=cq["id"], text="Prosedur ditinjau")
@@ -418,7 +438,7 @@ class TgBot:
                 "• cari harga emas hari ini\n• ingatkan saya rapat besok jam 9\n"
                 "• buatkan bot yang tiap pagi merangkum berita teknologi\n\n"
                 "**Perintah**\n"
-                "/bot  daftar bot dan pindah bot\n/baru  percakapan baru\n/riwayat  lanjutkan atau unduh percakapan lama\n"
+                "/bot  daftar bot dan pindah bot\n/model  pilih model AI\n/baru  percakapan baru\n/riwayat  lanjutkan atau unduh percakapan lama\n"
                 "/ingatan  isi ingatan\n"
                 "/skill  skill yang sudah dipelajari\n/jadwal  jadwal aktif\n/status  kondisi server\n\n"
                 "**Bot dengan akun Telegram sendiri**\n"
@@ -440,6 +460,30 @@ class TgBot:
             rows = [[{"text": f"{b['name']}" + (" (aktif)" if b["id"] == bot["id"] else ""),
                       "callback_data": f"bot:{b['id']}"}] for b in db.bots(active_only=True)]
             await self.send(chat_id, "**Semua bot**\n" + "\n".join(lines) + "\n\nPilih bot untuk diajak bicara di sini:", rows)
+            return True
+        if cmd == '/model':
+            from . import chat_models
+            chat = db.chat_for(bot['id'], 'tg', chat_id)
+            try:
+                if len(parts) >= 2:
+                    mode = '' if parts[1] in ('utama', 'default') else parts[1]
+                    if len(parts) >= 3 or not mode:
+                        result = await chat_models.select(chat, mode, parts[2] if len(parts) >= 3 else '')
+                        await self.send(chat_id, result['message'])
+                        return True
+                    rows = await chat_models.choices(mode)
+                    rows = [r for r in rows if r.get('fits', True)]
+                    buttons = []
+                    for row in rows[:20]:
+                        # IDs can exceed Telegram's 64-byte callback limit; store a scoped index.
+                        key = secrets.token_hex(8)
+                        db.set_setting('tg_model_choice:' + key, json.dumps({'chat': chat['id'], 'backend': mode, 'model': row['id'], 'expires': time.time()+600}))
+                        buttons.append([{'text': row.get('name', row['id'])[:60], 'callback_data': 'model:' + key}])
+                    await self.send(chat_id, 'Pilih model. Model lokal berbagi satu mesin; pergantian dapat mengunduh bobot. Daftar kosong berarti hubungkan provider melalui web dahulu.', buttons or None)
+                else:
+                    active = chat_models.effective(bot, chat)
+                    await self.send(chat_id, 'Model percakapan: ' + (active.get('backend') or db.setting('llm_backend')) + ' · ' + (active.get('model') or llm.default_model(active.get('backend'))) + '\n\nPilih layanan:', [[{'text': label, 'callback_data': 'models:' + mode}] for mode, label in [('utama','Ikuti model bot'),('local','Model lokal'),('router','9router'),('freellmapi','FreeLLMAPI'),('online','API langsung')]])
+            except (ValueError, llm.LLMError) as exc: await self.send(chat_id, str(exc))
             return True
         if cmd == "/tokenbot":
             if m:  # token itu rahasia: hapus pesannya dari riwayat chat
@@ -487,7 +531,7 @@ class TgBot:
             return True
         if cmd == "/riwayat":
             rows = db.q("SELECT c.*, (SELECT COUNT(*) FROM messages m WHERE m.chat_id=c.id) n FROM chats c "
-                        "WHERE bot_id=? AND channel='tg' AND ext_id=? ORDER BY updated_at DESC LIMIT 10", (bot["id"], chat_id))
+                        "WHERE (?='' OR bot_id=?) AND channel='tg' AND ext_id=? ORDER BY updated_at DESC LIMIT 20", (self.fixed_bot or '', self.fixed_bot or '', chat_id))
             rows = [r for r in rows if r["n"]]
             if not rows:
                 await self.send(chat_id, "Belum ada riwayat percakapan.")
@@ -495,12 +539,12 @@ class TgBot:
             lines, buttons = [], []
             for i, r in enumerate(rows, 1):
                 when = time.strftime("%d/%m %H.%M", time.localtime(r["updated_at"] or 0))
-                lines.append(f"{i}. **{r['title'] or 'Percakapan'}** ({when}, {r['n']} pesan)" + ("  (sedang aktif)" if not r["archived"] else ""))
+                lines.append(f"{i}. {(db.bot(r['bot_id']) or {}).get('name', r['bot_id'])} · **{r['title'] or 'Percakapan'}** ({when}, {r['n']} pesan)" + ("  (sedang aktif)" if not r["archived"] else ""))
                 row = [{"text": f"{i}. Unduh", "callback_data": f"unduh:{r['id']}"}]
-                if r["archived"]:
-                    row.insert(0, {"text": f"{i}. Lanjutkan", "callback_data": f"buka:{r['id']}"})
+                if r["archived"] or r['bot_id'] != bot['id']:
+                    row.insert(0, {"text": f"{i}. Buka", "callback_data": f"buka:{r['id']}"})
                 buttons.append(row)
-            await self.send(chat_id, f"**Riwayat percakapan dengan {bot['name']}**\n" + "\n".join(lines), buttons)
+            await self.send(chat_id, f"**Riwayat percakapan**\n" + "\n".join(lines), buttons)
             return True
         if cmd == "/ingatan":
             rows = db.q("SELECT * FROM memories ORDER BY id DESC LIMIT 20")

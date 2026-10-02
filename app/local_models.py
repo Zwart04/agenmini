@@ -21,6 +21,11 @@ for model in CATALOG:
  model['download_gb']=round(model['bytes']/1e9,2)
 
 
+def all_models():
+    from .model_import import registry
+    return CATALOG + registry()
+
+
 def hardware():
     path = config.DATA_DIR / 'hardware.json'
     if path.exists():
@@ -32,14 +37,14 @@ def catalogue(hw=None):
     hw = hw or hardware()
     ram = hw.get('ram_mb',0)/1024
     budget = hw.get('available_mb', hw.get('ram_mb',0)) + hw.get('local_memory_mb',0)
-    rows = [{**m,'fits':ram>=m['min_ram_gb'] and budget>=m['runtime_mb']+700,'source':'https://huggingface.co/'+m['repo']} for m in CATALOG]
+    rows = [{**m,'fits':ram>=m['min_ram_gb'] and budget>=m['runtime_mb']+700,'source':m.get('source') or 'https://huggingface.co/'+m['repo']} for m in all_models()]
     cores = hw.get('cpus',1)
-    fits = [m for m in rows if m['fits'] and (m['rank']<5 or cores>=4) and (m['rank']<4 or cores>=2)]
+    fits = [m for m in rows if m['fits'] and not m.get('custom') and (m['rank']<5 or cores>=4) and (m['rank']<4 or cores>=2)]
     recommended = ('qwenpaw-2b' if ram>=4 and ram<8 and any(m['id']=='qwenpaw-2b' for m in fits) else (max(fits,key=lambda m:m['rank'])['id'] if fits else None))
     return {'hardware':hw,'models':rows,'recommended':recommended,'checked_at':'2026-10-02','policy':'Katalog terkurasi, bukan klaim semua model terbaru. RAM termasuk cadangan aplikasi/OS; CPU saja.'}
 
 if __name__=='__main__':
     import sys
-    chosen = next((m for m in CATALOG if m['id']==sys.argv[1]),None)
+    chosen = next((m for m in all_models() if m['id']==sys.argv[1]),None)
     if not chosen: raise SystemExit(2)
     print(json.dumps(chosen))

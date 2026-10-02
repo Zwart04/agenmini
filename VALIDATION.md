@@ -1,4 +1,4 @@
-# Validation - Agen Mini 0.3.2
+# Validation - Agen Mini 0.3.3
 
 Checked on 2026-10-02. Testing is separated from deployment and model-quality claims.
 
@@ -45,3 +45,17 @@ Skills/MCP improve available instructions/tools; they do not train weights or gu
 - 78 Linux Python tests passed in the 0.3.2 Docker build; 77 Windows tests passed with the Linux sandbox chart test excluded. Supervisor checks, dependency-lock build and JS/Bash syntax passed.
 - Browser viewport checks at 320/390/430px: Chat/Workspace/AI/settings, secondary settings tabs, MCP and bot editing; page/form widths had no horizontal overflow. Ten local SVG characters loaded. Bot dialog remained vertically scrollable at 320px; drawer open/outside-close and navigation were exercised. These are browser viewport tests, not a physical iOS/Android keyboard or safe-area certification.
 - No commands were executed on the user's VPS in this run. VPS-reported version 0.3.1 after the updater error indicates the earlier payload had already been copied; actual cloud update recovery remains for the user to run.
+
+
+## Additional 0.3.3 checks
+
+- Linux runtime regression suite: 92 tests passed. JS syntax and Python compilation passed. Installer/supervisor mocks again passed, including the running-script atomic replacement case.
+- Real Linux tools: UTF-8 write/read/send roundtrip, isolated Python/shell arithmetic 1000, editing a newly created nested folder as user kerja, remember/recall, schedule/list/cancel (test-only future reminder), live web search and official Python documentation read, and actual stdio MCP hardware invocation.
+- Found and fixed a regression guard gap: repeating a failed tool previously produced a synthetic success-like result. The cached original error now remains an error; regression coverage verifies the final task status is failed.
+- Real Qwen3.5 0.8B Q4 via pinned llama.cpp (1 CPU thread, context 4096): initial unconstrained full HTML timed out/truncated, and one generic-JSON attempt reached its cap. The final bounded JSON-schema copy + trusted responsive layout produced and attached a complete Seller Studio HTML prototype in 12.2 seconds (2771 bytes). This is a bounded landing-page capability, not proof of reliable general coding by 0.8B.
+- Streaming OpenAI-compatible answers/code is exercised against actual local llama.cpp and a protocol test server; native tool arguments are still validated as complete JSON. Timeout errors show an actionable message. All generated HTML/JS/SVG downloads use attachment disposition.
+- Public Hugging Face import queried real immutable revisions/LFS hashes; Ollama qwen3:0.6b manifest resolved to one 522640096-byte model layer, and a range fetch returned GGUF magic. Full Ollama-weight inference was not performed. Download corrupt/resume/hash tests cover the shared downloader; additional models are marked untested until actual runtime load.
+- Actual pinned 9router and FreeLLMAPI dashboards rendered under owner-authenticated /apps/router/ and /apps/free/. Native navigation between providers/endpoint and models/keys worked. API auth stayed server-side; owner cookie was not forwarded to upstream. No user provider credentials/OAuth exchanges were used.
+- Browser: actual animated chat ring, changing CSS transforms on local SVG avatars, queued provider-switch ring, model chooser save, cross-bot history, copying a Telegram fixture into web, and 390px viewport with equal page/client widths were checked. Temporary test data is excluded from releases. Telegram /model callback tests include owner scope/long model IDs; live Telegram network delivery remains untested.
+
+These checks run locally in disposable fixtures, not on the user's VPS. API/provider/email/GitHub/image availability depends on real connections and quotas. Animations are CSS in the browser, with bounded existing SSE queues and paused hidden-tab polling; no animation engine/server render loop or new dependency was added.

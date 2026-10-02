@@ -105,7 +105,7 @@ async def system_stats() -> dict:
     hw = local_models.hardware()
     if hw.get('source') == 'host':
         mem['MemTotal'] = hw['ram_mb']; mem['MemAvailable'] = hw['available_mb']
-    local_name = next((m['name'] for m in local_models.CATALOG if m['id'] == db.setting('local_model_id')), 'Model lokal')
+    local_name = next((m['name'] for m in local_models.all_models() if m['id'] == db.setting('local_model_id')), 'Model lokal')
     return {
         "version": VERSION, "backend": db.setting("llm_backend"), "runtime":runtime, "local_model_name":local_name,
         "ram_total_mb": mem.get("MemTotal", 0), "ram_available_mb": mem.get("MemAvailable", 0),
@@ -235,7 +235,7 @@ async def chat_history(request):
     rows.reverse()
     for r in rows:
         r["meta"] = json.loads(r["meta"] or "{}")
-    return web.json_response({"messages": rows, "chat": {k: chat[k] for k in ("id", "title", "channel", "archived")}})
+    return web.json_response({"messages": rows, "chat": {k: chat[k] for k in ("id", "title", "channel", "archived", "backend", "model")}})
 
 
 # ---------- riwayat percakapan ----------
@@ -269,6 +269,12 @@ async def chat_rename(request):
     return web.json_response({"ok": True})
 
 
+@routes.post('/api/chats/{id}/salin')
+async def chat_copy(request):
+    chat = db.copy_chat(int(request.match_info['id']), 'web', web_ext())
+    return web.json_response({'id': chat['id'], 'bot': chat['bot_id']})
+
+
 @routes.delete("/api/chats/{id}")
 async def chat_delete(request):
     db.delete_chat(int(request.match_info["id"]))
@@ -296,7 +302,10 @@ async def serve_file(request):
         return web.json_response({"error": "tidak boleh"}, status=403)
     if not path.is_file():
         return web.json_response({"error": "berkas tidak ada"}, status=404)
-    return web.FileResponse(path, headers={"Cache-Control": "private, max-age=86400"})
+    headers = {"Cache-Control": "private, max-age=86400"}
+    if path.suffix.lower() in ('.html', '.htm', '.js', '.svg'):
+        headers['Content-Disposition'] = 'attachment'
+    return web.FileResponse(path, headers=headers)
 
 
 async def _stream(request, runner):
@@ -580,9 +589,10 @@ def ensure_cert() -> ssl.SSLContext:
 
 
 async def start():
-    from . import control
+    from . import control, native_apps
     app = web.Application(middlewares=[control.errors, auth_mw], client_max_size=16 * 1024 * 1024)  # unggahan gambar
     app.add_routes(control.routes)
+    app.add_routes(native_apps.routes)
     app.add_routes(routes)
     app.router.add_static("/static/", config.STATIC_DIR)
     runner = web.AppRunner(app, access_log=None)

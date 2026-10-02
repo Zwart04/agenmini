@@ -21,6 +21,7 @@ def start(bot, text):
     _jobs[token] = (bot,state)
     _context_tokens[token] = _active.set(token)
     presence[bot] = state
+    broadcast(bot)
     return token
 
 
@@ -43,6 +44,7 @@ def finish(token, result=None):
         status=outcome(result or {'text':'Error: interrupted'})
         log(bot,status,text[:500])
         _recent[bot] = {'status':'idle','last_status':status,'task':'Terakhir: '+state['task']}
+    broadcast(bot)
     if not _jobs:(config.DATA_DIR / 'task-busy').unlink(missing_ok=True)
 
 
@@ -51,6 +53,16 @@ def phase(text, phase='thinking'):
     if job:
         job[1]['action'] = text[:100]
         job[1]['phase'] = phase
+        broadcast(job[0])
+
+
+def broadcast(bot):
+    from . import hub
+    event = {'type': 'activity', 'bot': bot, **state(bot)}
+    # Already bounded queues on the existing SSE connection; no task per token.
+    for q in tuple(hub.web_listeners):
+        try: q.put_nowait(event)
+        except asyncio.QueueFull: pass
 
 
 def state(bot):
@@ -78,7 +90,7 @@ def init():
 def outcome(result):
     text=result.get('text','')
     if result.get('approval'):return 'waiting'
-    return 'failed' if text.startswith(('Error:','Galat:','Terjadi galat','Tugas belum berhasil','Saya belum berhasil','Angka terkini belum terverifikasi','Argumen tidak valid')) else 'done'
+    return 'failed' if text.startswith(('Error:','Galat:','Terjadi galat','Tugas belum berhasil','Saya belum berhasil','Angka terkini belum terverifikasi','Argumen tidak valid','Pembuatan halaman belum berhasil')) else 'done'
 
 
 def enqueue(source, target, text, owner_task=False):

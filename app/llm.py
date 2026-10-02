@@ -314,18 +314,26 @@ backend_context = contextvars.ContextVar('bot_backend', default='')
 def active_backend():
     return backend_context.get() or db.setting('llm_backend')
 
+def default_model(backend=None):
+    backend = backend or active_backend()
+    return {'router': db.setting('router_last_model') or db.setting('model'),
+            'freellmapi': db.setting('freellmapi_model') or 'auto:smart',
+            'local': db.setting('local_model_id') or 'qwenpaw-2b',
+            'online': db.setting('online_model')}.get(backend, db.setting('model'))
+
+
 async def chat(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
                on_token=None, prio: int = PRIO_USER, fmt=None, temperature: float = 0.3,
                num_ctx: int | None = None, max_tokens: int | None = None) -> dict:
     """Kembalikan {content, tool_calls, stats}. tool_calls = [{name, arguments}]."""
-    model = model or db.setting("model")
+    model = model or default_model()
     names = {t["function"]["name"] for t in (tools or [])}
     if prio == PRIO_USER:
         activity["last_user"] = time.time()
     from . import office
-    office.phase("Menunggu giliran model", "listening")
+    if gate.busy: office.phase('Menunggu giliran model…', 'queued')
     await gate.acquire(prio)
-    office.phase("Menyiapkan jawaban", "thinking")
+    office.phase('Berpikir…', 'thinking')
     gate.current = model
     from . import config
     busy_path = config.DATA_DIR / "model-busy"
@@ -333,12 +341,12 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
         busy_path.parent.mkdir(parents=True, exist_ok=True)
         busy_path.write_text(model or "AI")
         if model == "online" or active_backend() == "online":
-            res = await _chat_online(messages, tools, temperature, fmt, model_override=model if model != "online" else None, max_tokens=max_tokens)
+            res = await _chat_online(messages, tools, temperature, fmt, model_override=model if model != "online" else None, max_tokens=max_tokens, on_token=on_token)
         elif active_backend() in ("compatible", "router", "local", "freellmapi"):
             if active_backend() == "router" or (active_backend() == "compatible" and db.setting("compatible_base").rstrip("/") == "http://router:20128/v1"):
                 from . import router
                 await router.ensure_key()
-            res = await _chat_online(messages, tools, temperature, fmt, local=True, model_override=model, max_tokens=max_tokens)
+            res = await _chat_online(messages, tools, temperature, fmt, local=True, model_override=model, max_tokens=max_tokens, on_token=on_token)
         else:
             res = await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens,
                                      threads_for(prio))
@@ -453,7 +461,7 @@ def tools_suspect(text: str) -> bool:
     return s[0] in "<{[`" or bool(re.match(r"^\w+\(", s)) or s.startswith("<think")
 
 
-async def _chat_online(messages, tools, temperature, fmt, local=False, model_override=None, max_tokens=None) -> dict:
+async def _chat_online(messages, tools, temperature, fmt, local=False, model_override=None, max_tokens=None, on_token=None) -> dict:
     backend = active_backend()
     base = db.setting("compatible_base" if local else "online_base").rstrip("/")
     if local and backend == "router":
@@ -500,16 +508,42 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     if tools and not text_tools:
         body["tools"] = tools
     if fmt:
-        body["response_format"] = {"type": "json_object"}
+        body["response_format"] = fmt if isinstance(fmt,dict) else {"type": "json_object"}
+    # Stream ordinary answers/code so the first real token reaches the UI immediately.
+    # Native tool calls retain the complete JSON response before argument validation.
+    if not tools:
+        body['stream'] = True
+        if local and backend == 'local': body['stream_options'] = {'include_usage': True}
     t0 = time.time()
     try:
         async with session().post(f"{base}/chat/completions", json=body,
                                   headers={"Authorization": f"Bearer {key}"} if key else {},
-                                  timeout=aiohttp.ClientTimeout(total=180)) as r:
-            data = await r.json(content_type=None)
+                                  timeout=aiohttp.ClientTimeout(total=360 if local and backend == 'local' else 180, sock_read=90)) as r:
+            if body.get('stream') and 'text/event-stream' in r.headers.get('Content-Type',''):
+                parts, usage, served = [], {}, ''
+                async for line in r.content:
+                    line = line.decode('utf-8').strip()
+                    if not line.startswith('data:'): continue
+                    payload = line[5:].strip()
+                    if payload == '[DONE]': break
+                    chunk = json.loads(payload)
+                    if chunk.get('error'): raise LLMError(str(chunk['error'])[:300])
+                    served = chunk.get('model') or served
+                    usage = chunk.get('usage') or usage
+                    for choice in chunk.get('choices',[]):
+                        content = choice.get('delta',{}).get('content') or ''
+                        if content:
+                            parts.append(content)
+                            if on_token: await on_token(content)
+                if not parts: raise LLMError('Model tidak mengembalikan teks. Periksa model/provider yang dipilih.')
+                data = {'model':served, 'usage':usage, 'choices':[{'message':{'content':''.join(parts)}}]}
+            else:
+                data = await r.json(content_type=None)
             served_model = r.headers.get("X-Routed-Via") or data.get("model", "")
+    except asyncio.TimeoutError:
+        raise LLMError('Model melewati batas waktu. Coba permintaan lebih pendek atau model/API lebih cepat.')
     except Exception as e:
-        raise LLMError(f"API online gagal: {e}")
+        raise LLMError(f"API gagal: {str(e) or type(e).__name__}")
     if "choices" not in data and "API key required" in str(data):
         raise LLMError("9router belum memiliki API key yang valid. Buka menu AI & 9router lalu tekan Hubungkan otomatis. Jika masih gagal, perbarui pemasang VPS.")
     if not data.get("choices"):
