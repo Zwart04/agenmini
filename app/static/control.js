@@ -32,6 +32,7 @@ $('#officeForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/offic
 
 async function loadAI(){
   clearTimeout(aiTimer);
+  await loadIntegrations();
   await loadLocalModels();
   const settings=await api('/api/settings');
   const active=settings.llm_backend,mode=aiDraftMode||active;

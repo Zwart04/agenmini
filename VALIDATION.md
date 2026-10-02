@@ -108,3 +108,9 @@ Limits: no claim of having reproduced Studio ZAI, ZwartOS, NTPro, Paperclip, Pos
 - 119 regression tests passed. Authenticated Chromium: four main menus at1280/320/390/430 have no horizontal overflow/JS errors. Smart source cards rendered and accessories visible. Advanced Go dashboard rendered at430px; 19 font ligatures replaced by local SVGs with no Google Font requirement. Basic provider connection uses native framework-free Agen Mini panel.
 
 - Actual Orchestrator -> teknisi -> reviewer file task completed in146.5s. Python returned1000, file written/read/attached, reviewer actually read it and ran Python. Coordinator tool metadata correctly contains delegation, not child tool names; an initial test assertion expecting the child tool on the parent was corrected by inspecting actual child traces. Repeated Python requests reused cached output, not additional execution. Final model summary was incomplete; workflow now preserves verified specialist output and real filenames when the summary is incomplete, covered by regression. Removed delegation permission is respected.
+
+## 0.3.7 — navigation and host accounts
+
+Sidebar shows Orchestrator and the selected specialist, with a Tim bot link to the complete Workspace team. Mobile selection offers the same short list. No bots, credentials or history are removed. Host accounts use compact cards with actual verification status; installed commands and diagnostic messages are collapsed. Account status reloads when opening Koneksi and unchanged polling preserves expanded details.
+
+Validation: JavaScript syntax checks and Chromium integration on an isolated copy of VPS data. Bot switching, full team access, detail expansion, account status and horizontal overflow checked at desktop 1280 and mobile 320, 390, 430 pixels. UI changes do not exercise new provider inference or external writes.

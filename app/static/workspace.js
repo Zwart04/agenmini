@@ -5,6 +5,22 @@ async function loadAutoRoutes(){const d=await api('/api/auto-router');const name
 $('#autoSave').onclick=async()=>{try{await api('/api/auto-router',{method:'POST',body:{local:$('#autoLocal').checked,router:$('#autoNine').checked,order:['freellmapi','router','online','local']}});toast('Kandidat disimpan');loadAutoRoutes()}catch(e){sayError(e)}};
 wireBusy();
 
-async function loadIntegrations(){try{const d=await api('/api/integrations');$('#hostIntegrations').innerHTML=d.connections.map(c=>`<div class="r"><span class="grow"><b>${esc(c.name)}</b><small>${esc(c.account||c.source||'')}</small><small>${esc(c.message)}</small></span><span class="pill">${c.ready?'Login terverifikasi':c.credential_found?'Perlu verifikasi':c.installed?'CLI terpasang':'Belum terhubung'}</span></div>`).join('')+`<p class="hint">${esc(d.note)}</p><small>CLI terpasang: ${d.commands.filter(c=>c.installed).map(c=>esc(c.name)).join(', ')||'Belum terdeteksi'}</small>`}catch(e){$('#hostIntegrations').textContent=e.message}}
+let integrationSnapshot = '';
+async function loadIntegrations(){
+  try {
+    const d = await api('/api/integrations');
+    const fingerprint = JSON.stringify(d);
+    if(fingerprint === integrationSnapshot) return;
+    integrationSnapshot = fingerprint;
+    const connections = d.connections || [];
+    const accounts = connections.filter(c => /github|cloudflare/i.test(c.name) && c.id !== 'cloudflared');
+    const commands = (d.commands || []).filter(c => c.installed);
+    const detailOpen = $('#hostIntegrations details')?.open;
+    $('#hostIntegrations').innerHTML = `<div class="account-grid">${accounts.map(c => {
+      const github = /github/i.test(c.name);
+      const label = c.ready ? 'Terhubung' : c.credential_found ? 'Perlu verifikasi' : 'Belum terhubung';
+      return `<article class="account-card"><span class="account-symbol" aria-hidden="true">${ic(github?'code':'cloud','s')}</span><div class="account-info"><b>${esc(github?'GitHub':'Cloudflare')}</b><small>${esc(c.ready ? (c.account || 'Login terverifikasi') : c.credential_found ? 'Login belum terverifikasi' : 'Login di VPS untuk menghubungkan')}</small></div><span class="account-status ${c.ready?'ready':''}">${label}</span></article>`;
+    }).join('') || '<p class="hint">Deteksi akun belum tersedia.</p>'}</div><details class="host-details" ${detailOpen?'open':''}><summary>Alat dan detail koneksi <span>${commands.length} alat tersedia</span></summary><div class="host-tool-list">${commands.map(c => `<span class="host-tool">${esc(c.name)}</span>`).join('') || '<small>Belum ada alat terdeteksi.</small>'}</div><p class="hint">Alat terpasang belum berarti akun sudah login.</p>${connections.map(c => `<div class="host-detail"><b>${esc(c.name)}</b><small>${esc(c.message || '')}</small></div>`).join('')}<p class="hint">${esc(d.note || '')}</p></details>`;
+  } catch(e) { $('#hostIntegrations').textContent = e.message; integrationSnapshot = ''; }
+}
 $('#refreshIntegrations').onclick=async()=>{try{const d=await api('/api/integrations/refresh',{method:'POST',body:{}});toast(d.message);setTimeout(()=>{if(!document.hidden)loadIntegrations()},8000)}catch(e){sayError(e)}};
-loadIntegrations();
