@@ -1,0 +1,569 @@
+"""Penghubung ke otak: Ollama lokal (utama) dan API online (opsional).
+
+Model kecil sering tidak rapi saat memanggil alat. Karena itu:
+- kalau model mendukung alat bawaan Ollama, dipakai;
+- kalau tidak, daftar alat ditulis di prompt dan jawabannya diurai sendiri (extract_tool_calls),
+  yang mengenali format JSON, <tool_call>, gaya Python [f(x=1)] (LFM), dan XML <function=...> (Qwen).
+"""
+import ast
+import asyncio
+import heapq
+import json
+import re
+import time
+
+import aiohttp
+
+from . import db
+
+# ---------- antrean: satu otak, bergiliran. Permintaan pengguna didahulukan dari kerja latar. ----------
+
+PRIO_USER, PRIO_TASK, PRIO_BACKGROUND = 0, 1, 5
+
+
+class Gate:
+    def __init__(self):
+        self.busy = False
+        self._q: list = []
+        self._n = 0
+        self.current = ""
+
+    def waiting(self) -> int:
+        return sum(1 for *_, f in self._q if not f.done())
+
+    async def acquire(self, prio: int):
+        if not self.busy and not self._q:
+            self.busy = True
+            return
+        fut = asyncio.get_running_loop().create_future()
+        self._n += 1
+        heapq.heappush(self._q, (prio, self._n, fut))
+        try:
+            await fut
+        except asyncio.CancelledError:
+            if fut.done() and not fut.cancelled():
+                self.release()
+            raise
+
+    def release(self):
+        while self._q:
+            _, _, fut = heapq.heappop(self._q)
+            if not fut.done():
+                fut.set_result(None)
+                return
+        self.busy = False
+
+
+gate = Gate()
+
+# ---------- CPU ----------
+# Model lokal memakai semua inti CPU saat menulis jawaban (itu sifat semua mesin AI lokal).
+# "Hemat CPU" menyisakan satu inti untuk sistem. Jumlah thread sengaja SAMA untuk semua panggilan:
+# kalau berbeda, Ollama memuat ulang model tiap kali. Kerja latar diringankan dengan menunggu (wait_idle).
+activity = {"last_user": 0.0}
+
+
+def threads_for(prio: int) -> int | None:
+    import os
+    if db.setting("cpu_hemat") == "1":
+        return max(1, (os.cpu_count() or 2) - 1)
+    return None  # biarkan Ollama memakai semua inti (paling cepat)
+
+
+async def wait_idle(quiet_seconds: int = 90, max_wait: int = 3600) -> bool:
+    """Tunggu sampai pemilik berhenti chat sebentar dan otak sedang tidak dipakai."""
+    t0 = time.time()
+    while time.time() - t0 < max_wait:
+        if not gate.busy and time.time() - activity["last_user"] >= quiet_seconds:
+            return True
+        await asyncio.sleep(10)
+    return False
+
+# Model yang ketahuan tidak mendukung alat bawaan / mode berpikir (diingat supaya tidak dicoba ulang).
+_no_native_tools: set[str] = set()
+_no_think_param: set[str] = set()
+
+_session: aiohttp.ClientSession | None = None
+
+
+def session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        connector = None
+        if db.setting("dns_aman") != "0":
+            from .net import SafeResolver
+            connector = aiohttp.TCPConnector(resolver=SafeResolver(), ttl_dns_cache=300)
+        _session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None, sock_read=600), connector=connector)
+    return _session
+
+
+class LLMError(Exception):
+    pass
+
+
+def online_ready() -> bool:
+    return bool(db.setting("online_base") and db.setting("online_key") and db.setting("online_model"))
+
+
+# ---------- pengurai panggilan alat dari teks ----------
+
+def _find_json_objects(text: str):
+    """Cari objek JSON seimbang {...} di dalam teks."""
+    i = 0
+    while True:
+        start = text.find("{", i)
+        if start < 0:
+            return
+        depth, instr, esc = 0, False, False
+        for j in range(start, len(text)):
+            ch = text[j]
+            if instr:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    instr = False
+            elif ch == '"':
+                instr = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    yield start, j + 1, text[start:j + 1]
+                    break
+        i = start + 1
+
+
+def _repair_json(s: str):
+    """Perbaikan umum untuk JSON berantakan dari model kecil (ide dari mohsinkaleem/agent-mini)."""
+    s = re.sub(r"^```(?:json)?\s*", "", s.strip())
+    s = re.sub(r"\s*```$", "", s).strip()
+    s = re.sub(r",\s*}", "}", s)
+    s = re.sub(r",\s*]", "]", s)
+    if "'" in s and '"' not in s:
+        s = s.replace("'", '"')
+    s = re.sub(r"(?<=[{,\s])([A-Za-z_]\w*)\s*:", r'"\1":', s)
+    return json.loads(s)
+
+
+def _loads(s: str):
+    for fn in (json.loads, _repair_json,
+               lambda x: ast.literal_eval(x.replace("true", "True").replace("false", "False").replace("null", "None"))):
+        try:
+            return fn(s)
+        except Exception:
+            pass
+    return None
+
+
+def _norm_call(obj, names: set[str]):
+    if not isinstance(obj, dict):
+        return None
+    if "function" in obj and isinstance(obj["function"], dict):
+        obj = obj["function"]
+    name = obj.get("name") or obj.get("tool") or obj.get("tool_name")
+    if not isinstance(name, str) or name not in names:
+        return None
+    args = obj.get("arguments", obj.get("args", obj.get("parameters", obj.get("input", {}))))
+    if isinstance(args, str):
+        args = _loads(args) if args.strip().startswith("{") else {"input": args}
+    return {"name": name, "arguments": args if isinstance(args, dict) else None}
+
+
+def _pythonic_calls(src: str, names: set[str]):
+    src = src.strip()
+    if not src.startswith("["):
+        src = f"[{src}]"
+    try:
+        tree = ast.parse(src, mode="eval")
+    except SyntaxError:
+        return []
+    out = []
+    elts = tree.body.elts if isinstance(tree.body, (ast.List, ast.Tuple)) else [tree.body]
+    for node in elts:
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in names:
+            args = {}
+            for kw in node.keywords:
+                try:
+                    args[kw.arg] = ast.literal_eval(kw.value)
+                except Exception:
+                    args[kw.arg] = ast.unparse(kw.value)
+            out.append({"name": node.func.id, "arguments": args})
+    return out
+
+
+def extract_tool_calls(text: str, names: set[str]) -> tuple[list[dict], str]:
+    """Kembalikan (daftar panggilan, teks sisa)."""
+    if not text or not names:
+        return [], text
+    calls: list[dict] = []
+    rest = text
+
+    # 1) Gaya LFM: <|tool_call_start|>[f(a=1)]<|tool_call_end|>
+    for m in re.finditer(r"<\|tool_call_start\|>(.*?)(?:<\|tool_call_end\|>|$)", text, re.S):
+        calls += _pythonic_calls(m.group(1), names)
+    if calls:
+        return calls, re.sub(r"<\|tool_call_start\|>.*?(?:<\|tool_call_end\|>|$)", "", text, flags=re.S).strip()
+
+    # 2) Tag <tool>, <tool_call>, <function_call>
+    tag_re = r"<(tool_call|tool|function_call|tools)>(.*?)(?:</\1>|$)"
+    for m in re.finditer(tag_re, text, re.S):
+        body = m.group(2).strip()
+        # XML gaya Qwen-coder: <function=nama><parameter=x>nilai</parameter></function>
+        fm = re.search(r"<function=([\w\-]+)>(.*?)(?:</function>|$)", body, re.S)
+        if fm and fm.group(1) in names:
+            args = {k: v.strip() for k, v in re.findall(r"<parameter=([\w\-]+)>(.*?)</parameter>", fm.group(2), re.S)}
+            calls.append({"name": fm.group(1), "arguments": args})
+            continue
+        found = False
+        for _, _, js in _find_json_objects(body):
+            c = _norm_call(_loads(js), names)
+            if c:
+                calls.append(c)
+                found = True
+        if not found:
+            calls += _pythonic_calls(body, names)
+    if calls:
+        return calls, re.sub(tag_re, "", text, flags=re.S).strip()
+
+    # 3) XML tanpa pembungkus
+    for m in re.finditer(r"<function=([\w\-]+)>(.*?)(?:</function>|$)", text, re.S):
+        if m.group(1) in names:
+            args = {k: v.strip() for k, v in re.findall(r"<parameter=([\w\-]+)>(.*?)</parameter>", m.group(2), re.S)}
+            calls.append({"name": m.group(1), "arguments": args})
+    if calls:
+        return calls, re.sub(r"<function=.*?(?:</function>|$)", "", text, flags=re.S).strip()
+
+    # 4) JSON polos {"name": ..., "arguments": ...}
+    spans = []
+    for s, e, js in _find_json_objects(text):
+        if spans and s < spans[-1][1]:
+            continue
+        c = _norm_call(_loads(js), names)
+        if c:
+            calls.append(c)
+            spans.append((s, e))
+    if calls:
+        for s, e in reversed(spans):
+            rest = rest[:s] + rest[e:]
+        rest = re.sub(r"```(?:json)?\s*```", "", rest).strip()
+        return calls, rest
+
+    # 5) Panggilan gaya Python di awal jawaban: [web_search(query="x")] atau web_search(query="x")
+    stripped = text.strip()
+    m = re.match(r"^\[?\s*(\w+)\s*\(", stripped)
+    if m and m.group(1) in names:
+        end = stripped.find(")]") + 2 if stripped.startswith("[") else len(stripped)
+        pc = _pythonic_calls(stripped[:end] if end > 1 else stripped, names)
+        if pc:
+            return pc, ""
+    return [], text
+
+
+def strip_think(text: str) -> str:
+    text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
+    if "<think>" in text:  # tidak ditutup
+        text = text.split("<think>")[0]
+    return text.strip()
+
+
+# ---------- mode alat lewat teks ----------
+
+def tools_as_text(tools: list[dict]) -> str:
+    lines = [
+        "\n\n# Tools",
+        "You can call tools. To call one, reply with ONLY this (no other text):",
+        '<tool>{"name": "TOOL_NAME", "arguments": {"param": "value"}}</tool>',
+        "You will then receive the tool result. When you have enough information, answer normally (no <tool> tag).",
+        "Never add output/result fields. Tool arguments must contain only the named parameters. For run_python, use print(...) so the tool returns evidence.",
+        "Available tools:",
+    ]
+    for t in tools:
+        f = t["function"]
+        props = f.get("parameters", {}).get("properties", {})
+        req = set(f.get("parameters", {}).get("required", []))
+        params = ", ".join(f"{k}{'' if k in req else '?'}: {v.get('type', 'string')}" for k, v in props.items())
+        lines.append(f"- {f['name']}({params}): {f['description']}")
+    return "\n".join(lines)
+
+
+def to_text_mode(messages: list[dict], tools: list[dict] | None) -> list[dict]:
+    out = []
+    for m in messages:
+        m = dict(m)
+        if m["role"] == "system" and tools:
+            m["content"] = m["content"] + tools_as_text(tools)
+            tools = None
+        elif m["role"] == "assistant" and m.get("tool_calls"):
+            calls = "\n".join('<tool>' + json.dumps({"name": c["function"]["name"], "arguments": c["function"]["arguments"]},
+                                                    ensure_ascii=False) + '</tool>' for c in m.pop("tool_calls"))
+            m["content"] = ((m.get("content") or "") + "\n" + calls).strip()
+        elif m["role"] == "tool":
+            m = {"role": "user", "content": f"[Tool result: {m.get('tool_name', 'tool')}]\n{m['content']}"}
+        out.append(m)
+    return out
+
+
+# ---------- panggilan utama ----------
+
+async def chat(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
+               on_token=None, prio: int = PRIO_USER, fmt=None, temperature: float = 0.3,
+               num_ctx: int | None = None, max_tokens: int | None = None) -> dict:
+    """Kembalikan {content, tool_calls, stats}. tool_calls = [{name, arguments}]."""
+    model = model or db.setting("model")
+    names = {t["function"]["name"] for t in (tools or [])}
+    if prio == PRIO_USER:
+        activity["last_user"] = time.time()
+    from . import office
+    office.phase("Menunggu giliran model", "listening")
+    await gate.acquire(prio)
+    office.phase("Menyiapkan jawaban", "thinking")
+    gate.current = model
+    from . import config
+    busy_path = config.DATA_DIR / "model-busy"
+    try:
+        busy_path.parent.mkdir(parents=True, exist_ok=True)
+        busy_path.write_text(model or "AI")
+        if model == "online":
+            res = await _chat_online(messages, tools, temperature, fmt, max_tokens=max_tokens)
+        elif db.setting("llm_backend") in ("compatible", "router", "local"):
+            if db.setting("llm_backend") == "router" or (db.setting("llm_backend") == "compatible" and db.setting("compatible_base").rstrip("/") == "http://router:20128/v1"):
+                from . import router
+                await router.ensure_key()
+            res = await _chat_online(messages, tools, temperature, fmt, local=True, model_override=model, max_tokens=max_tokens)
+        else:
+            res = await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens,
+                                     threads_for(prio))
+    finally:
+        busy_path.unlink(missing_ok=True)
+        gate.current = ""
+        gate.release()
+
+    content = strip_think(res.get("content", ""))
+    calls = res.get("tool_calls") or []
+    if not calls and names:
+        calls, content = extract_tool_calls(content, names)
+    res["content"] = content
+    res["tool_calls"] = calls
+    return res
+
+
+async def _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens=None,
+                       threads=None) -> dict:
+    base = db.setting("ollama_url").rstrip("/")
+    native = bool(tools) and model not in _no_native_tools
+    msgs = messages if native or not tools else to_text_mode(messages, tools)
+    if model in _no_think_param and msgs and msgs[-1]["role"] == "user":
+        # model yang tidak menerima think=false: minta lewat teks (dipahami Qwen3/MiniCPM)
+        msgs = msgs[:-1] + [dict(msgs[-1], content=msgs[-1]["content"] + "\n/no_think")]
+    body = {
+        "model": model,
+        "messages": msgs,
+        "stream": True,
+        "keep_alive": db.setting("keep_alive") or "30m",
+        "options": {"num_ctx": int(num_ctx or db.setting("num_ctx") or 8192), "temperature": temperature,
+                    # batas panjang jawaban: model kecil kadang menulis tanpa henti dan menahan antrean
+                    "num_predict": int(max_tokens or db.setting("max_tokens") or 900)},
+    }
+    if threads:
+        body["options"]["num_thread"] = threads
+    if db.setting("tool_mode") == "text" and native:
+        native = False
+        body["messages"] = to_text_mode(messages, tools)
+    if native:
+        body["tools"] = tools
+    if fmt:
+        body["format"] = fmt
+    if model not in _no_think_param:
+        body["think"] = False
+
+    t0 = time.time()
+    content, calls, stats = "", [], {}
+    held = ""  # teks yang ditahan karena mungkin panggilan alat
+    try:
+        async with session().post(f"{base}/api/chat", json=body,
+                                  # memuat model dari disk + membaca prompt panjang di CPU 2 core bisa >3 menit
+                                  timeout=aiohttp.ClientTimeout(total=900, sock_read=480)) as r:
+            if r.status != 200:
+                err = await r.text()
+                if native and ("does not support tools" in err or "invalid tool call" in err.lower() or "tool call arguments" in err.lower()):
+                    _no_native_tools.add(model)
+                    return await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens, threads)
+                if "think" in err.lower() and "think" in body:
+                    _no_think_param.add(model)
+                    return await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens, threads)
+                if "not found" in err:
+                    raise LLMError(f"Model '{model}' belum diunduh. Unduh dulu di halaman Model.")
+                raise LLMError(f"Ollama menolak ({r.status}): {err[:300]}")
+            async for line in r.content:
+                if not line.strip():
+                    continue
+                chunk = json.loads(line)
+                if chunk.get("error"):
+                    if native and ("invalid tool call" in chunk["error"].lower() or "tool call arguments" in chunk["error"].lower()) and not content and not calls:
+                        _no_native_tools.add(model)
+                        return await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens, threads)
+                    raise LLMError(chunk["error"])
+                msg = chunk.get("message") or {}
+                if msg.get("tool_calls"):
+                    for c in msg["tool_calls"]:
+                        f = c.get("function", {})
+                        args = f.get("arguments", {})
+                        if isinstance(args, str):
+                            args = _loads(args)
+                        calls.append({"name": f.get("name"), "arguments": args})
+                piece = msg.get("content") or ""
+                if piece:
+                    content += piece
+                    if on_token and not tools_suspect(content):
+                        if held:
+                            piece, held = held + piece, ""
+                        await on_token(piece)
+                    elif on_token:
+                        held += piece
+                if chunk.get("done"):
+                    stats = {
+                        "prompt_tokens": chunk.get("prompt_eval_count", 0),
+                        "tokens": chunk.get("eval_count", 0),
+                        "seconds": round(time.time() - t0, 1),
+                        "tok_per_sec": round(chunk.get("eval_count", 0) / max(chunk.get("eval_duration", 1) / 1e9, 1e-6), 1),
+                        "prompt_tok_per_sec": round(chunk.get("prompt_eval_count", 0) / max(chunk.get("prompt_eval_duration", 1) / 1e9, 1e-6), 1),
+                    }
+    except asyncio.TimeoutError:
+        raise LLMError("Model terlalu lama menjawab (8 menit tanpa balasan). Server mungkin sedang sangat sibuk "
+                       "atau RAM penuh. Coba lagi sebentar lagi, atau pakai model yang lebih kecil.")
+    except aiohttp.ClientError as e:
+        raise LLMError(f"Tidak bisa menghubungi Ollama di {base}: {e}")
+    return {"content": content, "tool_calls": calls, "stats": stats}
+
+
+def tools_suspect(text: str) -> bool:
+    """Jawaban yang diawali tanda-tanda panggilan alat jangan dialirkan ke layar."""
+    s = text.lstrip()
+    if not s:
+        return True
+    return s[0] in "<{[`" or bool(re.match(r"^\w+\(", s)) or s.startswith("<think")
+
+
+async def _chat_online(messages, tools, temperature, fmt, local=False, model_override=None, max_tokens=None) -> dict:
+    backend = db.setting("llm_backend")
+    base = db.setting("compatible_base" if local else "online_base").rstrip("/")
+    if local and backend == "router":
+        from . import router
+        base = router.base() + "/v1"
+    elif local and backend == "local":
+        import os
+        base = os.environ.get("LOCAL_API_BASE", "http://local:8080/v1")
+    key = "" if local and backend == "local" else db.setting("compatible_key" if local else "online_key")
+    model = model_override if local else db.setting("online_model")
+    if not (base and model and (local or key)):
+        raise LLMError("API online belum diatur (Pengaturan → Otak online).")
+    msgs, pending = [], []
+    for i, m in enumerate(messages):
+        m = dict(m)
+        if m["role"] == "assistant" and m.get("tool_calls"):
+            tc = []
+            for j, c in enumerate(m["tool_calls"]):
+                cid = f"call_{i}_{j}"
+                pending.append(cid)
+                tc.append({"id": cid, "type": "function",
+                           "function": {"name": c["function"]["name"], "arguments": json.dumps(c["function"]["arguments"])}})
+            m = {"role": "assistant", "content": m.get("content") or "", "tool_calls": tc}
+        elif m["role"] == "tool":
+            m = {"role": "tool", "tool_call_id": pending.pop(0) if pending else "call_x", "content": m["content"]}
+        msgs.append(m)
+    text_tools = local and db.setting("tool_mode") != "native"
+    if text_tools:
+        msgs = to_text_mode(messages, tools)
+    body = {"model": model, "messages": msgs, "temperature": temperature,
+            "max_tokens": int(max_tokens or db.setting("max_tokens") or 900)}
+    if local and backend == "local":
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    if tools and not text_tools:
+        body["tools"] = tools
+    if fmt:
+        body["response_format"] = {"type": "json_object"}
+    t0 = time.time()
+    try:
+        async with session().post(f"{base}/chat/completions", json=body,
+                                  headers={"Authorization": f"Bearer {key}"} if key else {},
+                                  timeout=aiohttp.ClientTimeout(total=180)) as r:
+            data = await r.json(content_type=None)
+    except Exception as e:
+        raise LLMError(f"API online gagal: {e}")
+    if "choices" not in data and "API key required" in str(data):
+        raise LLMError("9router belum memiliki API key yang valid. Buka menu AI & 9router lalu tekan Hubungkan otomatis. Jika masih gagal, perbarui pemasang VPS.")
+    if not data.get("choices"):
+        raise LLMError(f"API online menolak: {str(data)[:300]}")
+    msg = data["choices"][0]["message"]
+    calls = []
+    for c in msg.get("tool_calls") or []:
+        calls.append({"name": c["function"]["name"], "arguments": _loads(c["function"].get("arguments") or "{}")})
+    usage = data.get("usage", {})
+    return {"content": msg.get("content") or "", "tool_calls": calls,
+            "stats": {"tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
+                      "seconds": round(time.time() - t0, 1)}}
+
+
+# ---------- manajemen model di Ollama ----------
+
+async def ollama_get(path: str):
+    base = db.setting("ollama_url").rstrip("/")
+    async with session().get(f"{base}{path}", timeout=aiohttp.ClientTimeout(total=15)) as r:
+        return await r.json(content_type=None)
+
+
+async def ollama_post(path: str, body: dict, timeout: float = 60):
+    base = db.setting("ollama_url").rstrip("/")
+    async with session().post(f"{base}{path}", json=body, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
+        return await r.json(content_type=None)
+
+
+async def is_loaded(model: str) -> bool:
+    try:
+        ps = await ollama_get("/api/ps")
+        return any(model in (m.get("name"), m.get("model")) or m.get("name", "").startswith(model + ":")
+                   for m in ps.get("models", []))
+    except Exception:
+        return True  # tidak tahu: jangan tampilkan pesan memuat
+
+
+async def unload_except(keep: str):
+    """Lepas semua model kecuali satu (dipakai sebelum model penglihatan dimuat saat RAM tipis)."""
+    try:
+        ps = await ollama_get("/api/ps")
+        for m in ps.get("models", []):
+            if m["name"] != keep and m.get("model") != keep:
+                await ollama_post("/api/generate", {"model": m["name"], "keep_alive": 0})
+    except Exception:
+        pass
+
+
+async def unload(model: str | None = None):
+    """Lepas model dari RAM (misalnya sebelum menyalakan Chromium)."""
+    try:
+        ps = await ollama_get("/api/ps")
+        for m in ps.get("models", []):
+            if model is None or m["name"] == model:
+                await ollama_post("/api/generate", {"model": m["name"], "keep_alive": 0})
+    except Exception:
+        pass
+
+
+async def pull(model: str):
+    """Unduh model; hasilkan progres (status, persen)."""
+    base = db.setting("ollama_url").rstrip("/")
+    async with session().post(f"{base}/api/pull", json={"model": model, "stream": True},
+                              timeout=aiohttp.ClientTimeout(total=None, sock_read=900)) as r:
+        async for line in r.content:
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            if d.get("error"):
+                raise LLMError(d["error"])
+            pct = None
+            if d.get("total"):
+                pct = round(100 * d.get("completed", 0) / d["total"], 1)
+            yield d.get("status", ""), pct

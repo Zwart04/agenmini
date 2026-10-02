@@ -1,0 +1,31 @@
+AGEN MINI 0.3.0 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+
+PASANG BARU / UPDATE VERSI LAMA
+1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
+2. Jalankan sebagai root: bash /root/pasang-vps.sh
+3. Buka port TCP 443 di firewall penyedia VPS, buka https://IP-VPS.
+   Kata sandi baru ditampilkan pemasang. Instalasi lama memakai sandi lama.
+   Reset jika lupa: agen sandi
+4. Menu AI & 9router: pilih 9router/API, tambahkan provider dengan API key
+   atau OAuth, kemudian pilih model. API key router dibuat otomatis.
+   Tidak perlu dashboard atau tunnel terpisah. Kuota provider tetap diperlukan.
+5. Alternatif: pilih Lokal tanpa Ollama. Supervisor memasang llama.cpp
+   dan merekomendasikan model Q4 sesuai hardware. Pilih model pada kartu lalu tunggu unduhannya. Tunggu muat pertama selesai.
+   VPS 4 GB RAM disarankan untuk lokal; mode API lebih ringan (2 GB disarankan).
+
+MENU
+Workspace: karakter bot, tugas aktif, antrean dan log hasil/alat.
+Skill: anti-slop, verifikasi, pemecahan masalah dan desain bawaan; tambah/edit prosedur atau impor Markdown. Ini bukan pelatihan bobot model.
+Koneksi MCP: Agen Local sudah tersedia tanpa akun. Untuk GitHub gunakan preset; isi URL/token atau perintah stdio, temukan alat dan pilih izin.
+GitHub/email: sambungkan MCP milik layanan yang Anda pilih dengan kredensialnya.
+MCP stdio perlu executable terpasang di container; HTTP lebih mudah untuk VPS.
+Versi & Update: cek rilis, instal, atau aktifkan update otomatis harian.
+Update menunggu model tidak sibuk, memeriksa SHA256, dan membuat backup.
+OAuth tertentu perlu menyalin URL callback lengkap dari browser komputer Anda.
+
+PERINTAH
+agen status | agen log | agen router-log | agen lokal-log
+agen sandi | agen update | agen restart
+Lokasi /opt/agenmini. Data/kredensial dipertahankan saat update.
+Model kecil tidak dijamin bebas halusinasi; gunakan sumber dan verifikasi hasil.
+Sertifikat awal self-signed. Detail pengujian dan batasan ada di VALIDATION.md.

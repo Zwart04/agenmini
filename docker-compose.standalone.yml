@@ -1,0 +1,47 @@
+name: agenmini
+services:
+  agen:
+    build:
+      context: .
+      args:
+        CHROMIUM: ${CHROMIUM:-0}
+    restart: unless-stopped
+    env_file: .env
+    ports: ["${WEB_PORT:-443}:8443"]
+    volumes: ["./data:/data"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    mem_limit: ${AGEN_MEM_LIMIT:-800m}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  router:
+    profiles: [router]
+    image: ${NINE_ROUTER_IMAGE:-decolua/9router@sha256:4316fefb95ea642d57db885d906b1227b1768b15ac5def314621fd781da7b3f1}
+    restart: unless-stopped
+    ports: ["127.0.0.1:20128:20128"]
+    volumes: ["router-data:/app/data"]
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: 0.0.0.0
+      NODE_ENV: production
+      JWT_SECRET: ${ROUTER_JWT_SECRET:?Jalankan pasang-vps.sh atau isi secret acak di .env}
+      INITIAL_PASSWORD: ${WEB_PASSWORD}
+    mem_limit: ${ROUTER_MEM_LIMIT:-768m}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  local:
+    profiles: [local]
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server@sha256:23fd59bc5e5b06ca68003a5772d441f0411fb723eeaff850b9111bcd2ac4fd33}
+    restart: unless-stopped
+    volumes: ["./data/models:/models"]
+    environment:
+      LLAMA_CACHE: /models
+    command: ["--hf-repo", "${LOCAL_REPO:-agentscope-ai/QwenPaw-Flash-2B-Q4_K_M}", "--hf-file", "${LOCAL_FILE:-QwenPaw-flash-2B-20260330-q4.gguf}", "--host", "0.0.0.0", "--port", "8080", "-c", "4096", "-t", "${LOCAL_THREADS:-2}", "--parallel", "1"]
+    mem_limit: ${LOCAL_MEM_LIMIT:-2300m}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  router-data:

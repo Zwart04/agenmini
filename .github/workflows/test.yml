@@ -1,0 +1,14 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: docker build --build-arg CHROMIUM=0 -t agenmini-ci .
+      - run: docker run --rm -v "$PWD:/src" -w /src agenmini-ci sh -c 'pip install pytest pytest-asyncio && python -m pytest tests -q -p no:cacheprovider'
+      - run: bash -n installer-vps-head.sh && bash -n agen-supervisor.sh && bash -n agen-standalone
+      - run: node --check app/static/control.js

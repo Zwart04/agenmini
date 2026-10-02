@@ -1,0 +1,85 @@
+/* Native admin panels. No framework, external font, image bundle or animation loop. */
+const dotShapes=['round','triangle','square','cloud','star','flame'];
+const dotState=(b,t)=>b.status==='working'?(b.phase||'thinking'):({done:'success',failed:'error',waiting:'alert',queued:'listening'})[b.last_status||t?.status]||'idle';
+const officeColors=['#f5ba92','#b1c9e9','#beb2db','#b6d4b4','#e7c578','#dfa6bb'];
+let openedOfficeLog=null,officeLogFingerprint="",officeTimer, aiTimer, oauthFlow=null, oauthTimer, mcpDiscovered=[], editedSkill=null;
+const sayError=e=>toast(e.message || String(e));
+async function loadOffice(){
+  clearTimeout(officeTimer);
+  try{
+    const d=await api('/api/office');
+    $('#officeRoom').innerHTML=d.bots.map((b,i)=>`<div class="office-station"><button class="office-desk avatar-${i%6} state-${b.status==='working'?(b.action?'writing':'thinking'):(d.tasks.find(t=>t.target===b.id)?.status||'idle')} ${b.status==='working'?'working':''}" data-bot="${esc(b.id)}" title="${esc(b.task||'Buka percakapan')}"><div class="mini-dot" style="--dot-color:${officeColors[i%officeColors.length]}"><img class="dot-asset" src="/static/dots/${dotShapes[i%6]}-${dotState(b,d.tasks.find(t=>t.target===b.id))}.svg" alt=""><i class="state-eyes"></i><i class="accessory"></i></div><div class="desk-line"></div><b>${esc(b.name)}</b><div class="sub">${b.status==='working'?esc(b.action||'Berpikir'):({done:'Selesai',failed:'Tugas terakhir gagal',waiting:'Menunggu izin'})[b.last_status]||'Siap membantu'}</div><div class="office-task">${esc(b.task||'Menunggu tugas baru')}</div></button><button class="btn sm office-log" data-log="${esc(b.id)}">Lihat log ${esc(b.name)}</button></div>`).join('');
+    $$('#officeRoom [data-bot]').forEach(x=>x.onclick=()=>pickBot(x.dataset.bot));
+    $$('#officeRoom [data-log]').forEach(x=>x.onclick=()=>showOfficeLog(x.dataset.log));
+    $('#officeTarget').innerHTML=d.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+    const labels={queued:'Menunggu',working:'Dikerjakan',done:'Selesai',failed:'Gagal',waiting:'Butuh tindakan'};
+    $('#officeTasks').innerHTML=d.tasks.map(t=>`<div class="r"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p>${esc(t.text)}</p>${t.approval?`<div class="approval-preview"><p>${esc(t.approval.reason)}</p><pre class="task-result">${esc(t.approval.args)}</pre><button class="btn pri" data-office-approve="${t.id}">Izinkan tindakan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div>`:''}${t.result?`<details><summary>Lihat hasil</summary><div class="task-result">${esc(t.result)}</div></details>`:''}</div></div>`).join('')||empty('Belum ada tugas. Kirim satu tugas ke bot di atas.');
+    $$('[data-office-approve],[data-office-deny]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('/api/office/approval/'+(b.dataset.officeApprove||b.dataset.officeDeny),{method:'POST',body:{ok:!!b.dataset.officeApprove}});toast('Keputusan disimpan');loadOffice()}catch(e){sayError(e);b.disabled=false}});
+    if(openedOfficeLog)await showOfficeLog(openedOfficeLog,true);
+    if(S.view==='office'&&!document.hidden) officeTimer=setTimeout(loadOffice,5000);
+  }catch(e){sayError(e)}
+}
+$('#officeForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/office',{method:'POST',body:{target:$('#officeTarget').value,text:$('#officeText').value}});$('#officeText').value='';loadOffice()}catch(e){sayError(e)}};
+
+async function loadAI(){
+  clearTimeout(aiTimer);
+  await loadLocalModels();
+  const settings=await api('/api/settings');
+  $('#aiMode').textContent=({router:'9router',local:'Model lokal tanpa Ollama',compatible:'API kompatibel',ollama:'Ollama'})[settings.llm_backend]||settings.llm_backend;
+  $('#routerPanel').classList.toggle('hidden',settings.llm_backend==='local');
+  const update=await api('/api/update');
+  $('#runtimeStatus').textContent=update.runtime_message||'';
+  if(settings.llm_backend==='local'){$('#routerStatus').textContent='Mode lokal aktif. Pilih 9router untuk menyambungkan provider.';if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),15000);return;}
+  try{
+    const d=await api('/api/router');
+    $('#routerStatus').textContent='Terhubung. API key dikelola otomatis di server.';
+    $('#routerConnections').innerHTML=d.connections.map(c=>`<div class="r"><div class="grow"><b>${esc(c.name||c.provider)}</b><div class="sub">${esc(c.email||c.provider)} · ${esc(c.testStatus||'terhubung')}</div></div><button class="btn sm" data-remove-provider="${esc(c.id)}">Hapus</button></div>`).join('')||empty('Belum ada provider. Tambahkan API key atau login OAuth di bawah.');
+    $$('[data-remove-provider]').forEach(x=>x.onclick=async()=>{if(confirm('Hapus koneksi provider ini?')){try{await api('/api/router/provider/'+encodeURIComponent(x.dataset.removeProvider),{method:'DELETE'});loadAI()}catch(e){sayError(e)}}});
+    $('#routerModel').innerHTML=d.models.map(m=>`<option value="${esc(m.id)}" ${m.id===d.active_model?'selected':''}>${esc(m.name)} · ${esc(m.id)}</option>`).join('');
+    $('#oauthProvider').innerHTML=d.device_providers.concat(d.code_providers).map(p=>`<option>${esc(p)}</option>`).join('');
+    $('#apiProvider').innerHTML=d.api_providers.map(p=>`<option>${esc(p)}</option>`).join('');
+  }catch(e){$('#routerStatus').textContent=e.message}
+  if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),15000);
+}
+$$('[data-mode]').forEach(b=>b.onclick=async()=>{try{const d=await api('/api/mode',{method:'POST',body:{mode:b.dataset.mode}});toast(d.message||'Mode disimpan');loadAI()}catch(e){sayError(e)}});
+$('#routerConnect').onclick=()=>loadAI().catch(sayError);
+$('#useRouterModel').onclick=async()=>{try{await api('/api/router/model',{method:'POST',body:{model:$('#routerModel').value}});toast('Model aktif diganti');loadAI()}catch(e){sayError(e)}};
+$('#providerForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/router/provider',{method:'POST',body:{provider:$('#apiProvider').value,apiKey:$('#providerKey').value,name:$('#providerName').value||$('#apiProvider').value}});$('#providerKey').value='';toast('Provider tersimpan');loadAI()}catch(e){sayError(e)}};
+$('#comboForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/router/combo',{method:'POST',body:{name:$('#comboName').value,models:$('#comboModels').value.split('\n').map(x=>x.trim()).filter(Boolean)}});toast('Fallback dibuat');loadAI()}catch(e){sayError(e)}};
+$('#oauthStart').onclick=async()=>{try{
+  clearTimeout(oauthTimer);const d=await api('/api/router/oauth',{method:'POST',body:{provider:$('#oauthProvider').value,redirect_uri:$('#oauthRedirect').value}});oauthFlow=d;
+  const u=new URL(d.url);if(u.protocol!=='https:'&&u.protocol!=='http:')throw Error('URL login tidak valid');
+  $('#oauthLogin').href=u.href;$('#oauthLogin').classList.remove('hidden');$('#oauthInfo').textContent=d.user_code?'Kode login: '+d.user_code:'Setelah login, tempel URL callback lengkap. Jika localhost tidak terbuka, salin URL dari address bar.';
+  $('#oauthCallbackRow').classList.toggle('hidden',d.device);if(d.device)oauthTimer=setTimeout(pollOAuth,d.interval*1000);
+}catch(e){sayError(e)}};
+async function pollOAuth(){try{const d=await api('/api/router/oauth/'+oauthFlow.flow,{method:'POST',body:{}});if(d.success){$('#oauthInfo').textContent='Akun berhasil terhubung.';oauthFlow=null;loadAI()}else if(d.pending){oauthFlow.interval=d.interval||oauthFlow.interval;oauthTimer=setTimeout(pollOAuth,oauthFlow.interval*1000)}else throw Error(d.error||'Login gagal')}catch(e){sayError(e)}}
+$('#oauthFinish').onclick=async()=>{try{if(!oauthFlow)throw Error('Mulai login dahulu');const d=await api('/api/router/oauth/'+oauthFlow.flow,{method:'POST',body:{callback:$('#oauthCallback').value}});if(d.success){toast('Akun terhubung');$('#oauthCallback').value='';oauthFlow=null;loadAI()}else throw Error(d.error||'Login belum selesai')}catch(e){sayError(e)}};
+
+function skillEditor(skill=null){editedSkill=skill;$('#skillEditor').classList.remove('hidden');$('#skillName').value=skill?.name||'';$('#skillWhen').value=skill?.when_to_use||'';$('#skillSteps').value=skill?.steps||'';$('#skillScope').innerHTML='<option value="shared">Semua bot</option>'+S.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');$('#skillScope').value=skill?.scope||'shared';$('#skillName').focus()}
+$('#skillAdd').onclick=()=>skillEditor();$('#skillCancel').onclick=()=>$('#skillEditor').classList.add('hidden');
+$('#skillEditor').onsubmit=async e=>{e.preventDefault();try{const body={name:$('#skillName').value,when_to_use:$('#skillWhen').value,steps:$('#skillSteps').value,scope:$('#skillScope').value};await api('/api/skills'+(editedSkill?'/'+editedSkill.id:''),{method:'POST',body});$('#skillEditor').classList.add('hidden');loadSkills();toast('Skill tersimpan')}catch(e){sayError(e)}};
+$('#skillImport').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>16000)return toast('Skill terlalu panjang, maksimal 16 KB');const text=await file.text();skillEditor();const name=text.match(/^name:\s*(.+)$/m);const description=text.match(/^description:\s*(.+)$/m);$('#skillName').value=name?name[1].replace(/^['"]|['"]$/g,''):file.name.replace(/\.md$/,'');$('#skillWhen').value=description?description[1].replace(/^['"]|['"]$/g,''):'';$('#skillSteps').value=text.replace(/^---\s*\n[\s\S]*?\n---\s*\n/,'');e.target.value=''};
+
+async function loadMCP(){const d=await api('/api/mcp');$('#mcpServers').innerHTML=d.servers.map(s=>`<div class="r"><div class="grow"><b>${esc(s.name)}</b><div class="sub">${esc(s.url||s.command)} · ${s.allow_tools.length} alat diizinkan</div></div><button class="btn sm" data-mcp-edit="${esc(s.name)}">Edit</button><button class="btn sm" data-mcp-delete="${esc(s.name)}">Hapus</button></div>`).join('')||empty('Belum ada MCP. Tambahkan server di bawah.');
+ $$('[data-mcp-delete]').forEach(b=>b.onclick=async()=>{try{await api('/api/mcp/'+encodeURIComponent(b.dataset.mcpDelete),{method:'DELETE'});loadMCP();refreshBots()}catch(e){sayError(e)}});
+ $$('[data-mcp-edit]').forEach(b=>b.onclick=()=>{const s=d.servers.find(s=>s.name===b.dataset.mcpEdit);$('#mcpName').value=s.name;$('#mcpUrl').value=s.url;$('#mcpCommand').value=s.command;$('#mcpArgs').value=JSON.stringify(s.args||[]);$('#mcpAllowed').value=s.allow_tools.join(', ');$('#mcpReadonly').value=s.read_only_tools.join(', ');$('#mcpToken').value='';$('#mcpKeepToken').checked=true;$('#mcpForm').scrollIntoView({behavior:'smooth'})});
+ $('#mcpBot').innerHTML=S.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+ $('#mcpTools').innerHTML=d.tools.map(t=>`<div class="r"><div class="grow">${esc(t.name)}<div class="sub">${esc(t.description)}</div></div><span class="pill">${t.approval?'Minta izin':'Baca saja'}</span></div>`).join('')||empty('Uji koneksi dan izinkan alat untuk mengaktifkannya.');}
+function mcpBody(){const server={name:$('#mcpName').value,url:$('#mcpUrl').value,command:$('#mcpCommand').value,args:JSON.parse($('#mcpArgs').value||'[]'),allow_tools:$('#mcpAllowed').value.split(',').map(s=>s.trim()).filter(Boolean),read_only_tools:$('#mcpReadonly').value.split(',').map(s=>s.trim()).filter(Boolean),bot_id:$('#mcpBot').value};if(!$('#mcpKeepToken').checked)server.token=$('#mcpToken').value;return server}
+$('#mcpDiscover').onclick=async()=>{try{const b=mcpBody();if(b.token)b.headers={Authorization:'Bearer '+b.token};const d=await api('/api/mcp/discover',{method:'POST',body:b});$('#mcpFound').textContent=d.tools.map(t=>t.name+' — '+(t.description||'')).join('\n');$('#mcpAllowed').value=d.tools.map(t=>t.name).join(', ');toast('Alat ditemukan. Tinjau daftar sebelum menyimpan.')}catch(e){sayError(e)}};
+$('#mcpForm').onsubmit=async e=>{e.preventDefault();try{const d=await api('/api/mcp',{method:'POST',body:mcpBody()});$('#mcpToken').value='';toast(d.connection_errors?.length?'Konfigurasi disimpan, koneksi gagal: '+d.connection_errors.join(', '):'MCP tersimpan dan aktif');loadMCP();refreshBots()}catch(e){sayError(e)}};
+
+async function loadUpdates(){const d=await api('/api/update');$('#updateVersion').textContent=d.version;$('#updateAuto').checked=d.auto;$('#updateStatus').textContent=d.message||'Belum ada pemeriksaan update.'}
+$('#updateAuto').onchange=async e=>{try{await api('/api/update',{method:'POST',body:{auto:e.target.checked}});toast('Pengaturan update disimpan')}catch(e){sayError(e)}};
+$('#updateCheck').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{check:true}});toast('VPS akan memeriksa release dalam sekitar 30 detik.')}catch(e){sayError(e)}};
+$('#updateInstall').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{install:true}});toast('Update diminta. VPS akan membuat backup dan memasang release terbaru.')}catch(e){sayError(e)}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(officeTimer);clearTimeout(aiTimer)}else if(S.view==='office')loadOffice();else if(S.view==='ai')loadAI().catch(sayError)});
+
+async function showOfficeLog(bot,refresh=false){try{const d=await api('/api/office/log/'+encodeURIComponent(bot));openedOfficeLog=bot;$('#officeLog').classList.remove('hidden');const fingerprint=bot+':'+(d.events[0]?.id||0)+':'+(d.entries[0]?.id||0);if(refresh&&fingerprint===officeLogFingerprint)return;officeLogFingerprint=fingerprint;$('#officeLogTitle').textContent='Log '+(S.bots.find(b=>b.id===bot)?.name||bot);$('#officeLogEntries').innerHTML=(d.events.length?'<h4>Aktivitas terbaru</h4>'+d.events.map(e=>`<div class="log-event"><small>${esc(new Date(e.created_at*1000).toLocaleTimeString())} · ${esc(e.kind)}</small><div>${esc(e.text)}</div></div>`).join(''):'')+d.entries.map(e=>`<div class="r"><div><small>${esc(new Date(e.created_at*1000).toLocaleString())} · ${esc(e.channel)}</small><div class="task-result">${esc(e.content)}</div>${e.trace.map(t=>`<details><summary>${esc(t.tool)}</summary><pre class="task-result">${esc(t.result)}</pre></details>`).join('')}</div></div>`).join('')||empty('Belum ada aktivitas tercatat.');if(!refresh)$('#officeLog').scrollIntoView({block:'nearest'})}catch(e){sayError(e)}}
+$('#officeLogClose').onclick=()=>{openedOfficeLog=null;$('#officeLog').classList.add('hidden')};
+
+async function loadLocalModels(){const d=await api('/api/local-models');const h=d.hardware;$('#hardwareSummary').textContent=h.source==='host'?`${(h.ram_mb/1024).toFixed(1)} GB RAM · ${(h.available_mb/1024).toFixed(1)} GB tersedia · ${h.cpus} CPU · ${h.architecture}`:'Hardware host belum tersedia. Supervisor VPS akan membacanya secara otomatis.';if(h.source==='host'&&!d.recommended)$('#hardwareSummary').textContent+=' · RAM tersedia belum cukup: hentikan layanan lain atau pilih mode API.';$('#localModelCards').innerHTML=d.models.map(m=>`<article class="model-card ${m.id===d.recommended?'recommended':''}"><div class="row"><b class="grow">${esc(m.name)}</b>${m.id===d.recommended?'<span class="pill">Rekomendasi</span>':''}</div><p>${esc(m.note)}</p><div class="hint">Unduh ${m.download_gb} GB · RAM ≥ ${m.min_ram_gb} GB · Q4</div><div class="row"><button class="btn sm" data-local-model="${esc(m.id)}" ${!m.fits?'disabled':''}>${m.id===d.selected?'Gunakan kembali':'Pilih & gunakan'}</button><a href="${esc(m.source)}" target="_blank" rel="noopener noreferrer">Detail model</a></div></article>`).join('');$$('[data-local-model]').forEach(b=>b.onclick=async()=>{try{const d=await api('/api/local-models',{method:'POST',body:{id:b.dataset.localModel}});toast(d.message);loadAI().catch(sayError)}catch(e){sayError(e)}})}
+$('#refreshHardware').onclick=()=>loadLocalModels().catch(sayError);
+$('#mcpGithubPreset').onclick=()=>{$('#mcpName').value='github';$('#mcpUrl').value='https://api.githubcopilot.com/mcp/';$('#mcpCommand').value='';$('#mcpArgs').value='[]';$('#mcpToken').value='';$('#mcpAllowed').value='';$('#mcpReadonly').value='';$('#mcpKeepToken').checked=false;$('#mcpForm').scrollIntoView({block:'start'});$('#mcpToken').focus();toast('Isi token GitHub lalu uji koneksi. Pilih alat baca saja yang diperlukan.')};
+
+function askCorrection(){return new Promise(resolve=>{const dialog=$('#feedbackDialog');$('#feedbackNote').value='';dialog.onclose=()=>resolve(dialog.returnValue==='save'?$('#feedbackNote').value.trim():'');dialog.showModal();$('#feedbackNote').focus()})}

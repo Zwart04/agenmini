@@ -1,0 +1,11 @@
+aiohttp>=3.10,<4
+trafilatura>=2.0,<3
+lxml>=5
+lxml_html_clean
+cssselect>=1.2
+pillow>=10
+matplotlib>=3.8
+
+jsonschema>=4.23,<5
+mcp>=1.20,<2
+PyJWT>=2.10,<3

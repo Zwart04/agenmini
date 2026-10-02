@@ -1,0 +1,11 @@
+data/
+dist/
+.env
+.git/
+.test-tmp*/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+.reference/
+.preview-data/
+.test-temp*/

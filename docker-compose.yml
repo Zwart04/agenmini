@@ -1,0 +1,26 @@
+name: agenmini
+
+services:
+  agen:
+    build:
+      context: .
+      args:
+        CHROMIUM: ${CHROMIUM:-1}
+    image: agenmini:latest
+    container_name: agenmini
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${WEB_PORT:-443}:8443"
+    volumes:
+      - ./data:/data
+    mem_limit: ${AGEN_MEM_LIMIT:-1200m}
+    networks: [ollama]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+networks:
+  ollama:
+    external: true
+    name: ${OLLAMA_NETWORK}

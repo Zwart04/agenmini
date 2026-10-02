@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /opt/agenmini
+touch data/local-runtime.env
+compose() { docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml --profile router --profile local "$@"; }
+case "${1:-bantuan}" in
+  status) compose ps ;;
+  log) compose logs -f --tail 100 agen ;;
+  lokal-log) docker compose -f docker-compose.standalone.yml --profile local logs -f --tail 100 local ;;
+  update) echo install > data/update-request; bash /opt/agenmini/agen-supervisor.sh ;;
+  router-log) compose logs -f --tail 100 router ;;
+  start)
+    rm -f data/maintenance
+    compose up -d agen
+    MODE=$(compose exec -T agen python -c 'from app import db; print(db.setting("llm_backend"))')
+    if [[ "$MODE" == local ]]; then echo local > data/runtime-request; bash agen-supervisor.sh
+    else compose up -d router; fi ;;
+
+  stop) touch data/maintenance; compose stop ;;
+  restart) compose restart agen ;;
+  sandi) compose exec -T agen python -m app.cli password ;;
+  model) shift; compose exec -T agen python -m app.cli model "$@" ;;
+  kode) compose exec -T agen python -m app.cli code ;;
+  *) echo "agen status | log | router-log | lokal-log | start | stop | restart | update | sandi | model <nama> | kode" ;;
+esac

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Perintah pengelola Agen Mini. Ketik: agen bantuan
+DIR=/opt/agenmini
+C=agenmini
+cd "$DIR" 2>/dev/null || { echo "Agen Mini belum terpasang di $DIR"; exit 1; }
+TT=""; [ -t 0 ] && [ -t 1 ] && TT="-t"
+
+env_get() { grep -E "^$1=" "$DIR/.env" 2>/dev/null | head -1 | cut -d= -f2-; }
+alamat() { echo "https://$(env_get PUBLIC_IP)$( [ "$(env_get WEB_PORT)" = 443 ] || echo ":$(env_get WEB_PORT)")"; }
+app() { docker exec -i $TT "$C" python -m app.cli "$@"; }
+
+case "${1:-bantuan}" in
+  status)
+    docker ps --filter "name=^${C}$" --format 'Container: {{.Names}}  {{.Status}}'
+    echo "Alamat web: $(alamat)"
+    app status ;;
+  log|logs)        docker logs -f --tail 100 "$C" ;;
+  restart|ulang)   docker compose restart && echo "Dimulai ulang." ;;
+  stop|berhenti)   docker compose stop && echo "Dihentikan. Nyalakan lagi: agen start" ;;
+  start|mulai)     docker compose up -d && echo "Menyala di $(alamat)" ;;
+  uji|adu|uji-model) shift; app bench "$@" ;;
+  kandidat)        app candidates ;;
+  model)           shift; app model "$@" ;;
+  unduh|tarik)     shift; [ -n "${1:-}" ] || { echo "Pakai: agen unduh <nama-model>"; exit 1; }; app pull "$1" ;;
+  sandi|password|kata-sandi) shift; app password "$@" ;;
+  kode)            app code ;;
+  telegram)        shift; app telegram "${1:-}" && docker compose restart ;;
+  izinkan)         shift; app allow "$@" ;;
+  alamat)          alamat ;;
+  backup|cadangan)
+    docker exec "$C" python -c "from app import scheduler; scheduler.backup_db()" && ls -lh "$DIR/data/backup" ;;
+  hapus|uninstall)
+    read -r -p "Hapus Agen Mini (container & image)? Ketik YA: " a; [ "$a" = "YA" ] || exit 0
+    docker compose down --rmi local
+    read -r -p "Hapus juga SEMUA data (ingatan, skill, chat)? Ketik HAPUS: " b
+    if [ "$b" = "HAPUS" ]; then rm -rf "$DIR"; else echo "Data disimpan di $DIR/data"; fi
+    rm -f /usr/local/bin/agen; echo "Selesai." ;;
+  *)
+    cat <<'EOF'
+Agen Mini, daftar perintah:
+  agen status              kondisi agen, RAM, model
+  agen alamat              alamat web
+  agen log                 lihat log (Ctrl+C untuk keluar)
+  agen restart, stop, start
+  agen uji [model…]        adu model (tanpa nama: kandidat yang sudah terunduh)
+  agen kandidat            daftar model kandidat
+  agen model [nama]        lihat atau ganti model aktif
+  agen unduh <nama>        unduh model ke Ollama
+  agen sandi [baru]        ganti kata sandi web
+  agen kode                kode pasangan Telegram
+  agen telegram <token>    pasang token bot Telegram utama
+  agen izinkan <user id>   izinkan User ID Telegram (lihat di @userinfobot)
+  agen backup              cadangkan database sekarang
+  agen hapus               copot Agen Mini
+Memperbarui: jalankan lagi berkas pasang.sh versi baru (data tetap aman).
+EOF
+    ;;
+esac
