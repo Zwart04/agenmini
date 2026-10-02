@@ -2,7 +2,7 @@
 import re
 import json
 import time
-from . import db,office,llm,tools,coding,projects
+from . import db,office,llm,tools,coding,projects,structured
 
 
 def target_for(text):
@@ -13,7 +13,32 @@ def target_for(text):
     return 'asisten'
 
 
+def previous_project(ctx,text):
+    if not re.search(r'^\s*(?:tolong\s+)?lanjut(?:kan)?(?:\s|$)',text,re.I):return None
+    from . import project_jobs
+    project_jobs.init()
+    for message in db.q("SELECT meta FROM messages WHERE chat_id=? AND role='assistant' ORDER BY id DESC LIMIT 30",(ctx.chat['id'],)):
+        try:pid=json.loads(message['meta'] or '{}').get('project_id')
+        except ValueError:continue
+        if not pid:continue
+        job=db.one('SELECT * FROM project_jobs WHERE id=?',(pid,))
+        if not job or job['channel']!=ctx.channel or job['ext_id']!=ctx.ext_id:continue
+        protected=project_jobs.repository_protected(job['brief'],job['repository'])
+        if protected:
+            answer=f"Proyek #{pid} tetap dijeda: repo tujuan tercantum dalam daftar jangan disentuh. Repo dan salinan lokal dipertahankan. Pilih repo lain di Workspace sebelum melanjutkan implementasi."
+        else:
+            if job['status'] in ('failed','paused'):
+                db.run("UPDATE project_jobs SET status='queued',updated_at=? WHERE id=?",(time.time(),pid))
+                project_jobs.event(pid,'queued','Dilanjutkan pemilik dari checkpoint percakapan.')
+                job['status']='queued'
+            answer=f"Proyek #{pid}: {job['status']}. Melanjutkan dari checkpoint yang sama; tidak membuat proyek pengganti. Detail dan kendala tersedia di Workspace."
+        return {'text':answer,'meta':{'project_id':pid,'status':'paused' if protected else job['status'],'files':[],'tools':[]}}
+    return None
+
+
 async def run(ctx,text,on_event):
+    continuation=previous_project(ctx,text)
+    if continuation:return continuation
     started=time.time();trace=[];is_site=coding.website_request(text)
     if re.search(r'kompleks|besar|full.?stack|repo(?:sitori)?|berkelanjutan|milestone',text,re.I):
         from . import project_jobs
@@ -36,8 +61,8 @@ async def run(ctx,text,on_event):
         target=target_for(text)
         if target=='asisten':
             roster=[{'id':b['id'],'role':b['persona'][:350],'tools':b['tools']} for b in db.bots(active_only=True) if b['id']!='orchestrator']
-            choice=await llm.chat([{'role':'system','content':'Choose an existing specialist for the task, or propose a new specialist ONLY if its domain is missing. Return JSON {bot: existing ID or "new", name: string, persona: specific role and acceptance checks, tools: [tool names]}. Ordinary conversation uses asisten. No credentials or new permissions. Available tools: '+','.join(ctx.bot['tools'])}, {'role':'user','content':json.dumps({'task':text,'team':roster},ensure_ascii=False)}],max_tokens=650,fmt='json')
-            selected=json.loads(choice['content'].strip().removeprefix('```json').removesuffix('```').strip())
+            schema={'type':'object','properties':{'bot':{'type':'string','enum':[b['id'] for b in roster]+['new']},'name':{'type':'string'},'persona':{'type':'string'},'tools':{'type':'array','items':{'type':'string'}}},'required':['bot'],'additionalProperties':False}
+            selected,choice=await structured.request([{'role':'system','content':'Choose an existing specialist for the task, or propose a new specialist ONLY if its domain is missing. Return JSON {bot: existing ID or "new", name: string, persona: specific role and acceptance checks, tools: [tool names]}. Ordinary conversation uses asisten. No credentials or new permissions. Available tools: '+','.join(ctx.bot['tools'])}, {'role':'user','content':json.dumps({'task':text,'team':roster},ensure_ascii=False)}],label='Pemilihan spesialis',max_tokens=900,schema=schema,on_event=on_event)
             if selected.get('bot')=='new':
                 created=await tools.create_specialist(ctx,name=selected.get('name',''),persona=selected.get('persona',''),tools=selected.get('tools',[]))
                 if created.startswith('Error:'):return finalize({'text':'Tugas belum berhasil: '+created},ctx,trace,started)

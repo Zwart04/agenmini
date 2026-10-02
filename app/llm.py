@@ -542,7 +542,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
                                   headers={"Authorization": f"Bearer {key}"} if key else {},
                                   timeout=aiohttp.ClientTimeout(total=360 if local and backend == 'local' else 180, sock_read=90)) as r:
             if body.get('stream') and 'text/event-stream' in r.headers.get('Content-Type',''):
-                parts, usage, served = [], {}, ''
+                parts, usage, served, finish_reason = [], {}, '', None
                 async for line in r.content:
                     line = line.decode('utf-8').strip()
                     if not line.startswith('data:'): continue
@@ -553,12 +553,13 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
                     served = chunk.get('model') or served
                     usage = chunk.get('usage') or usage
                     for choice in chunk.get('choices',[]):
+                        finish_reason = choice.get('finish_reason') or finish_reason
                         content = choice.get('delta',{}).get('content') or ''
                         if content:
                             parts.append(content)
                             if on_token: await on_token(content)
                 if not parts: raise LLMError('Model tidak mengembalikan teks. Periksa model/provider yang dipilih.')
-                data = {'model':served, 'usage':usage, 'choices':[{'message':{'content':''.join(parts)}}]}
+                data = {'model':served, 'usage':usage, 'choices':[{'message':{'content':''.join(parts)},'finish_reason':finish_reason}]}
             else:
                 data = await r.json(content_type=None)
             served_model = r.headers.get("X-Routed-Via") or data.get("model", "")
@@ -577,7 +578,8 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     usage = data.get("usage", {})
     return {"content": msg.get("content") or "", "tool_calls": calls,
             "stats": {"tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
-                      "seconds": round(time.time() - t0, 1), "served_model": served_model}}
+                      "seconds": round(time.time() - t0, 1), "served_model": served_model,
+                      "finish_reason": data["choices"][0].get("finish_reason")}}
 
 
 # ---------- manajemen model di Ollama ----------

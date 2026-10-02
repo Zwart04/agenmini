@@ -5,7 +5,7 @@ import re
 import zipfile
 from pathlib import PurePosixPath
 from html.parser import HTMLParser
-from . import llm
+from . import llm,structured
 
 
 def project_request(text):
@@ -88,8 +88,7 @@ async def generate(brief, ctx, on_event=None):
             'responsive UI. Do not create a landing page when a functional game/app is requested. No unavailable API claims, no secrets. '
             'Paths relative with extensions html/css/js/json/md/py/txt/svg only. State required backend/dependencies honestly. JSON only.')
     schema={'type':'object','properties':{'name':{'type':'string'},'files':{'type':'array','minItems':3,'maxItems':6,'items':{'type':'object','properties':{'path':{'type':'string'},'purpose':{'type':'string'}},'required':['path','purpose'],'additionalProperties':False}},'instructions':{'type':'string'}},'required':['name','files','instructions'],'additionalProperties':False}
-    plan=await llm.chat([{'role':'system','content':prompt},{'role':'user','content':brief[:6500]}],max_tokens=1000,fmt={'type':'json_schema','json_schema':{'name':'project_plan','schema':schema,'strict':True}})
-    raw=plan['content'].strip().removeprefix('```json').removesuffix('```').strip();plan=json.loads(raw)
+    plan,plan_response=await structured.request([{'role':'system','content':prompt},{'role':'user','content':brief[:6500]}],label='Rencana berkas',max_tokens=1000,schema=schema,on_event=on_event,fmt={'type':'json_schema','json_schema':{'name':'project_plan','schema':schema,'strict':True}})
     if not isinstance(plan.get('files'),list) or not 1<=len(plan['files'])<=8:raise ValueError('Rencana berkas proyek tidak lengkap.')
     root='project-'+str(__import__('time').time_ns());manifest=[];contents={};stats=plan.get('stats',{})
     for entry in plan['files']:

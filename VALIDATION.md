@@ -122,3 +122,11 @@ Project #1 requested Zwart04/ntpro, a private repository. The host GitHub accoun
 Live authenticated clone of ntpro: exit 0, HEAD df2556fbab4f7a78b7ca48017843c6438534b289, clean working tree, sandbox denied access to secrets. Original GitHub repository is unchanged; project execution uses a private local backup and checkpoints. Completion of its requested milestones must be reported separately from repairing clone.
 
 Telegram reporting is opt-in and uses the connected main bot and an allowed chat. It runs inside the existing application event loop, reads persisted checkpoints/audit status without LLM calls, reports every ten minutes during active work and status changes/final results, and avoids repeated idle reports. /laporan off disables it. Delivery is recorded only after Telegram returns a message_id. The owner's requested initial report was delivered through the real Telegram API.
+
+## 0.3.9 — bounded JSON validation and conversation continuation
+
+A stored Orchestrator response to “lanjutkan dan laporkan ke telegram” failed with JSONDecodeError and no attachments. The specialist chooser parsed model content directly and had no retry/schema checks; raw output and finish_reason were not retained, so the historical error does not prove a particular provider or truncation cause. Specialist selection and small project plans now validate complete JSON objects and their schema, retry once with a bounded larger output budget, and stop with an actionable failure if still invalid. Streaming finish_reason is retained, and length-limited JSON is rejected even if superficially parseable. Missing strings/braces are never fabricated.
+
+A continuation locates the previous project in the same conversation/channel/owner instead of treating it as a new generic specialist task. Failed/paused nonprotected jobs can be queued from the saved checkpoint; protected repositories remain paused.
+
+Regression includes malformed/truncated JSON, invalid specialist IDs, SSE truncation through a real local HTTP endpoint, bounded retry, no partial success, and preventing cross-owner/protected-project continuation. Historical messages and user project files are preserved.

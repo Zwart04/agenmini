@@ -130,8 +130,9 @@ async def step():
                     'If requirements need credentials, explicitly leave a checkpoint instead of pretending it works. Preserve existing code and user data.')
             local=llm.active_backend()=='local'
             context_limit=3500 if local else 14000
-            result=await llm.chat([{'role':'system','content':prompt},{'role':'user','content':job['brief'][:2500 if local else 12000]+'\nACTUAL REPO:\n'+json.dumps(report,ensure_ascii=False)[:context_limit]}],max_tokens=900 if local else 1800,fmt='json')
-            raw=result['content'].strip().removeprefix('```json').removesuffix('```').strip();plan=json.loads(raw)
+            from . import structured
+            plan_schema={'type':'object','properties':{'summary':{'type':'string'},'milestones':{'type':'array','minItems':1,'maxItems':10,'items':{'type':'object','properties':{'bot':{'type':'string'},'task':{'type':'string'},'acceptance':{'type':'string'}},'required':['bot','task','acceptance']}}},'required':['summary','milestones']}
+            plan,result=await structured.request([{'role':'system','content':prompt},{'role':'user','content':job['brief'][:2500 if local else 12000]+'\nACTUAL REPO:\n'+json.dumps(report,ensure_ascii=False)[:context_limit]}],label='Rencana tahapan',max_tokens=900 if local else 1800,schema=plan_schema)
             specialists=plan.get('specialists',[])
             if not isinstance(specialists,list) or len(specialists)>4:raise ValueError('Maksimal empat spesialis baru per rencana.')
             aliases={}
