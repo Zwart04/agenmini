@@ -147,10 +147,13 @@ async def amain():
     await web.start()
     await telegram.sync()
     worker = asyncio.create_task(office.loop())
+    from . import progress_reports
+    reporter = asyncio.create_task(progress_reports.loop())
     try:
         await scheduler.loop()
     finally:
         worker.cancel()
+        reporter.cancel()
         from . import llm
         if llm._session and not llm._session.closed:
             await llm._session.close()

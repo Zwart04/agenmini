@@ -154,6 +154,7 @@ class TgBot:
                 {"command": "bot", "description": "Daftar bot dan pindah bot"},
                 {"command": "tokenbot", "description": "Beri bot akun Telegram sendiri"},
                 {"command": "model", "description": "Pilih model AI percakapan"},
+                {"command": "laporan", "description": "Laporan proyek: on, off atau sekarang"},
                 {"command": "baru", "description": "Mulai percakapan baru"},
                 {"command": "riwayat", "description": "Riwayat percakapan: lanjutkan atau unduh"},
                 {"command": "ingatan", "description": "Lihat ingatan"},
@@ -440,7 +441,7 @@ class TgBot:
                 "**Perintah**\n"
                 "/bot  daftar bot dan pindah bot\n/model  pilih model AI\n/baru  percakapan baru\n/riwayat  lanjutkan atau unduh percakapan lama\n"
                 "/ingatan  isi ingatan\n"
-                "/skill  skill yang sudah dipelajari\n/jadwal  jadwal aktif\n/status  kondisi server\n\n"
+                "/skill  skill yang sudah dipelajari\n/jadwal  jadwal aktif\n/laporan  laporan proyek (on/off)\n/status  kondisi server\n\n"
                 "**Bot dengan akun Telegram sendiri**\n"
                 "1. Buat bot baru di @BotFather, salin tokennya\n"
                 "2. Kirim: /tokenbot namabot token\n"
@@ -559,6 +560,17 @@ class TgBot:
             from .tools import Ctx, list_schedules
             chat = db.chat_for(bot["id"], "tg", chat_id)
             await self.send(chat_id, "**Jadwal**\n" + await list_schedules(Ctx(bot, chat, "tg", chat_id)))
+            return True
+        if cmd == '/laporan':
+            from . import progress_reports
+            if ' '.join(parts[1:]).strip().lower()=='off':
+                db.set_setting('progress_reports_enabled','0')
+                await self.send(chat_id,'Laporan otomatis dihentikan. /laporan on untuk mengaktifkan kembali.')
+            else:
+                db.set_setting('progress_report_chat',str(chat_id))
+                db.set_setting('progress_reports_enabled','1')
+                try:await progress_reports.emit(force=True)
+                except Exception:await self.send(chat_id,'Laporan belum berhasil dikirim. Periksa koneksi Telegram dan status proyek.')
             return True
         if cmd == "/status":
             from .web import system_stats
