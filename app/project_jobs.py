@@ -8,6 +8,7 @@ from . import db,config,llm,tools,office
 
 
 def init():
+    db.run('CREATE TABLE IF NOT EXISTS project_stage_snapshots(project_id INTEGER,cursor INTEGER,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run("CREATE TABLE IF NOT EXISTS project_jobs(id INTEGER PRIMARY KEY,brief TEXT,repository TEXT,folder TEXT,status TEXT,plan TEXT DEFAULT '{}',cursor INTEGER DEFAULT 0,channel TEXT,ext_id TEXT,engine TEXT,model TEXT,result TEXT DEFAULT '',approval_id INTEGER DEFAULT 0,created_at REAL,updated_at REAL)")
     db.run('CREATE TABLE IF NOT EXISTS project_events(id INTEGER PRIMARY KEY,project_id INTEGER,phase TEXT,text TEXT,created_at REAL)')
 
@@ -103,7 +104,15 @@ def recover_consumed_approvals():
 
 def snapshot(root):
     import hashlib
-    return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p.stat().st_size<200000 and not any(part in ('.git','node_modules','.venv','__pycache__','dist','build') for part in p.relative_to(root).parts)}
+    return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p.suffix not in ('.db','.sqlite','.log','.pyc','.gguf') and not p.name.endswith(('-wal','-shm')) and p.stat().st_size<200000 and not any(part in ('.git','node_modules','.venv','__pycache__','dist','build') for part in p.relative_to(root).parts)}
+
+
+def stage_baseline(pid,cursor,root):
+    row=db.one('SELECT files FROM project_stage_snapshots WHERE project_id=? AND cursor=?',(pid,cursor))
+    if row:return json.loads(row['files'])
+    before=snapshot(root)
+    db.run('INSERT INTO project_stage_snapshots VALUES(?,?,?)',(pid,cursor,json.dumps(before)))
+    return before
 
 
 def acceptance_problems(milestone,response,before,after):
@@ -198,11 +207,11 @@ async def step():
             text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
-                  'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Untuk uji server, jangan menjalankan server foreground lalu menunggu timeout. Buat smoke test HTTP localhost (misalnya aiohttp TestClient/TestServer atau harness subprocess) yang memulai server, memeriksa respons, menutup server dan keluar 0. Timeout bukan bukti server sehat. Jalankan tes secara serial; untuk Jest gunakan --runInBand. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
+                  'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Untuk uji server, jangan menjalankan server foreground lalu menunggu timeout. Buat smoke test HTTP localhost (misalnya aiohttp TestClient/TestServer atau harness subprocess) yang memulai server, memeriksa respons, menutup server dan keluar 0. Timeout bukan bukti server sehat. Jalankan tes secara serial; hanya untuk runner Jest gunakan --runInBand; pytest dan unittest tidak menerima flag Jest. Jangan memasang runner lain jika tes proyek sudah berjalan dengan runner yang ada. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
             inventory=await inspect(job['folder'])
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
             ctx.stage_goal=milestone['task']+' '+milestone['acceptance']
-            before=snapshot(root)
+            before=stage_baseline(pid,cursor,root)
             response=await office.execute(ctx,milestone['bot'],text);event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)
             if not response.get('approval') and (office.outcome(response)=='failed' or problems):

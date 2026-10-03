@@ -93,7 +93,8 @@ def test_danger_needs_approval_then_runs():
     tools.REGISTRY["run_shell"].fn = fake_shell
     llm.chat = FakeLLM(["Sudah dihapus."])
     res2 = run(agent.resolve_approval(res["approval"], True))
-    assert ran["cmd"].startswith("rm -rf") and res2["text"] == "Sudah dihapus."
+    assert ran["cmd"].startswith("rm -rf") and "[kode keluar 0]" in res2["text"]
+    assert res2["meta"]["tools"]==["run_shell"] and not llm.chat.seen
     again = run(agent.resolve_approval(res["approval"], True))
     assert "tidak berlaku" in again["text"]
 

@@ -157,7 +157,7 @@ async def test_auto_runtime_reports_actual_candidates(monkeypatch,tmp_path):
         assert json.loads(response.text)['ready'] is True
     finally:db.set_setting('llm_backend',original)
 
-@pytest.mark.parametrize('allowed,result,state',[(True,'[kode keluar 0]\nVerified','queued'),(True,'[kode keluar 1]\nFailed','failed'),(False,'Denied','paused')])
+@pytest.mark.parametrize('allowed,result,state',[(True,'[kode keluar 0]\nVerified','queued'),(True,'[kode keluar 1]\nFailed','failed'),(True,'(dihentikan: lebih dari 30 detik)','failed'),(False,'Denied','paused')])
 def test_shared_approval_callback_keeps_checkpoint(allowed,result,state):
     project_jobs.init();pid=db.run('INSERT INTO project_jobs(brief,status,cursor,approval_id) VALUES(?,?,?,?)',('callback','waiting',2,999999))
     try:
@@ -175,3 +175,17 @@ def test_old_allowed_approval_recovers_without_advancing():
         assert db.one('SELECT status,cursor,approval_id FROM project_jobs WHERE id=?',(pid,))=={'status':'queued','cursor':3,'approval_id':0}
     finally:
         db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,));db.run('DELETE FROM approvals WHERE id=?',(aid,))
+
+
+def test_milestone_retry_keeps_first_snapshot_and_still_requires_tests(tmp_path):
+    project_jobs.init();pid=999987
+    try:
+        before=project_jobs.stage_baseline(pid,0,tmp_path)
+        (tmp_path/'app.py').write_text('print("actual source")')
+        (tmp_path/'test.sqlite').write_text('runtime data')
+        retry=project_jobs.stage_baseline(pid,0,tmp_path)
+        assert retry==before=={} and 'test.sqlite' not in project_jobs.snapshot(tmp_path)
+        stage={'task':'Buat backend','acceptance':'Jalankan test HTTP'}
+        problems,changed=project_jobs.acceptance_problems(stage,{'meta':{}},retry,project_jobs.snapshot(tmp_path))
+        assert changed==['app.py'] and len(problems)==1 and 'exit code 0' in problems[0]
+    finally:db.run('DELETE FROM project_stage_snapshots WHERE project_id=?',(pid,))

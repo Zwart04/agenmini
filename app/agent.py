@@ -685,7 +685,7 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
     if not ok:
         project_jobs.approval_completed(approval_id,False,{"text":"Izin ditolak; proyek dijeda."})
         db.add_message(chat["id"], "user", f"(Pemilik MENOLAK: {t.label})")
-        return await turn.run(f"Saya menolak {t.label} itu. Jangan lakukan. Tawarkan cara lain kalau ada.", save_user=False)
+        return await turn._reply("Izin ditolak", "Tindakan dibatalkan. Proyek terkait dijeda dan bisa dilanjutkan dari Workspace.", {}, time.time())
     await turn.on_event("status", tool_label(a["tool"], args) + "…")
     ctx = tools.Ctx(bot=bot, chat=chat, channel=chat["channel"], ext_id=chat["ext_id"])
     from . import office
@@ -704,11 +704,15 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
     project_jobs.approval_completed(approval_id,True,{'text':result})
     if result.startswith(('Error:','Wrong arguments')) or re.search(r'\[kode keluar (?!0\])',result):
         return await turn._reply('Tindakan yang diizinkan gagal.','Tugas belum berhasil.\n'+result[:1500],{},time.time())
-    if a["tool"].startswith("mcp_"):
-        result = f"<untrusted_content>\n{result}\n</untrusted_content>"
-    db.add_message(chat["id"], "user", f"(Pemilik MENGIZINKAN: {t.label})")
-    return await turn.run(f"Izin diberikan. {t.label} sudah dijalankan. Hasilnya:\n{str(result)[:5000]}\n\n"
-                          f"Laporkan hasilnya ke saya dengan singkat.", save_user=False)
+    # A completed approval is a receipt, not another instruction to execute tasks.
+    failed=office.outcome({'text':result})=='failed'
+    text=('Tindakan belum berhasil.\n' if failed else t.label+' selesai.\n')+result[:3000]
+    meta={'tools':[a['tool']],'trace':[{'alat':a['tool'],'arg':json.dumps(args,ensure_ascii=False),'hasil':result[:4000]}],
+          'status':'failed' if failed else 'done','files':ctx.attachments}
+    mid=db.add_message(chat['id'],'assistant',text,meta)
+    response={'text':text,'message_id':mid,'meta':meta}
+    await turn.on_event('done',response)
+    return response
 
 
 async def save_verified_skill(message_id):

@@ -2,6 +2,7 @@
 import asyncio
 import contextvars
 import time
+import re
 from . import db, llm
 
 _chain = contextvars.ContextVar('bot_chain', default=())
@@ -101,6 +102,7 @@ def outcome(result):
     if result.get('approval'):return 'waiting'
     if result.get('meta',{}).get('status') in ('failed','partial'):return 'failed'
     if result.get('meta',{}).get('project_id'):return result['meta'].get('status','queued')
+    if text.startswith('(dihentikan:') or re.search(r'\[kode keluar (?!0\])',text):return 'failed'
     return 'failed' if text.startswith(('Error:','Galat:','Terjadi galat','Tugas belum berhasil','Saya belum berhasil','Angka terkini belum terverifikasi','Argumen tidak valid','Pembuatan halaman belum berhasil')) else 'done'
 
 
