@@ -400,10 +400,8 @@ async def refresh_currency(request):
 
 @routes.delete('/api/office/history')
 async def clear_office_history(request):
-    office.init()
-    count=db.one("SELECT count(*) n FROM office_tasks WHERE status IN ('done','failed')")['n']
-    db.run("DELETE FROM office_tasks WHERE status IN ('done','failed')")
-    return web.json_response({'ok':True,'cleared':count})
+    from . import workspace_records
+    return web.json_response({'ok':True,**workspace_records.clear_activity(request.query.get('scope','finished'))})
 
 
 @routes.post('/api/office')
@@ -603,11 +601,43 @@ async def project_list(request):
     from . import project_jobs
     return web.json_response({'projects':project_jobs.rows()})
 
+@routes.delete('/api/projects')
+async def project_clear(request):
+    from . import workspace_records
+    return web.json_response({'ok':True,'cleared':workspace_records.clear_projects(request.query.get('scope','completed')),'files_preserved':True})
+
+@routes.patch('/api/projects/{id}')
+async def project_edit(request):
+    from . import workspace_records
+    workspace_records.update_project(int(request.match_info['id']),await request.json())
+    return web.json_response({'ok':True})
+
+@routes.delete('/api/projects/{id}')
+async def project_delete(request):
+    from . import workspace_records
+    return web.json_response({'ok':True,**workspace_records.delete_project(int(request.match_info['id']))})
+
+@routes.patch('/api/office/tasks/{id}')
+async def office_edit(request):
+    from . import workspace_records
+    workspace_records.update_task(int(request.match_info['id']),await request.json())
+    return web.json_response({'ok':True})
+
+@routes.delete('/api/office/tasks/{id}')
+async def office_delete(request):
+    from . import workspace_records
+    workspace_records.delete_task(int(request.match_info['id']))
+    return web.json_response({'ok':True})
+
 @routes.post('/api/projects')
 async def project_create(request):
     from . import project_jobs
     data=await request.json();bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
-    return web.json_response({'id':project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))})
+    pid=project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))
+    if data.get('name'):
+        name=data['name']
+        if isinstance(name,str) and len(name)<=180:db.run('UPDATE project_jobs SET name=? WHERE id=?',(name.strip(),pid))
+    return web.json_response({'id':pid})
 
 @routes.post('/api/projects/{id}/approval')
 async def project_approval(request):
@@ -645,6 +675,7 @@ async def project_action(request):
         db.run("UPDATE project_jobs SET plan='{}',cursor=0 WHERE id=?",(pid,));state='queued'
     elif action=='accept' and job['status']=='review':state='done'
     else:raise ValueError('Tindakan proyek tidak valid.')
+    if action=='resume':db.run('UPDATE project_jobs SET retry_count=0,next_run=0 WHERE id=?',(pid,))
     db.run('UPDATE project_jobs SET status=?,updated_at=? WHERE id=?',(state,time.time(),pid));project_jobs.event(pid,state,'Pemilik: '+action)
     return web.json_response({'ok':True})
 

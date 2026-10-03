@@ -251,13 +251,15 @@ async def list_files(ctx: Ctx, path: str = ".", **_):
                      for i in items if not i.name.startswith(".")) or "(kosong)"
 
 
-@tool("read_file", "Membaca berkas", "Read a text file from the workspace.", {"path": S("file path")}, ["path"])
-async def read_file(ctx: Ctx, path: str = "", **_):
+@tool("read_file", "Membaca berkas", "Read a text file from the workspace.", {"path": S("file path"), "start_line": I("first line, 1-based"), "max_lines": I("lines to read, max 400")}, ["path"])
+async def read_file(ctx: Ctx, path: str = "", start_line: int = 1, max_lines: int = 0, **_):
     p = _ctx_workpath(ctx,path)
     if not p.is_file():
         return "Berkas tidak ada."
     t = p.read_text(encoding="utf-8", errors="replace")
-    return t[:8000] + ("\n…(dipotong)" if len(t) > 8000 else "")
+    if max_lines or start_line!=1:
+        lines=t.splitlines();start=max(0,int(start_line)-1);count=min(400,max(1,int(max_lines) or 100));return "\n".join(lines[start:start+count])[:16000]
+    return t[:8000] + ("\n…(dipotong; gunakan start_line/max_lines untuk lanjut)" if len(t) > 8000 else "")
 
 
 @tool("write_file", "Menulis berkas", "Write (overwrite) a text file in the workspace.",
@@ -603,7 +605,10 @@ async def run_project_command(ctx,folder='',command='',timeout=180,**_):
     target=_ctx_workpath(ctx,'.' if scope and folder in ('','.',Path(scope).name) else folder) if scope else _workpath(folder)
     if not target.is_dir():return 'Error: folder proyek belum ada.'
     async with _project_command_lock:
-        return await _run_sandboxed(['bash','-o','pipefail','-c',command],timeout=min(max(int(timeout),1),300),cwd=target,project=True)
+        result=await _run_sandboxed(['bash','-o','pipefail','-c',command],timeout=min(max(int(timeout),1),300),cwd=target,project=True)
+        if not result.startswith('[kode keluar 0]') and 'No such file or directory' in result:
+            result+='\nFolder kerja perintah: '+str(target)+'. Gunakan path relatif ke folder ini; jangan ulangi awalan projects/project-N.'
+        return result
 
 @tool('inspect_project','Memeriksa proyek','Read project tree/manifests and verify JSON/Python/JavaScript syntax without running installation scripts. Reports actual checks and remaining build/test requirements.',{'folder':S('workspace project folder')},['folder'])
 async def inspect_project(ctx,folder='',**_):

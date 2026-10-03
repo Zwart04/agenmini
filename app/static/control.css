@@ -142,3 +142,19 @@ html[data-paused=true] *,html[data-paused=true] *::before,html[data-paused=true]
 @media(max-width:600px){.office-overview{padding:10px;border-radius:14px;margin-top:12px}.workspace-hero{grid-template-columns:1fr}.office-section-heading{margin-bottom:10px}.page-in{max-width:none!important}.office-overview .office-hint{font-size:11px}}
 /* A borderless scene must not clip its caption with the previous rounded card. */
 .office-overview .office-scene{margin:0;border-radius:0;overflow:visible}
+/* Plain sections: essential controls stay visible, no disclosure widgets. */
+.compact-section,.group.compact-section{border:0;border-radius:0;padding:12px 0;margin:0;border-bottom:1px solid var(--line);background:none}
+[data-section]>h4{font-size:14px;font-weight:600;margin:8px 0 12px}
+.group.compact-section>.group-h{padding:0;margin:8px 0;font-size:16px}
+.group.compact-section>.group-b{padding:12px 0 0}.group.compact-section>.group-d{padding:0}
+.workspace-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.workspace-hero h2{font-size:24px}.workspace-hero p{margin-bottom:8px}.workspace-summary{padding:0;border:0;background:none;gap:4px}.workspace-summary b{font-size:16px}
+.office-overview{padding:0;border:0;margin:12px 0 20px}.office-section-heading{margin-bottom:10px}.office-overview .office-scene{margin:0}
+.project-section{border:0;border-radius:0;padding:0;margin:16px 0}.project-new{margin-bottom:16px}.project-form{margin:8px 0;gap:10px}.project-form textarea{min-height:80px}
+.workspace-project-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px;flex-wrap:wrap}.workspace-project-heading h3{font-size:16px;margin:0}
+.project-card{padding:14px 0;border:0;border-radius:0;border-bottom:1px solid var(--line);background:none}.project-progress{width:100%;height:5px;margin:4px 0;accent-color:var(--accent)}.project-current,.project-result{font-size:12px;line-height:1.6;overflow-wrap:anywhere;max-height:120px;overflow:auto;margin:8px 0;white-space:pre-wrap}
+.project-evidence{display:grid;grid-template-columns:1fr 1fr;gap:14px}.project-evidence h4{font-size:12px;margin:8px 0}.project-stage-list,.project-logs{max-height:180px;overflow:auto;margin:0}.project-stage{gap:8px}.project-stage small{font-size:11px}.project-logs pre{font-size:11px;max-height:100px;overflow:auto}.project-evidence section{min-width:0}.project-actions{gap:6px;margin:8px 0}
+#officeTasks .r{padding:12px 0}#officeTasks [data-section]>h4{font-size:12px;margin:8px 0 4px}#officeTasks .task-result{max-height:160px;overflow:auto}.control-form{border-radius:0;background:none;border:0;padding:12px 0}.office-activity-heading{gap:8px}
+#officeSuggestions{max-height:300px;overflow:auto}.office-suggestion{border-radius:0;border:0;border-bottom:1px solid var(--line);padding:12px 0}.office-suggestion [data-section]{max-height:180px;overflow:auto}
+@media(max-width:600px){.project-evidence{grid-template-columns:1fr}.project-form{gap:8px}.workspace-hero{gap:8px}.workspace-summary{width:100%;padding:8px 0}.office-overview{padding:0}.section-tabs{gap:6px}.project-actions .btn{font-size:12px}}
+
+.merged-section{margin-top:28px;padding-top:24px;border-top:1px solid var(--line);scroll-margin-top:24px;min-width:0}.merged-section .group{margin-top:12px}

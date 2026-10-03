@@ -7,18 +7,31 @@ from pathlib import Path
 from . import db,config,llm,tools,office
 
 
+running_projects=set()
+
 def init():
     db.run('CREATE TABLE IF NOT EXISTS project_stage_receipts(project_id INTEGER,cursor INTEGER,response TEXT,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run('CREATE TABLE IF NOT EXISTS project_stage_snapshots(project_id INTEGER,cursor INTEGER,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run("CREATE TABLE IF NOT EXISTS project_jobs(id INTEGER PRIMARY KEY,brief TEXT,repository TEXT,folder TEXT,status TEXT,plan TEXT DEFAULT '{}',cursor INTEGER DEFAULT 0,channel TEXT,ext_id TEXT,engine TEXT,model TEXT,result TEXT DEFAULT '',approval_id INTEGER DEFAULT 0,created_at REAL,updated_at REAL)")
     columns={r['name'] for r in db.q('PRAGMA table_info(project_jobs)')}
-    for name,definition in [('autonomous','INTEGER DEFAULT 0'),('retry_count','INTEGER DEFAULT 0'),('next_run','REAL DEFAULT 0')]:
+    for name,definition in [('autonomous','INTEGER DEFAULT 0'),('retry_count','INTEGER DEFAULT 0'),('next_run','REAL DEFAULT 0'),('name',"TEXT DEFAULT ''")]:
         if name not in columns:db.run('ALTER TABLE project_jobs ADD COLUMN '+name+' '+definition)
     db.run('CREATE TABLE IF NOT EXISTS project_events(id INTEGER PRIMARY KEY,project_id INTEGER,phase TEXT,text TEXT,created_at REAL)')
 
 
 def event(pid,phase,text):
-    db.run('INSERT INTO project_events(project_id,phase,text,created_at) VALUES(?,?,?,?)',(pid,phase,text[:10000],time.time()))
+    # Keep structured event text valid JSON when bounding long traces.
+    if len(text)>10000:
+        try:
+            payload=json.loads(text)
+            response=payload.get('response',payload)
+            meta=response.get('meta',{}) if isinstance(response,dict) else {}
+            traces=meta.get('trace',[])
+            meta['trace']=[{**t,'arg':str(t.get('arg',''))[:300],'hasil':str(t.get('hasil',''))[-600:]} for t in traces[-5:]]
+            text=json.dumps(payload,ensure_ascii=False)
+            if len(text)>10000:text=json.dumps({'summary':str(response.get('text',''))[:3000],'truncated':True},ensure_ascii=False)
+        except (ValueError,AttributeError,TypeError):text=text[:10000]
+    db.run('INSERT INTO project_events(project_id,phase,text,created_at) VALUES(?,?,?,?)',(pid,phase,text,time.time()))
 
 
 def repository_protected(brief, repository):
@@ -75,7 +88,7 @@ async def inspect(folder):
 
 
 def rows():
-    init();result=db.q('SELECT * FROM project_jobs ORDER BY id DESC LIMIT 30')
+    init();result=db.q('SELECT * FROM project_jobs ORDER BY id DESC LIMIT 200')
     for row in result:
         row['plan']=json.loads(row['plan'] or '{}');row['events']=db.q('SELECT phase,text,created_at FROM project_events WHERE project_id=? ORDER BY id DESC LIMIT 12',(row['id'],))
         row['approval']=None
@@ -242,7 +255,7 @@ async def step():
         event(job['id'],'protected',reason)
         db.run("UPDATE project_jobs SET status='paused',result=?,updated_at=? WHERE id=?",(reason,time.time(),job['id']))
         return True
-    pid=job['id'];db.run("UPDATE project_jobs SET status='working',updated_at=? WHERE id=?",(time.time(),pid))
+    pid=job['id'];running_projects.add(pid);db.run("UPDATE project_jobs SET status='working',updated_at=? WHERE id=?",(time.time(),pid))
     token=office.start('orchestrator','Proyek #'+str(pid)+': '+job['brief'][:90]);backend=llm.backend_context.set(job['engine']);response=None
     try:
         ctx=tools.Ctx({**db.bot('orchestrator'),'backend':job['engine'],'model':job['model']},db.chat_for('orchestrator',job['channel'],job['ext_id']),job['channel'],job['ext_id'],user_text=job['brief'])
@@ -314,6 +327,7 @@ async def step():
             office.phase(f'Tahap {cursor+1}/{len(milestones)}: '+milestone['bot'],'delegating')
             text=('Kerjakan satu tahap proyek di folder '+stage_folder+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
+                  'run_project_command sudah berjalan di folder proyek; gunakan path relatif seperti backend/app/main.py, bukan mengulangi projects/project-N di dalam command. Berkas panjang dapat dibaca bertahap dengan read_file start_line/max_lines. Jalankan skrip smoke test mandiri langsung dengan python/node; hanya tes yang memang ditulis sebagai pytest memakai pytest. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
                   'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Untuk uji server, jangan menjalankan server foreground lalu menunggu timeout. Buat smoke test HTTP localhost (misalnya aiohttp TestClient/TestServer atau harness subprocess) yang memulai server, memeriksa respons, menutup server dan keluar 0. Timeout bukan bukti server sehat. Jalankan tes secara serial; hanya untuk runner Jest gunakan --runInBand; pytest dan unittest tidak menerima flag Jest. Jangan memasang runner lain jika tes proyek sudah berjalan dengan runner yang ada. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
             inventory=await inspect(stage_folder)
@@ -343,7 +357,7 @@ async def step():
             if state!='done':
                 if response.get('approval'):
                     db.run("UPDATE project_jobs SET status='waiting',result=?,approval_id=?,updated_at=? WHERE id=?",(response.get('text',''),response['approval'],time.time(),pid))
-                else:fail_checkpoint(job,response.get('text',''))
+                else:fail_checkpoint(job,response.get('text','')+' '+ ' '.join(problems)+' '+ ' '.join(str(f) for f in response.get('meta',{}).get('tool_failures',[]))[-1500:])
                 return True
             # No silent "done" for a coding milestone that never executed any allowed tool.
             used=response.get('meta',{}).get('tools',[])
@@ -356,18 +370,12 @@ async def step():
             if not checks['files']:raise ValueError('Folder proyek kosong; tidak membuat ZIP kosong sebagai hasil selesai.')
             event(pid,'final_checks',json.dumps(checks,ensure_ascii=False))
             if any(not c['ok'] for c in checks['checks']):raise ValueError('Pemeriksaan sintaks akhir gagal; lanjutkan perbaikan dari checkpoint.')
-            import zipfile
-            archive=tools._workpath(job['folder']+'-source.zip');total=0
-            with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
-                for name in checks['files']:
-                    path=root/name
-                    if any(part.startswith('.') for part in Path(name).parts) or path.suffix in ('.sqlite','.db','.log','.gguf','.pem','.key'):continue
-                    size=path.stat().st_size
-                    if size>10000000 or total+size>40000000:continue
-                    total+=size;z.write(path,name)
-            with zipfile.ZipFile(archive) as z:
-                if z.testzip():raise ValueError('ZIP proyek gagal CRC.')
-            event(pid,'artifact',json.dumps({'file':job['folder']+'-source.zip','bytes':archive.stat().st_size,'note':'Sumber proyek; build/runtime tetap mengikuti bukti log.'}))
+            from . import project_archive
+            archive=tools._workpath(job['folder']+'-source.zip')
+            archive_report=project_archive.create_source_zip(tools._workpath(job['folder']),archive)
+            event(pid,'artifact',json.dumps({'file':job['folder']+'-source.zip','bytes':archive.stat().st_size,
+                  'included_files':archive_report['included_files'],'omitted_count':len(archive_report['omitted']),
+                  'note':'Sumber proyek; pengecualian ada di AGENMINI-ARCHIVE.json. Build/runtime mengikuti bukti log.'}))
             final_state='done' if job.get('autonomous') else 'review'
             db.run("UPDATE project_jobs SET status=?,result=? WHERE id=?",(final_state,'Tahapan selesai dengan bukti uji yang tercatat. ZIP: '+job['folder']+'-source.zip. Batasan/kredensial mengikuti laporan proyek.',pid))
             event(pid,final_state,'Semua tahap dan pemeriksaan akhir tercatat. '+('Kelanjutan sampai selesai diotorisasi pemilik.' if job.get('autonomous') else 'Menunggu penerimaan pemilik.'))
@@ -379,5 +387,5 @@ async def step():
     except Exception as exc:
         fail_checkpoint(job,str(exc));response={'text':'Error: '+str(exc)}
     finally:
-        db.run('UPDATE project_jobs SET updated_at=? WHERE id=?',(time.time(),pid));llm.backend_context.reset(backend);office.finish(token,response)
+        running_projects.discard(pid);db.run('UPDATE project_jobs SET updated_at=? WHERE id=?',(time.time(),pid));llm.backend_context.reset(backend);office.finish(token,response)
     return True

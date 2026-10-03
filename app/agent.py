@@ -612,10 +612,10 @@ class Turn:
                         if name in ("web_search", "read_webpage"):
                             evidence.append(result)
                     if len(result) > 5000:
-                        result = result[:5000] + "\n…(dipotong)"
+                        result = (result[:600]+"\n…(bagian tengah dipotong)\n"+result[-4300:]) if re.search(r"\[kode keluar (?!0\])",result) else result[:5000]+"\n…(dipotong)"
                     from . import office
                     office.log(bot["id"], "result", name+": "+result[:600])
-                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400] if not result.startswith(("Error:","[kode keluar 1]","[kode keluar 2]")) else result[:150]+"\n"+result[-1800:], "cached":cached})
+                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400] if not (result.startswith("Error:") or re.search(r"\[kode keluar (?!0\])",result)) else result[:150]+"\n"+result[-1800:], "cached":cached})
                     if name in ("run_python", "run_shell") and "otomatis dikirim" in result and "[kode keluar 0]" in result:
                         result += "\nSelesai. Jangan jalankan lagi; langsung jawab pengguna."
                     if (name in UNTRUSTED_TOOLS or name.startswith("mcp_")) and not result.startswith("Error"):
