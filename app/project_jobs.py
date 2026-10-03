@@ -130,9 +130,17 @@ def acceptance_problems(milestone,response,before,after):
     task=milestone['task'];criteria=task+' '+milestone['acceptance'];problems=[]
     if re.search(r'\b(buat|pembuatan|create|implement|inisialisasi|pengembangan|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
-    if re.search(r'uji|test|assert|build|kompil|compile',criteria,re.I):
+    if re.search(r'uji|test|assert|build|kompil|compile|\bAPI\b|\bHTTP\b|cookie|otentikasi|autentikasi|isolasi data|checkout|stok|backend|frontend',criteria,re.I):
         commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and t.get('hasil','').startswith('[kode keluar 0]')]
-        commands=[t for t in commands if re.search(r'build|tsc|compile|pytest|unittest|jest|test|assert',str(t.get('arg','')),re.I)]
+        def verifies(t):
+            arg=t.get('arg','')
+            try:command=json.loads(arg).get('command','')
+            except (ValueError,TypeError,AttributeError):command=str(arg)
+            # Installing a test runner is not running tests, even if its name says pytest.
+            command=re.sub(r'(?:python(?:3)?\s+-m\s+)?pip(?:3)?\s+install[^;&|\n]*','',command,flags=re.I)
+            command=re.sub(r'(?:npm|pnpm|yarn)\s+(?:install|ci)[^;&|\n]*','',command,flags=re.I)
+            return bool(re.search(r'(?:^|[;&|\n])\s*(?:pytest\b|jest\b|vitest\b|tsc\b|npm\s+(?:run\s+)?(?:test|build|check)\b|(?:python(?:3)?|node)\s+[^;&|\n]*(?:test|assert|compile)|(?:go|cargo|dotnet)\s+(?:test|build)\b|make\s+(?:test|check|build)\b)',command,re.I))
+        commands=[t for t in commands if verifies(t)]
         if not commands:problems.append('Build/test yang diminta belum memiliki perintah nyata dengan exit code 0.')
     return problems,changed
 

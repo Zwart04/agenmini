@@ -207,3 +207,24 @@ def test_approval_receipt_reused_only_until_source_changes(tmp_path,monkeypatch)
         assert project_jobs.receipt_for_stage(pid,1,tmp_path) is None
     finally:
         for table in ('project_jobs','project_events','project_stage_receipts'):db.run('DELETE FROM '+table+' WHERE '+('id' if table=='project_jobs' else 'project_id')+'=?',(pid,))
+
+@pytest.mark.parametrize('command,verified',[('pip install pytest',False),('python -m pip install pytest',False),('echo test complete',False),('pip install pytest && python -m pytest tests/test_auth.py',True),('npm ci && npm run build',True)])
+def test_installing_runner_is_not_proof_of_api_tests(command,verified):
+    milestone={'task':'Implementasi API otentikasi seller','acceptance':'Cookie HttpOnly dan isolasi data'}
+    response={'meta':{'trace':[{'alat':'run_project_command','arg':json.dumps({'command':command}),'hasil':'[kode keluar 0]'}]}}
+    problems,_=project_jobs.acceptance_problems(milestone,response,{}, {'auth.py':'source'})
+    assert bool(problems) is (not verified)
+
+@pytest.mark.asyncio
+async def test_file_editor_supplies_actual_sql_contract(monkeypatch,tmp_path):
+    backend=tmp_path/'backend/app';backend.mkdir(parents=True)
+    (backend/'db.py').write_text('SCHEMA="CREATE TABLE sellers(email TEXT,password_hash TEXT)"')
+    (backend/'auth.py').write_text('def old(): pass')
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path.parent)
+    seen=[]
+    async def chat(messages,**kw):seen.append(json.loads(messages[-1]['content']));return {'content':'def fixed(): return True'}
+    monkeypatch.setattr(llm,'chat',chat)
+    ctx=context('teknisi')
+    result=await tools.edit_project_file(ctx,folder=tmp_path.name,path='backend/app/auth.py',instructions='Fix authentication')
+    assert 'dibaca ulang' in result
+    assert 'password_hash' in seen[0]['project']['related_source']['backend/app/db.py']

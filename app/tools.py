@@ -622,7 +622,18 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
     original=target.read_text() if target.is_file() else ''
     if len(original)>(6000 if llm.active_backend()=='local' else 24000):return 'Error: berkas terlalu panjang untuk satu perubahan model; baca bagian relevan dan edit melalui perintah proyek.'
     context={name:(root/name).read_text(errors='replace')[:3000] for name in ('AGENTS.md','README.md','package.json') if (root/name).is_file()}
-    result=await llm.chat([{'role':'system','content':'Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'},
+    # Include actual adjacent contracts: SQL columns and imported APIs must not be guessed.
+    related={};remaining=1800 if llm.active_backend()=='local' else 12000
+    candidates=[target.parent/name for name in ('db.py','models.py','schema.sql','config.py','auth.py','requirements.txt','package.json','pyproject.toml')]
+    candidates += [target.parent.parent/name for name in ('requirements.txt','package.json','pyproject.toml')]
+    for source in candidates:
+        source=source.resolve()
+        if source==target or not source.is_relative_to(root) or not source.is_file() or not remaining:continue
+        name=str(source.relative_to(root))
+        if name in related:continue
+        text=source.read_text(errors='replace')[:min(remaining,6000)];related[name]=text;remaining-=len(text)
+    context['related_source']=related
+    result=await llm.chat([{'role':'system','content':'Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. Use the actual imported interfaces and SQL columns in related_source; never invent them. Authentication must validate an opaque session on the server, never trust a seller_id cookie/header as identity. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'},
                           {'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}],max_tokens=2400 if llm.active_backend()=='local' else 6000,temperature=.2)
     content=re.sub(r'^```[^\n]*\n','',result['content'].strip());content=re.sub(r'\n```\s*$','',content)
     if not content:return 'Error: model menghasilkan berkas kosong.'
