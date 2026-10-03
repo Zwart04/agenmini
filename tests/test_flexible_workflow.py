@@ -87,3 +87,14 @@ def test_stage_hints_ignore_reference_url_in_whole_brief(monkeypatch):
     monkeypatch.setattr(memory,'search_skills',lambda *a:[])
     agent.context_block(db.bot('teknisi'),'Whole brief https://example.com plus compile',hint_text='Compile backend and run unit tests')
     assert seen==['Compile backend and run unit tests']
+
+
+def test_project_messages_ignore_stale_approval_chat_but_preserve_history():
+    bot=db.bot('teknisi');chat=db.chat_for(bot['id'],'web','isolated-project-history-test')
+    old=db.add_message(chat['id'],'assistant','Saya perlu izin untuk stale command')
+    try:
+        messages,_=agent.build_messages(bot,chat,'Run current tests',hint_text='Run current tests',include_history=False)
+        assert not any('stale command' in m['content'] for m in messages)
+        assert db.one('SELECT id FROM messages WHERE id=?',(old,))
+    finally:
+        db.run('DELETE FROM messages WHERE chat_id=?',(chat['id'],));db.run('DELETE FROM chats WHERE id=?',(chat['id'],))

@@ -280,13 +280,13 @@ def context_block(bot: dict, text: str, hint_text=None) -> tuple[str, list[int]]
     return "[Konteks]\n" + "\n\n".join(parts), [s["id"] for s in skills]
 
 
-def build_messages(bot: dict, chat: dict, text: str, hint_text=None) -> tuple[list[dict], list[int]]:
+def build_messages(bot: dict, chat: dict, text: str, hint_text=None, include_history=True) -> tuple[list[dict], list[int]]:
     system = system_prompt(bot)
     msgs = [{"role": "system", "content": system}]
-    if chat.get("summary"):
+    if include_history and chat.get("summary"):
         msgs.append({"role": "user", "content": f"[Ringkasan percakapan sebelumnya]\n{chat['summary']}"})
         msgs.append({"role": "assistant", "content": "Baik, saya ingat."})
-    for h in db.history(chat["id"], limit=12):
+    for h in (db.history(chat["id"], limit=12) if include_history else []):
         content = h["content"]
         if h["meta"].get("image_desc"):  # gambar lama tetap "terlihat" lewat deskripsinya
             content += "\n[Isi gambar yang dikirim pengguna]\n" + h["meta"]["image_desc"]
@@ -380,7 +380,7 @@ class Turn:
             # jangan biarkan model mengarang isi gambar yang tidak pernah ia lihat
             reply = FAILED_IMAGE_REPLY if recent_image(chat["id"]) == "gagal" else NO_IMAGE_REPLY
             return await self._reply(text, reply, {}, t0)
-        msgs, skill_ids = build_messages(bot, chat, model_text, getattr(self,'intent_text',None))  # riwayat dimuat sebelum pesan ini disimpan
+        msgs, skill_ids = build_messages(bot, chat, model_text, getattr(self,'intent_text',None), include_history=not bool(getattr(self,'project_folder',None)))  # riwayat dimuat sebelum pesan ini disimpan
         if save_user:
             db.add_message(chat["id"], "user", text or "(gambar)", user_meta)
         if extra_msgs:

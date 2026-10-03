@@ -109,7 +109,7 @@ def snapshot(root):
 def acceptance_problems(milestone,response,before,after):
     changed=[name for name,value in after.items() if before.get(name)!=value]
     task=milestone['task'];criteria=task+' '+milestone['acceptance'];problems=[]
-    if re.search(r'\b(buat|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
+    if re.search(r'\b(buat|pembuatan|create|implement|inisialisasi|pengembangan|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
     if re.search(r'uji|test|assert|build|kompil|compile',criteria,re.I):
         commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and t.get('hasil','').startswith('[kode keluar 0]')]
