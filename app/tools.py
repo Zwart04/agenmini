@@ -642,6 +642,8 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
     context['related_source']=related
     result=await llm.chat([{'role':'system','content':'Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. Use the actual imported interfaces and SQL columns in related_source; never invent them. Authentication must validate an opaque session on the server, never trust a seller_id cookie/header as identity. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'},
                           {'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}],max_tokens=2400 if llm.active_backend()=='local' else 6000,temperature=.2)
+    if result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):
+        return 'Error: keluaran model terpotong oleh batas token. Berkas asli dipertahankan; lakukan perubahan lebih kecil melalui perintah proyek.'
     content=re.sub(r'^```[^\n]*\n','',result['content'].strip());content=re.sub(r'\n```\s*$','',content)
     if not content:return 'Error: model menghasilkan berkas kosong.'
     if target.suffix=='.py':compile(content,str(target),'exec')

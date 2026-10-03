@@ -12,7 +12,7 @@ def host_module():
 async def test_connected_antigravity_alias_and_go_catalog(monkeypatch,go):
     async def request(method,path,body=None):
         if path=='/api/providers':return {'connections':[{'provider':'antigravity','isActive':True,'accessToken':'secret'}]}
-        if path=='/api/models':return {'models':[{'id':'ag/gemini-3-flash','owned_by':'antigravity'}]} if go else {'models':[{'provider':'ag','routedModel':'ag/gemini-3-flash','name':'Flash'},{'provider':'ag','routedModel':'ag/image-test'},{'provider':'openai','routedModel':'openai/gpt'}]}
+        if path.split('?')[0]=='/api/models':return {'models':[{'id':'ag/gemini-3-flash','owned_by':'antigravity'}]} if go else {'models':[{'provider':'ag','routedModel':'ag/gemini-3-flash','name':'Flash'},{'provider':'ag','routedModel':'ag/image-test'},{'provider':'openai','routedModel':'openai/gpt'}]}
         if path=='/api/combos':return [] if go else {'combos':[]}
         return {'key':'private-key'}
     monkeypatch.setattr(router,'request',request)
@@ -90,3 +90,20 @@ def test_router_address_detects_docker_or_native_host(monkeypatch,docker,expecte
     assert router.base()==expected
     monkeypatch.setenv('ROUTER_BASE','http://custom:9999/')
     assert router.base()=='http://custom:9999'
+
+
+@pytest.mark.asyncio
+async def test_keyless_router_models_visible_with_connected_catalog(monkeypatch):
+    async def request(method,path,body=None):
+        if path=='/api/providers':return {'connections':[]}
+        if path=='/api/models?connected=1':return {'mode':'connected','models':[{'id':'opencode/free','owned_by':'opencode'}]}
+        if path=='/api/combos':return []
+        return {'key':'private-key'}
+    monkeypatch.setattr(router,'request',request)
+    async def current_free_models():return ['big-pickle','mimo-v2.5-free']
+    monkeypatch.setattr(router,'keyless_models',current_free_models)
+    result=await router.state()
+    assert result['models'][0]['id']=='opencode/free'
+    assert 'opencode/big-pickle' in {m['id'] for m in result['models']}
+    assert result['models'][0]['keyless'] and result['models'][0]['ready']
+    assert 'private-key' not in json.dumps(result)

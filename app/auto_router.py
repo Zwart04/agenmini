@@ -27,11 +27,11 @@ async def discover(force=False):
                     if state['ready']:rows.append({'backend':'local','model':db.setting('local_model_id') or 'qwen35-08b','ready':True,'kind':'local'})
                 else:
                     models=state.get('models',[])
-                    connected=bool(state.get('connections'))
+                    connected=bool(state.get('connections')) or any(m.get('keyless') for m in models)
                     usable=[m for m in models if m.get('id') and m.get('ready') is not False and (backend=='router' or m.get('status')=='ready')]
                     if connected and usable:
                         # Prefer explicit models; synthetic strategies are not proof of a live provider.
-                        for m in usable[:100]:rows.append({'backend':backend,'model':m['id'],'ready':True,'kind':'api'})
+                        for m in usable[:100]:rows.append({'backend':backend,'model':m['id'],'ready':True,'kind':'api','provider':m.get('provider') or m['id'].split('/')[0]})
             except (Exception,):pass
         # Reads are small; inference always uses llm's single gate.
         await asyncio.gather(collect('local',runtime_status.state),collect('freellmapi',free_router.state),collect('router',router.state))
@@ -54,12 +54,15 @@ async def candidates(messages):
         preferred={'router':db.setting('router_last_model'),'freellmapi':db.setting('freellmapi_model'),'online':db.setting('online_model')}.get(row['backend'])
         return (position,-1 if not complexity and row['model']==preferred else skill,row['model'])
     rows.sort(key=rank)
-    # One candidate per API backend; retrying every model on the same quota wastes time.
-    selected=[];seen=set()
+    # Quotas can be model-specific. Bound retries while retaining other providers.
+    selected=[];counts={};providers={}
     for row in rows:
-        key=row['backend']
-        if key in seen or _cooldown.get((key,row['model']),0)>time.monotonic():continue
-        seen.add(key);selected.append({**row,'reason':'Coding/proyek: prioritaskan API yang terhubung.' if complexity else 'Tugas ringan: lokal siap didahulukan; API menjadi cadangan.'})
+        key=row['backend'];provider=(key,row.get('provider') or row['model'].split('/')[0])
+        limit=4 if key=='router' else 2 if key=='freellmapi' else 1
+        if counts.get(key,0)>=limit or _cooldown.get((key,row['model']),0)>time.monotonic():continue
+        if key=='router' and providers.get(provider,0)>=2:continue
+        counts[key]=counts.get(key,0)+1;providers[provider]=providers.get(provider,0)+1
+        selected.append({**row,'reason':'Coding/proyek: prioritaskan API yang terhubung.' if complexity else 'Tugas ringan: lokal siap didahulukan; API menjadi cadangan.'})
     if not selected:raise llm.LLMError('Router Agen Mini belum memiliki kandidat siap. Hubungkan provider atau nyalakan model lokal melalui Koneksi.')
     return selected
 
@@ -69,4 +72,4 @@ def failed(route,seconds=60):_cooldown[(route['backend'],route['model'])]=time.m
 
 async def status():
     return {'routes':await discover(),'order':(db.setting('auto_route_order') or 'freellmapi,router,online,local').split(','),
-            'policy':'Heuristik berdasarkan jenis tugas dan koneksi aktual, bukan jaminan model terbaik. Lokal dipakai hanya saat server siap; retry serial per backend.'}
+            'policy':'Heuristik berdasarkan jenis tugas dan koneksi aktual, bukan jaminan model terbaik. Lokal dipakai hanya saat server siap; retry serial terbatas per model/provider.'}

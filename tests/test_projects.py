@@ -237,3 +237,29 @@ async def test_python_semantic_syntax_error_cannot_replace_existing_file(monkeyp
     monkeypatch.setattr(llm,'chat',chat)
     with pytest.raises(SyntaxError):await tools.edit_project_file(context('teknisi'),folder=tmp_path.name,path='safe.py',instructions='Change function')
     assert (tmp_path/'safe.py').read_text()=='def original(): return 42'
+
+
+@pytest.mark.asyncio
+async def test_router_retries_other_models_and_preserves_other_providers(monkeypatch):
+    async def discover(*a,**kw):
+        return [{'backend':'router','model':m,'ready':True} for m in ('ag/claude-opus','ag/claude-sonnet','ag/gpt','opencode/free-one','opencode/free-two')]
+    monkeypatch.setattr(auto_router,'discover',discover)
+    monkeypatch.setattr(auto_router,'_cooldown',{})
+    routes=await auto_router.candidates([{'role':'user','content':'Implement coding project'}])
+    assert len(routes)==4
+    assert {r['model'].split('/')[0] for r in routes}=={'ag','opencode'}
+    auto_router.failed(routes[0])
+    remaining=await auto_router.candidates([{'role':'user','content':'Implement coding project'}])
+    assert routes[0]['model'] not in {r['model'] for r in remaining}
+    assert any(r['model'].startswith('ag/') for r in remaining)
+
+
+@pytest.mark.asyncio
+async def test_truncated_source_preserves_original_even_when_syntax_valid(monkeypatch,tmp_path):
+    (tmp_path/'safe.py').write_text('def original(): return 42')
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path.parent)
+    async def chat(*a,**kw):return {'content':'def partial(): return 0','stats':{'finish_reason':'length'}}
+    monkeypatch.setattr(llm,'chat',chat)
+    result=await tools.edit_project_file(context('teknisi'),folder=tmp_path.name,path='safe.py',instructions='Change function')
+    assert result.startswith('Error:')
+    assert (tmp_path/'safe.py').read_text()=='def original(): return 42'

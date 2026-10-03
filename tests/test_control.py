@@ -44,7 +44,7 @@ async def test_router_key_generated_once_and_not_exposed(monkeypatch):
         calls.append((method,path))
         if path == '/api/keys': return {'key':'server-only-key'}
         if path == '/api/providers': return {'connections':[{'id':'x','provider':'openai','apiKey':'must-not-leak','accessToken':'secret'}]}
-        if path == '/api/models': return {'models':[{'provider':'openai','routedModel':'openai/small','name':'Small'}]}
+        if path.split('?')[0] == '/api/models': return {'models':[{'provider':'openai','routedModel':'openai/small','name':'Small'}]}
         if path == '/api/combos': return {'combos':[]}
         return {}
     old=db.setting('compatible_key')
@@ -288,14 +288,16 @@ async def test_project_approval_preview_and_decision(monkeypatch,allow,outcome,e
 
 @pytest.mark.asyncio
 async def test_router_quota_is_shown_without_exposing_token_or_hiding_catalog(monkeypatch):
+    import time
     async def upstream(method,path,body=None):
-        if path=='/api/providers':return {'connections':[{'id':'quota','provider':'antigravity','isActive':True,'testStatus':'active','accessToken':'PRIVATE_FIXTURE','lastError':'QUOTA_EXHAUSTED PRIVATE_FIXTURE'}]}
-        if path=='/api/models':return {'models':[{'id':'ag/real-model','provider':'antigravity'}]}
+        if path=='/api/providers':return {'connections':[{'id':'quota','provider':'antigravity','isActive':True,'testStatus':'active','accessToken':'PRIVATE_FIXTURE','lastError':'QUOTA_EXHAUSTED PRIVATE_FIXTURE','modelLock_real-model':time.time()+3600}]}
+        if path.split('?')[0]=='/api/models':return {'models':[{'id':'ag/real-model','provider':'antigravity'},{'id':'ag/other-model','provider':'antigravity'}]}
         return {'combos':[]}
     monkeypatch.setattr(router,'request',upstream)
     old=db.setting('compatible_key');db.set_setting('compatible_key','TEST_KEY')
     try:
         result=await router.state()
-        assert result['connections'][0]['available'] is False and result['models'][0]['ready'] is False
-        assert 'Kuota' in result['connections'][0]['testStatus'] and 'PRIVATE_FIXTURE' not in json.dumps(result)
+        assert result['connections'][0]['available'] is True and result['models'][0]['ready'] is False
+        assert result['models'][1]['ready'] is True
+        assert 'kuota' in result['connections'][0]['testStatus'] and 'PRIVATE_FIXTURE' not in json.dumps(result)
     finally:db.set_setting('compatible_key',old)
