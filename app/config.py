@@ -38,6 +38,7 @@ DEFAULTS = {
     "cpu_hemat": "0",  # "1" = sisakan satu inti CPU untuk sistem (jawaban lebih lambat)
 }
 
+WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.environ.get("WEB_PORT_INTERNAL", "8443"))
 KERJA_UID = int(os.environ.get("KERJA_UID", "1001"))
 KERJA_GID = int(os.environ.get("KERJA_GID", "1001"))

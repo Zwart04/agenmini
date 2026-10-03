@@ -150,7 +150,7 @@ async def login(request):
         return web.json_response({"error": "Kata sandi salah."}, status=401)
     _fail.pop(ip, None)
     resp = web.json_response({"ok": True})
-    resp.set_cookie(COOKIE, make_token(), max_age=30 * 86400, httponly=True, secure=True, samesite="Strict")
+    resp.set_cookie(COOKIE, make_token(), max_age=30 * 86400, httponly=True, secure=request.secure, samesite="Strict")
     return resp
 
 
@@ -601,6 +601,6 @@ async def start():
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     use_tls = os.environ.get("WEB_TLS", "1") != "0"
-    site = web.TCPSite(runner, "0.0.0.0", config.WEB_PORT, ssl_context=ensure_cert() if use_tls else None)
+    site = web.TCPSite(runner, config.WEB_HOST, config.WEB_PORT, ssl_context=ensure_cert() if use_tls else None)
     await site.start()
     print(f"[web] siap di port {config.WEB_PORT} ({'https' if use_tls else 'http'})")

@@ -1,4 +1,4 @@
-# Agen Mini 0.4.2
+# Agen Mini 0.5.0
 
 9router opsional kini memakai backend Go yang dipin digest dan panel koneksi HTML/CSS/JavaScript bawaan. Akun upstream dipertahankan dengan backup SQLite sebelum migrasi; image khusus tetap dipertahankan. Dashboard lanjutan memakai ikon SVG lokal tanpa Google Fonts. Layanan router hanya dipublikasikan pada loopback, API key/login diwajibkan, dan TLS ketat diaktifkan.
 
@@ -106,3 +106,11 @@ Kandidat ringan [9router-go](https://github.com/luqman-v1/9router-go) diuji terp
 Orchestrator menugaskan pekerjaan nyata, membuat spesialis domain dengan izin terbatas, dan meminta review. Telegram utama memakai Orchestrator. Workspace menampilkan tim, aktivitas, proyek persisten dan checkpoint. Koneksi memandu setup dan uji lokal/9router/FreeLLMAPI/API langsung serta Smart Router milik Agen Mini. Unduhan HTML memakai nama berkas produk; coding memakai anggaran lebih besar, pemeriksaan dan layout interaktif yang hemat untuk lokal. Node/npm/git tersedia sebagai alat proyek, dengan build serial dan batas RAM. Baca [alur proyek besar dan batas pengujiannya](PROYEK-BESAR.md).
 
 Workspace menampilkan kantor dengan karakter CSS original, meja kerja, ruang rapat untuk delegasi aktif, dan area tunggu. Gerakan mengikuti status server; animasi diam hanya menunjukkan kehadiran. Animasi/polling dijeda saat tab tersembunyi dan pilihan reduced motion dihormati. Aktivitas diringkas dengan detail lengkap yang bisa dibuka. Bersihkan aktivitas selesai hanya menghapus tugas kantor done/failed, bukan tugas aktif, percakapan atau berkas proyek. Izin proyek menampilkan perintah/folder/alasan sebelum diizinkan atau ditolak; tindakan berhasil melanjutkan checkpoint, kegagalan tetap ditandai gagal.
+
+## Windows, akun resmi, dan kantor tim
+
+Installer Windows x64 dipasang melalui wizard dan menu Start; data berada terpisah di `%LOCALAPPDATA%\AgenMini\data`. Panduan: [CARA-PASANG-WINDOWS.txt](CARA-PASANG-WINDOWS.txt). Runtime Python, Node dan MinGit disertakan dengan checksum upstream. Layanan model lokal/9router/FreeLLMAPI yang dikelola supervisor memerlukan Linux/WSL/Docker; Windows native dapat memakai API yang sudah berjalan.
+
+Setup awal menyatukan sumber AI, deteksi akun host, OAuth Threads/Instagram profesional/Meta Ads/YouTube, dan MCP. Akun sosial memerlukan aplikasi developer dan izin resmi; login browser saja bukan akses API. Uji koneksi hanya membaca akun. Publikasi Threads/Instagram tersedia sebagai alat dengan izin tindakan; unggah YouTube dan perubahan iklan membutuhkan MCP yang sesuai.
+
+Kantor memiliki empat ruang tim, gerakan dari aktivitas/delegasi aktual, bubble diskusi dan rincian yang bisa dibuka. Diskusi senggang opsional sekali sejam: tiga panggilan model serial pendek, tidak berjalan ketika antrean pemilik aktif. Saran adalah draft; pelajaran baru disimpan setelah ditinjau, bukan pelatihan bobot. Angka token hanya berasal dari usage provider. Biaya memerlukan tarif model yang diisi pemilik; angka tanpa tarif ditandai belum diketahui. Konversi mata uang memakai kurs ECB bertanggal dan tersimpan, bukan tebakan AI.

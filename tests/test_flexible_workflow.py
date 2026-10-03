@@ -103,3 +103,8 @@ def test_project_messages_ignore_stale_approval_chat_but_preserve_history():
 def test_server_timeout_recovery_requires_runtime_probe():
     assert agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python -m app.main'})==agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python tests/test_server.py'})
     assert agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python tests/test_server.py'})!=agent.tool_failure_scope('run_project_command',{'folder':'p','command':'pip install aiohttp'})
+
+
+def test_test_suite_creation_is_assigned_to_an_editor_not_readonly_reviewer():
+    from app import project_jobs
+    assert project_jobs.capable_worker({'bot':'reviewer','task':'Pembuatan suite pengujian integrasi dan dokumentasi','acceptance':'Seluruh tes lulus'},db.bot('orchestrator')['tools'])=='teknisi'

@@ -26,7 +26,7 @@ HEADERS = {"User-Agent": UA, "Accept-Language": "id-ID,id;q=0.9,en;q=0.8"}
 
 
 def _run_as_kerja() -> dict:
-    if os.geteuid() == 0:
+    if os.name == "posix" and os.geteuid() == 0:
         return {"user": config.KERJA_UID, "group": config.KERJA_GID, "extra_groups": []}
     return {}
 

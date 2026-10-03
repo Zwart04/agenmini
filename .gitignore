@@ -9,3 +9,6 @@ __pycache__/
 dist/
 .pytest_cache/
 .test-tmp*/
+
+windows/payload/
+windows/node-download/

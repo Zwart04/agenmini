@@ -342,10 +342,61 @@ async def workspace(request):
         if row.get('approval_id'):
             approval=db.one('SELECT tool,args,reason,status FROM approvals WHERE id=?',(row['approval_id'],))
             if approval and approval['status']=='menunggu':row['approval']=approval
-    bots = [{'id': b['id'], 'name': b['name'], 'icon': b['icon'], **office.state(b['id'])}
+    from . import office_learning
+    bots = [{'id': b['id'], 'name': b['name'], 'icon': b['icon'], 'team':office_learning.team(b), **office.state(b['id'])}
             for b in db.bots(active_only=True)]
     return web.json_response({'bots': bots, 'tasks': rows, 'busy_model': llm.gate.current})
 
+
+@routes.get('/api/office/learning')
+async def learning_status(request):
+    from . import office_learning,usage_meter
+    return web.json_response({'learning':office_learning.status(),'usage':usage_meter.summary()})
+
+@routes.post('/api/office/learning')
+async def learning_settings(request):
+    from . import office_learning
+    data=await request.json()
+    minutes=int(data.get('minutes',60));budget=int(data.get('daily_budget',60000))
+    if minutes not in (15,60,0) or not 2000<=budget<=200000:raise ValueError('Jadwal atau batas token belum valid.')
+    db.set_setting('office_idle_enabled','1' if data.get('enabled') and minutes else '0')
+    db.set_setting('office_idle_minutes',str(minutes or 60));db.set_setting('office_idle_budget',str(budget))
+    return web.json_response({'ok':True})
+
+@routes.post('/api/office/discuss')
+async def learning_discuss(request):
+    from . import office_learning
+    return web.json_response(await office_learning.discuss(manual=True))
+
+@routes.post('/api/office/discussions/{id}/accept')
+async def accept_learning(request):
+    from . import office_learning
+    office_learning.init();did=int(request.match_info['id']);row=db.one('SELECT * FROM office_discussions WHERE id=?',(did,))
+    if not row or row['status']!='draft' or row['accepted']:raise ValueError('Saran ini belum dapat disimpan atau sudah disimpan.')
+    mid,_=memory.add_memory('orchestrator','pelajaran','Pelajaran yang ditinjau pemilik: '+row['result'][:1400])
+    if not mid:raise ValueError('Pelajaran belum memiliki isi yang cukup.')
+    db.run('UPDATE office_discussions SET accepted=1 WHERE id=?',(did,))
+    return web.json_response({'ok':True,'memory_id':mid})
+
+@routes.post('/api/office/usage')
+async def usage_settings(request):
+    from . import usage_meter
+    import math
+    data=await request.json();currency=data.get('currency','USD')
+    if currency not in ('USD','IDR','EUR','GBP','CNY','JPY','SGD','AUD'):raise ValueError('Mata uang belum didukung.')
+    db.set_setting('office_currency',currency)
+    if data.get('model'):
+        model=str(data['model']);backend=data.get('backend')
+        if len(model)>200 or backend not in ('local','router','freellmapi','online','compatible','ollama'):raise ValueError('Provider/model belum valid.')
+        prices={key:float(data[key]) for key in ('input','output')}
+        if any(not math.isfinite(v) or v<0 or v>10000 for v in prices.values()):raise ValueError('Tarif harus angka positif dalam USD per 1 juta token.')
+        tariffs=usage_meter.tariffs();tariffs[backend+'|'+model]=prices;db.set_setting('model_tariffs',json.dumps(tariffs))
+    return web.json_response({'ok':True})
+
+@routes.post('/api/office/currency')
+async def refresh_currency(request):
+    from . import usage_meter
+    return web.json_response(await usage_meter.refresh_rates())
 
 @routes.delete('/api/office/history')
 async def clear_office_history(request):
@@ -591,6 +642,33 @@ async def project_action(request):
     else:raise ValueError('Tindakan proyek tidak valid.')
     db.run('UPDATE project_jobs SET status=?,updated_at=? WHERE id=?',(state,time.time(),pid));project_jobs.event(pid,state,'Pemilik: '+action)
     return web.json_response({'ok':True})
+
+@routes.get('/api/social')
+async def social_status(request):
+    from . import social_connections
+    return web.json_response({'connections':social_connections.status()})
+
+@routes.post('/api/social/{provider}')
+async def social_configure(request):
+    from . import social_connections
+    provider=request.match_info['provider'];data=await request.json();action=data.get('action','save')
+    if action=='save':social_connections.configure(provider,data);result={'ok':True}
+    elif action=='start':result=social_connections.start(provider)
+    elif action=='finish':result=await social_connections.finish(provider,data.get('callback',''))
+    elif action=='verify':result=await social_connections.verify(provider)
+    elif action=='disconnect':
+        rows=social_connections.load();rows.pop(provider,None);social_connections.save(rows);result={'ok':True}
+    else:raise ValueError('Tindakan koneksi belum dikenal.')
+    return web.json_response(result)
+
+@routes.get('/api/setup')
+async def setup_status(request):
+    from . import social_connections,integrations
+    return web.json_response({'complete':db.setting('setup_complete')=='1','social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend')})
+
+@routes.post('/api/setup')
+async def setup_done(request):
+    db.set_setting('setup_complete','1');return web.json_response({'ok':True})
 
 @routes.get('/api/integrations')
 async def host_integrations(request):

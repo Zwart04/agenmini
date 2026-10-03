@@ -1,0 +1,28 @@
+AGEN MINI — WINDOWS 10/11 x64
+
+Unduh agenmini-setup-VERSI-windows-x64.exe dan berkas .exe.sha256 dari release.
+Periksa SHA256 dengan Get-FileHash di PowerShell, lalu jalankan pemasang.
+Pemasang memasang aplikasi per pengguna, shortcut Start Menu, pilihan shortcut
+desktop dan pilihan mulai saat login. Ini installer, bukan aplikasi portable.
+Python, Node dan MinGit dibundel; tidak memerlukan pemasangan Python terpisah.
+
+Jalankan Agen Mini dari Start Menu. Kata sandi awal ditampilkan pada dialog
+pertama dan disimpan privat di %LOCALAPPDATA%\AgenMini\data\initial-password.txt.
+Web berjalan hanya di http://127.0.0.1:8765. Setup awal membantu koneksi AI,
+akun konten/iklan dan MCP. Kredensial layanan tetap diperlukan.
+
+Update: jalankan installer versi baru. Server milik Agen Mini dihentikan,
+backup database/koneksi dibuat, kode diganti dan folder data dipertahankan.
+Hentikan server melalui shortcut Hentikan Agen Mini sebelum pemulihan manual.
+Rollback kode: pasang installer versi sebelumnya. Backup database tersedia
+pada data\backup; jangan menghapus folder data untuk mengganti versi.
+Uninstall menghapus program/shortcut, tetapi mempertahankan data pengguna.
+
+Mode native ringan menjalankan Python/file/shell/Node sebagai akun Windows
+pemilik. Job Object membatasi memori/proses dan menghentikan proses pengujian
+miliknya; ini tidak menyediakan pemisahan pengguna Linux. Web/API, Telegram,
+MCP dan akun host dapat dipakai. Model lokal, 9router dan FreeLLMAPI yang dikelola
+supervisor VPS tersedia penuh di Linux; pada Windows gunakan API yang sudah
+tersedia atau WSL/Docker untuk komponen tersebut. Jangan menganggap komponen
+siap jika belum dipasang dan diuji. Installer saat ini tidak memiliki tanda
+tangan penerbit komersial; verifikasi checksum release.

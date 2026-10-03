@@ -115,6 +115,10 @@ async def generate(brief, model=None, on_token=None, prio=0):
             return html,result.get('stats',{})
         except ValueError as exc:
             last_problem=str(exc)
+            routing=result.get('stats',{}).get('routing',{})
+            if llm.active_backend()=='auto' and routing.get('backend'):
+                from . import auto_router
+                auto_router.failed({'backend':routing['backend'],'model':routing.get('selected_model','')},seconds=600)
             messages=[{'role':'system','content':prompt+' Repair the existing draft while preserving its visual concept. Output a COMPLETE document, not JSON or a patch. Simplify incidental detail if needed to finish.'},
                       {'role':'user','content':brief[:3000]+'\nValidation: '+last_problem[:1000]+'\nDraft:\n'+raw[:14000]}]
     raise ValueError('Halaman belum siap setelah pembuatan dan perbaikan otomatis. '+last_problem[:400])

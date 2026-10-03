@@ -256,7 +256,7 @@ def tool_label(name: str, args: dict) -> str:
 
 
 def context_block(bot: dict, text: str, hint_text=None) -> tuple[str, list[int]]:
-    parts = [f"Waktu sekarang: {db.now_str()}"]
+    parts = [f"Waktu sekarang: {db.now_str()}","OS eksekusi: "+__import__("sys").platform+". Pada Windows gunakan command/cmd yang kompatibel; pada Linux gunakan bash."]
     prof = memory.profile_memories(bot)
     topic = text if hint_text is None else hint_text
     rel = memory.search_memories(bot, topic, k=5)
@@ -335,6 +335,8 @@ class Turn:
         from . import office
         token = office.start(self.bot['id'],getattr(self,'display_task',None) or str(args[0] if args else kwargs.get('text','')))
         result = None
+        from . import usage_meter
+        usage_token=usage_meter.actor.set(self.bot['id'])
         backend_token = llm.backend_context.set(self.bot.get('backend', ''))
         from . import auto_router
         route_token=auto_router.task_context.set(str(args[0] if args else kwargs.get('text','')))
@@ -343,6 +345,7 @@ class Turn:
             return result
         finally:
             office.finish(token,result)
+            usage_meter.actor.reset(usage_token)
             llm.backend_context.reset(backend_token)
             auto_router.task_context.reset(route_token)
 

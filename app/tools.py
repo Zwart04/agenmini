@@ -99,8 +99,11 @@ def _kerja_limits(project=False):
 
 
 async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None = None, cwd=None, project=False) -> str:
+    if os.name == "nt":
+        from . import windows_execution
+        return await windows_execution.run(argv,cwd or config.WORK_DIR,timeout,stdin,project)
     if os.name != "posix":
-        return "Error: eksekusi terisolasi membutuhkan Linux/WSL atau Docker."
+        return "Error: eksekusi belum didukung pada OS ini."
     config.WORK_DIR.mkdir(parents=True, exist_ok=True)
     extra = {}
     if os.geteuid() == 0:
@@ -193,7 +196,7 @@ async def browser_tool(ctx: Ctx, action: str = "open", url: str = "", target=Non
 DANGER_SHELL = re.compile(
     r"\brm\s+-[a-z]*[rf]|\bmkfs|\bdd\s+if=|\bshutdown|\breboot|\bkill(all)?\b|\bchmod\s+-R|\bchown\s+-R|"
     r"curl[^|]*\|\s*(ba)?sh|wget[^|]*\|\s*(ba)?sh|\bpip3?\s+install|\bapt(-get)?\s|>\s*/(etc|usr|bin|dev)|"
-    r"\bnc\s+-l|\bcrontab\b|\bssh\b|\bscp\b", re.I)
+    r"\bnc\s+-l|\bcrontab\b|\bssh\b|\bscp\b|Remove-Item|Stop-Process|Restart-Computer|\biex\b", re.I)
 DANGER_PY = re.compile(r"shutil\.rmtree|os\.remove|os\.unlink|os\.rmdir|os\.system|subprocess|socket\.|"
                        r"\.unlink\(|smtplib|ctypes|__import__\(", re.I)
 
@@ -689,3 +692,21 @@ async def github_read(ctx,path='',**_):
 async def cloudflare_read(ctx,path='',**_):
     from . import integrations
     return await integrations.read('cloudflare',path)
+
+
+@tool('social_status','Memeriksa koneksi akun','Read verified status of Threads, Instagram, Meta Ads and YouTube without exposing credentials.',{},[])
+async def social_status(ctx,**_):
+    from . import social_connections
+    return json.dumps(social_connections.status(),ensure_ascii=False)
+
+@tool('social_read','Membaca akun/konten','Read connected social profile/posts/campaigns/videos using official APIs. Missing credentials/permissions/quota are reported. No posting, ad changes or transactions.',{'provider':S('threads | instagram | meta_ads | youtube'),'operation':S('profile | posts | campaigns | videos'),'identifier':S('optional ad account act_ID or YouTube playlist ID')},['provider'])
+async def social_read(ctx,provider='',operation='profile',identifier='',**_):
+    from . import social_connections
+    try:return json.dumps(await social_connections.read(provider,operation,identifier),ensure_ascii=False)[:16000]
+    except Exception as exc:return 'Error: '+str(exc)
+
+@tool('social_publish','Mempublikasikan konten','Publish explicit owner-approved text to Threads or image+caption to Instagram. Requires connected write permission; successful provider ID is required. Never use as a connection test.',{'provider':S('threads | instagram'),'text':S('exact final post/caption'),'image_url':S('public HTTPS image URL for Instagram')},['provider','text'],danger=lambda a:'Konten akan dipublikasikan ke '+a.get('provider','akun')+'. Tinjau teks/URL persis sebelum mengizinkan.')
+async def social_publish(ctx,provider='',text='',image_url='',**_):
+    from . import social_connections
+    try:return json.dumps(await social_connections.publish(provider,text,image_url),ensure_ascii=False)
+    except Exception as exc:return 'Error: '+str(exc)

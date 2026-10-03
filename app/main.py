@@ -143,17 +143,24 @@ async def amain():
         if extra: db.save_bot({'id':'asisten','tools':bot['tools']+extra})
         if extra or 'mcp_agen_local_hardware' in bot['tools']:
             db.set_setting('mcp_builtin_tools_seeded','1')
+    coordinator=db.bot('orchestrator')
+    if coordinator and not db.setting('social_tools_seeded'):
+        db.save_bot({'id':'orchestrator','tools':list(dict.fromkeys(coordinator['tools']+['social_status','social_read']))})
+        db.set_setting('social_tools_seeded','1')
     print(f"[agen] Agen Mini {VERSION} mulai. Model: {db.setting('model')}")
     await web.start()
     await telegram.sync()
     worker = asyncio.create_task(office.loop())
     from . import progress_reports
     reporter = asyncio.create_task(progress_reports.loop())
+    from . import office_learning
+    thinker=asyncio.create_task(office_learning.loop())
     try:
         await scheduler.loop()
     finally:
         worker.cancel()
         reporter.cancel()
+        thinker.cancel()
         from . import llm
         if llm._session and not llm._session.closed:
             await llm._session.close()

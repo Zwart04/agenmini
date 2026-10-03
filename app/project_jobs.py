@@ -120,7 +120,7 @@ def acceptance_problems(milestone,response,before,after):
 
 def capable_worker(milestone,parent_tools):
     required=[]
-    if re.search(r'\b(buat|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor|struktur|structure)',milestone['task'],re.I):
+    if re.search(r'\b(buat|pembuatan|pengembangan|inisialisasi|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor|struktur|structure)',milestone['task'],re.I):
         required.append({'write_file','edit_project_file'})
     if re.search(r'uji|test|assert|build|kompil|compile',milestone['task']+' '+milestone['acceptance'],re.I):
         required.append({'run_project_command'})

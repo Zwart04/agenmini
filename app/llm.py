@@ -370,6 +370,10 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
         else:
             res = await _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_ctx, max_tokens,
                                      threads_for(prio))
+    except Exception:
+        from . import usage_meter
+        usage_meter.record(active_backend(),model,{})
+        raise
     finally:
         busy_path.unlink(missing_ok=True)
         gate.current = ""
@@ -381,6 +385,9 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
         calls, content = extract_tool_calls(content, names)
     res["content"] = content
     res["tool_calls"] = calls
+    from . import usage_meter
+    cost=usage_meter.record(active_backend(),model,res.get("stats",{}))
+    res.setdefault("stats",{})["cost_usd"]=cost
     return res
 
 
@@ -459,7 +466,7 @@ async def _chat_ollama(messages, tools, model, on_token, fmt, temperature, num_c
                         held += piece
                 if chunk.get("done"):
                     stats = {
-                        "prompt_tokens": chunk.get("prompt_eval_count", 0),
+                        "usage_reported": "prompt_eval_count" in chunk and "eval_count" in chunk, "prompt_tokens": chunk.get("prompt_eval_count", 0),
                         "tokens": chunk.get("eval_count", 0),
                         "seconds": round(time.time() - t0, 1),
                         "tok_per_sec": round(chunk.get("eval_count", 0) / max(chunk.get("eval_duration", 1) / 1e9, 1e-6), 1),
@@ -535,34 +542,42 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     # Native tool calls retain the complete JSON response before argument validation.
     if not tools:
         body['stream'] = True
-        if local and backend == 'local': body['stream_options'] = {'include_usage': True}
+        body['stream_options'] = {'include_usage': True}
     t0 = time.time()
     try:
-        async with session().post(f"{base}/chat/completions", json=body,
-                                  headers={"Authorization": f"Bearer {key}"} if key else {},
-                                  timeout=aiohttp.ClientTimeout(total=360 if local and backend == 'local' else 180, sock_read=90)) as r:
-            if body.get('stream') and 'text/event-stream' in r.headers.get('Content-Type',''):
-                parts, usage, served, finish_reason = [], {}, '', None
-                async for line in r.content:
-                    line = line.decode('utf-8').strip()
-                    if not line.startswith('data:'): continue
-                    payload = line[5:].strip()
-                    if payload == '[DONE]': break
-                    chunk = json.loads(payload)
-                    if chunk.get('error'): raise LLMError(str(chunk['error'])[:300])
-                    served = chunk.get('model') or served
-                    usage = chunk.get('usage') or usage
-                    for choice in chunk.get('choices',[]):
-                        finish_reason = choice.get('finish_reason') or finish_reason
-                        content = choice.get('delta',{}).get('content') or ''
-                        if content:
-                            parts.append(content)
-                            if on_token: await on_token(content)
-                if not parts: raise LLMError('Model tidak mengembalikan teks. Periksa model/provider yang dipilih.')
-                data = {'model':served, 'usage':usage, 'choices':[{'message':{'content':''.join(parts)},'finish_reason':finish_reason}]}
-            else:
-                data = await r.json(content_type=None)
-            served_model = r.headers.get("X-Routed-Via") or data.get("model", "")
+        for usage_attempt in range(2):
+            async with session().post(f"{base}/chat/completions", json=body,
+                                      headers={"Authorization": f"Bearer {key}"} if key else {},
+                                      timeout=aiohttp.ClientTimeout(total=360 if local and backend == 'local' else 180, sock_read=90)) as r:
+                if r.status==400 and body.get('stream_options'):
+                    rejection=await r.text()
+                    if 'stream_options' in rejection or 'include_usage' in rejection:
+                        body.pop('stream_options',None)
+                        continue
+                    raise LLMError('Provider menolak permintaan: '+rejection[:200])
+                if body.get('stream') and 'text/event-stream' in r.headers.get('Content-Type',''):
+                    parts, usage, served, finish_reason = [], {}, '', None
+                    async for line in r.content:
+                        line = line.decode('utf-8').strip()
+                        if not line.startswith('data:'): continue
+                        payload = line[5:].strip()
+                        if payload == '[DONE]': break
+                        chunk = json.loads(payload)
+                        if chunk.get('error'): raise LLMError(str(chunk['error'])[:300])
+                        served = chunk.get('model') or served
+                        usage = chunk.get('usage') or usage
+                        for choice in chunk.get('choices',[]):
+                            finish_reason = choice.get('finish_reason') or finish_reason
+                            content = choice.get('delta',{}).get('content') or ''
+                            if content:
+                                parts.append(content)
+                                if on_token: await on_token(content)
+                    if not parts: raise LLMError('Model tidak mengembalikan teks. Periksa model/provider yang dipilih.')
+                    data = {'model':served, 'usage':usage, 'choices':[{'message':{'content':''.join(parts)},'finish_reason':finish_reason}]}
+                else:
+                    data = await r.json(content_type=None)
+                served_model = r.headers.get("X-Routed-Via") or data.get("model", "")
+            break
     except asyncio.TimeoutError:
         raise LLMError('Model melewati batas waktu. Coba permintaan lebih pendek atau model/API lebih cepat.')
     except Exception as e:
@@ -577,7 +592,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
         calls.append({"name": c["function"]["name"], "arguments": _loads(c["function"].get("arguments") or "{}")})
     usage = data.get("usage", {})
     return {"content": msg.get("content") or "", "tool_calls": calls,
-            "stats": {"tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
+            "stats": {"usage_reported": "prompt_tokens" in usage and "completion_tokens" in usage, "tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
                       "seconds": round(time.time() - t0, 1), "served_model": served_model,
                       "finish_reason": data["choices"][0].get("finish_reason")}}
 

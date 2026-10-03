@@ -19,7 +19,7 @@ async def clone(url, target):
             return 'Error: folder sudah ada; berkas sebelumnya tidak ditimpa.'
         target.parent.mkdir(parents=True, exist_ok=True)
         try: os.chown(target.parent, config.KERJA_UID, config.KERJA_GID)
-        except OSError: pass
+        except (OSError, AttributeError): pass
         try: token = integrations.token('github')
         except ValueError: token = ''
         if not token:
@@ -32,23 +32,28 @@ async def clone(url, target):
         private = config.DATA_DIR/'integrations'
         stage = Path(tempfile.mkdtemp(prefix='clone-',dir=private))
         checkout = stage/'repo'
-        env = {'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':str(stage),'LANG':'C.UTF-8',
-               'GIT_TERMINAL_PROMPT':'0','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null',
+        env = {'PATH':os.environ.get('PATH','') if os.name=='nt' else '/usr/local/bin:/usr/bin:/bin','HOME':str(stage),'LANG':'C.UTF-8',
+               'GIT_TERMINAL_PROMPT':'0','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':os.devnull,
                'GIT_CONFIG_COUNT':'1','GIT_CONFIG_KEY_0':'http.https://github.com/.extraheader',
                'GIT_CONFIG_VALUE_0':'Authorization: Basic '+base64.b64encode(('x-access-token:'+token).encode()).decode()}
+        if os.name=='nt':
+            env.update({k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','TEMP','TMP')})
         try:
             proc = await asyncio.create_subprocess_exec('git','-c','core.hooksPath=/dev/null','-c','init.templateDir=',
                 '-c','http.followRedirects=false','-c','protocol.file.allow=never','clone','--no-checkout','--depth','1','--',url,str(checkout),
                 env=env,stdin=asyncio.subprocess.DEVNULL,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.STDOUT,start_new_session=True)
             try: output,_ = await asyncio.wait_for(proc.communicate(),120)
             except asyncio.TimeoutError:
-                os.killpg(proc.pid,9);await proc.communicate()
+
+                if os.name=='posix':os.killpg(proc.pid,9)
+                else:proc.kill()
+                await proc.communicate()
                 return 'Error: clone GitHub melewati batas 120 detik. Repo sumber dan folder lama tetap dipertahankan.'
             if proc.returncode:
                 message=output.decode(errors='replace').replace(token,'[rahasia]').replace(env['GIT_CONFIG_VALUE_0'],'[rahasia]')
                 return '[kode keluar '+str(proc.returncode)+']\n'+message[-2000:]+'\nClone gagal; periksa akses akun ke repositori.'
             if target.exists():return 'Error: folder dibuat oleh proses lain; tidak ditimpa.'
-            if os.geteuid()==0:
+            if os.name=='posix' and os.geteuid()==0:
                 for directory,dirs,files in os.walk(checkout):
                     os.chown(directory,config.KERJA_UID,config.KERJA_GID)
                     for name in dirs+files:os.chown(Path(directory)/name,config.KERJA_UID,config.KERJA_GID,follow_symlinks=False)

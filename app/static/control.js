@@ -16,6 +16,7 @@ async function loadOffice(){
   try{
     const d=await api('/api/office');
     renderOfficeScene(d);
+    await loadOfficeLearning();
     $('#officeStats').innerHTML=`<b>${d.bots.filter(b=>b.status==='working').length} bot bekerja</b><span>${d.tasks.filter(t=>t.status==='queued').length} tugas menunggu · ${d.bots.length} anggota tim</span><small>Aktivitas langsung dari server</small>`;
     if(typeof loadProjects==='function')await loadProjects();
     const target=$('#officeTarget').value||'orchestrator';
@@ -40,6 +41,7 @@ $('#officeForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/offic
 async function loadAI(){
   clearTimeout(aiTimer);
   await loadIntegrations();
+  await loadSocial();
   await loadLocalModels();
   const settings=await api('/api/settings');
   const active=settings.llm_backend,mode=aiDraftMode||active;

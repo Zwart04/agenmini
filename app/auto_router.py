@@ -64,7 +64,7 @@ async def candidates(messages):
     return selected
 
 
-def failed(route):_cooldown[(route['backend'],route['model'])]=time.monotonic()+60
+def failed(route,seconds=60):_cooldown[(route['backend'],route['model'])]=time.monotonic()+seconds
 
 
 async def status():
