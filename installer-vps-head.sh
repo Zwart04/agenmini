@@ -76,6 +76,13 @@ for script in agen-supervisor.sh agen-standalone agen; do
   rm -f "$TMP/$script"
 done
 cp -a "$TMP"/. "$DIR"/
+# The old UI is code only; keep it in the private update backup, not the live app.
+if [[ -d "$DIR/frontend" && -d "$DIR/app/static" && ! -L "$DIR/app/static" && -n "${BACKUP:-}" ]]; then
+  mv "$DIR/app/static" "$BACKUP/legacy-static"
+fi
+if [[ -f "$DIR/frontend/DESIGN.md" && -f "$DIR/DESIGN.md" && ! -L "$DIR/DESIGN.md" && -n "${BACKUP:-}" ]]; then
+  mv "$DIR/DESIGN.md" "$BACKUP/legacy-DESIGN.md"
+fi
 NEXT=$(mktemp /usr/local/bin/.agen.XXXXXX)
 install -m 755 "$DIR/agen-standalone" "$NEXT"
 mv -f "$NEXT" /usr/local/bin/agen

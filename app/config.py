@@ -7,7 +7,7 @@ DB_PATH = DATA_DIR / "db" / "agen.sqlite"
 BACKUP_DIR = DATA_DIR / "backup"
 WORK_DIR = DATA_DIR / "ruang-kerja"
 CERT_DIR = DATA_DIR / "cert"
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 TZ = os.environ.get("TZ", "Asia/Jakarta")
 

@@ -7,7 +7,7 @@ Below 760px: sidebar drawer, single-column forms/model cards, two-column office,
 Status comes from actual task/trace records. A failed task must not show success. Logs are owner-authenticated. Every new component should follow these rules and be checked at desktop and mobile widths.
 
 
-Navigation: only Chat, Workspace, Koneksi and Pengaturan in the main sidebar. Secondary sections stay in compact tab bars. Runtime readiness must reflect live server/model identity; saved preference is not readiness. Downloads use real byte progress, a lightweight CSS spinner and an explicit static fallback, with distinct verification/loading/failure states. Each bot exposes the shared provider engine and its own model choice.
+Navigation: only Chat, Workspace, Koneksi and Pengaturan in the main sidebar. Secondary feature sections remain visible within their parent page; record details use dialogs and pagination. Runtime readiness must reflect live server/model identity; saved preference is not readiness. Downloads use real byte progress, a lightweight CSS spinner and an explicit static fallback, with distinct verification/loading/failure states. Each bot exposes the shared provider engine and its own model choice.
 
 Mobile: two-column engine choices, safe-area padding, wrapping status/toasts and scrollable dialogs bounded by 100dvh. Drawers close by tapping outside or Escape. Validate page and modal widths at 320, 390 and 430px.
 

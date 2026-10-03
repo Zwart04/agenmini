@@ -29,12 +29,12 @@ def rewrite(text, kind, content_type):
         text = re.sub(r'((?:src|href)=["\x27])/(?!/|apps/)', lambda m: m[1] + prefix + '/', text)
         if kind == 'router':
             text=re.sub(r'<link\b[^>]*href=[\"\']https://fonts\.(?:googleapis|gstatic)\.com[^>]*>','',text,flags=re.S)
-            text=text.replace('<head>','<head><script src="/static/router-icons.js" defer></script><style>body{font-family:system-ui,sans-serif!important}.material-symbols-outlined{display:inline-flex;align-items:center;justify-content:center;width:1em;height:1em;vertical-align:middle}.material-symbols-outlined svg{width:1em;height:1em;min-width:1em;stroke:currentColor;fill:none;stroke-width:1.8}</style>',1)
-            bridge = '<script>document.addEventListener("click",function(e){var a=e.target.closest("a[href]");if(!a)return;var u=new URL(a.href,location.href);if(u.origin!==location.origin)return;if(u.pathname.startsWith("/dashboard")||u.pathname.startsWith("/apps/router/dashboard")){e.preventDefault();e.stopImmediatePropagation();if(!u.pathname.startsWith("/apps/router/"))u.pathname="/apps/router"+u.pathname;location.assign(u.href)}},true);</script>'
+            text=text.replace('<head>','<head><script src="/static/router-icons.js" defer></script><link rel="stylesheet" href="/static/router.css">',1)
+            bridge = '<script src="/static/router-bridge.js"></script>'
             text = text.replace('<head>', '<head>' + bridge, 1)
         if kind == 'free':
             # The frontend needs a session marker; the actual admin JWT stays server-side.
-            text = text.replace('<head>', '<head><script>localStorage.setItem("freellmapi_dashboard_token","agenmini-owner-session");</script>', 1)
+            text = text.replace('<head>', '<head><script src="/static/free-dashboard.js"></script>', 1)
     return text
 
 

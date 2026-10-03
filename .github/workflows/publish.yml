@@ -40,7 +40,7 @@ jobs:
           assert exe.read_bytes()[:2]==b'MZ'
           checksum=exe.with_suffix('.exe.sha256').read_text().split()[0]
           assert hashlib.sha256(exe.read_bytes()).hexdigest()==checksum
-          for name in ('agenmini-source.zip','agenmini-vps.zip'):
+          for name in ('agenmini-source.zip','agenmini-vps.zip','agenmini-frontend.zip'):
               with zipfile.ZipFile(Path('dist')/name) as archive:assert archive.testzip() is None
           Path('release-tag.txt').write_text('v'+version)
           Path('release-notes.md').write_text(Path('RELEASE-NOTES.md').read_text())
@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           tag=$(cat release-tag.txt)
-          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/agenmini-frontend.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
           gh release edit "$tag" --draft=false
           mkdir public-verification
           python3 - <<'PY'

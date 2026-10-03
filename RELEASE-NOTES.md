@@ -1,5 +1,5 @@
-Antarmuka lebih ringkas dengan empat menu tetap, kantor bertema titik dan karakter CSS original. Aktivitas, skill dan ingatan memakai pagination; tugas, hasil, rencana serta log lengkap dapat dibaca melalui dialog. Tombol pengelolaan dan izin tetap tersedia. README ditulis ulang untuk pemasangan VPS/Windows, setup, model, update dan batas kemampuan.
+Semua frontend dipisahkan ke folder `frontend/`: HTML, tema, CSS, JavaScript, SVG dan penyesuaian dashboard. CSS dan script utama dikeluarkan dari HTML, dengan urutan eksekusi yang sama. Panduan frontend memetakan berkas dan menyediakan instruksi untuk desainer/AI lain.
 
-Diuji dengan regresi Linux, browser Chromium pada desktop/mobile dan CI pemasangan Windows. Ketersediaan API tetap mengikuti kredensial serta kuota provider. Lulus tes tidak menjamin semua proyek atau model berhasil.
+Docker, VPS dan Windows installer menggunakan folder frontend yang sama. URL `/static/` tetap kompatibel. Update VPS mencadangkan kode dan memindahkan folder UI lama ke backup privat; data/config tidak dihapus.
 
-Pemasang update mempertahankan data dan konfigurasi. Aset release hanya berisi kode/pemasang, tanpa data pengguna atau bobot model.
+Diuji melalui regresi Linux, browser pada pemasangan nyata, serta CI pemasangan Windows. Model/provider tetap mengikuti kredensial dan kuota masing-masing.

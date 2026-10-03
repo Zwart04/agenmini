@@ -2,7 +2,7 @@
 
 Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp, 9router, FreeLLMAPI, API kompatibel OpenAI, atau gabungkan sumber dengan Smart Router.
 
-**Versi stabil: 0.5.5.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+**Versi stabil: 0.5.6.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
 
 ## Pasang di VPS Debian / Ubuntu
 
@@ -22,7 +22,7 @@ Mode API lebih ringan; 2 GB RAM disarankan. Untuk model lokal kecil, mulai dari 
 
 ## Pasang di Windows
 
-Unduh `agenmini-setup-0.5.5-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
+Unduh `agenmini-setup-0.5.6-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
 
 Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model lokal, 9router dan FreeLLMAPI memerlukan lingkungan Linux/WSL/Docker. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
 
@@ -66,6 +66,10 @@ Perintah umum: `agen status`, `agen log`, `agen restart`, `agen sandi`, `agen ro
 Data VPS berada di `/opt/agenmini/data`. Unduh backup migrasi melalui Pengaturan sebelum reinstall VPS. Backup berisi data privat; simpan terpisah dari repo publik. Pemulihan serta pemasangan dijelaskan di [panduan VPS](CARA-PASANG-VPS.txt).
 
 Hapus layanan sambil menyimpan data: `sudo agen uninstall --yes`. Periksa rencana penghapusan total: `sudo agen uninstall --all --dry-run`. Hapus seluruh Agen Mini **termasuk data dan model**: `sudo agen uninstall --all --yes`. Login host dan aplikasi VPS lain tidak termasuk penghapusan.
+
+## Mengubah tampilan
+
+Semua frontend ada di **[`frontend/`](frontend/README.md)**: markup, tema, CSS, JavaScript, karakter SVG dan penyesuaian dashboard. Unduh [ZIP frontend saja](https://github.com/Zwart04/agenmini/releases/latest/download/agenmini-frontend.zip) untuk diberikan kepada AI/desainer lain; perubahan desain biasa tidak memerlukan berkas backend. Panduan menjelaskan urutan CSS/script, bagian halaman dan cara menguji.
 
 ## Pengembangan
 

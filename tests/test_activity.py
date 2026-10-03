@@ -113,6 +113,7 @@ async def test_native_dashboards_are_owner_only_and_do_not_forward_owner_cookie(
         assert r.status==200
         text=await r.text()
         assert '/apps/router/dashboard/providers' in text and '/apps/router/_next/static/main.js' in text
+        assert '/static/router.css' in text and '/static/router-bridge.js' in text
         assert seen[-1]['Cookie']=='auth_token=native-test'
         assert 'agen_sesi' not in json.dumps(seen)
         assert (await client.get('/apps/other/dashboard',headers={'Cookie':'agen_sesi='+pages.make_token()})).status==404

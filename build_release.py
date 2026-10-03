@@ -22,10 +22,14 @@ def build():
             if not name: continue
             if name == '.env' or name.startswith(('data/', 'dist/')): raise ValueError('Private/generated path is tracked: ' + name)
             archive.write(ROOT / name, 'agenmini/' + name)
-    for name in ('agenmini-vps.zip', 'agenmini-source.zip'):
+    with zipfile.ZipFile(dist / 'agenmini-frontend.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name in names:
+            if name.startswith('frontend/'):
+                archive.write(ROOT / name, name)
+    for name in ('agenmini-vps.zip', 'agenmini-source.zip', 'agenmini-frontend.zip'):
         with zipfile.ZipFile(dist / name) as archive:
             assert archive.testzip() is None
-    assets = ('pasang-vps.sh', 'agenmini-vps.zip', 'agenmini-source.zip')
+    assets = ('pasang-vps.sh', 'agenmini-vps.zip', 'agenmini-source.zip', 'agenmini-frontend.zip')
     (dist / 'SHA256SUMS').write_text(''.join(hashlib.sha256((dist / n).read_bytes()).hexdigest() + '  ' + n + '\n' for n in assets))
     print('Release assets verified (ZIP CRC and SHA256).')
 

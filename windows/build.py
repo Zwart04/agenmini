@@ -28,6 +28,7 @@ def build():
     python_root=Path(sys.base_prefix)
     shutil.copytree(python_root,payload/'runtime',ignore=shutil.ignore_patterns('__pycache__','*.pyc','test','tests','cache','pip-selfcheck.json'))
     shutil.copytree(ROOT/'app',payload/'server/app',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+    shutil.copytree(ROOT/'frontend',payload/'server/frontend')
     for name in ('requirements.lock','README.md','CARA-PASANG-WINDOWS.txt','LICENSE'):
         if (ROOT/name).is_file():shutil.copy2(ROOT/name,payload/name)
     shutil.copy2(ROOT/'host-integrations.py',payload/'server/host-integrations.py')

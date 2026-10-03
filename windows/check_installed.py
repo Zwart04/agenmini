@@ -18,6 +18,11 @@ try:
         req=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json'})
         with client.open(req,timeout=60) as response:return json.load(response)
     password=(data/'initial-password.txt').read_text().strip();assert request('/api/login',{'password':password})['ok']
+    with client.open(base+'/',timeout=30) as response:html=response.read().decode()
+    assert '/static/app.js' in html and '/static/theme.css' in html
+    for asset in ['app.js','theme.css','base.css','layout.css']:
+        with client.open(base+'/static/'+asset,timeout=30) as response:assert response.status==200 and response.read()
+    assert (install/'server/frontend/index.html').is_file()
     assert request('/api/mode',{'mode':'online'})['ok']
     assert not (data/'runtime-request').exists()
     assert request('/api/office')['bots'];assert request('/api/social')['connections'];assert 'learning' in request('/api/office/learning')
@@ -26,7 +31,9 @@ try:
     subprocess.run([str(python),'-c',script],cwd=install/'server',env=toolenv,check=True,timeout=60)
     marker=data/'keep-private.txt';marker.write_text('test-data-preserved')
     subprocess.run([str(python),str(install/'launcher.py'),'--stop'],env=env,check=True,timeout=30);server.wait(timeout=30)
+    legacy=install/'server/app/static';legacy.mkdir(parents=True,exist_ok=True);(legacy/'retired.txt').write_text('old UI code')
     result=subprocess.run([str(exe),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/DIR='+str(install)],timeout=240);assert result.returncode==0
+    assert not legacy.exists()
     assert marker.read_text()=='test-data-preserved' and (data/'db/agen.sqlite').exists() and list((data/'backup').glob('windows-update-*'))
     uninstaller=next(install.glob('unins*.exe'));result=subprocess.run([str(uninstaller),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'],timeout=120);assert result.returncode==0
     assert marker.read_text()=='test-data-preserved' and (data/'db/agen.sqlite').exists()

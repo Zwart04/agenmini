@@ -24,6 +24,8 @@ Name: "desktopicon"; Description: "Buat shortcut desktop"; Flags: unchecked
 Name: "autostart"; Description: "Jalankan Agen Mini ketika login Windows"; Flags: unchecked
 [Files]
 Source: "payload\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\server\app\static"
 [Icons]
 Name: "{group}\Agen Mini"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"
 Name: "{group}\Hentikan Agen Mini"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\launcher.py"" --stop"; WorkingDir: "{app}"

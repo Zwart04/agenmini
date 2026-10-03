@@ -7,7 +7,7 @@ import pytest
 
 def test_office_active_idle_and_waiting_positions_fit_small_screens():
     if not shutil.which('node'):pytest.skip('Node unavailable')
-    source=Path('app/static/office.js').read_text()
+    source=Path('frontend/office.js').read_text()
     cases=[]
     for width in (288,358,398,936):
         for count in (2,10,30):

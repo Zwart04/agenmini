@@ -1,4 +1,4 @@
-AGEN MINI 0.5.5 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.5.6 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.

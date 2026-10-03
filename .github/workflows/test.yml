@@ -13,7 +13,7 @@ jobs:
       # Keep the sandbox UID separate from the GitHub runner's usual UID 1001.
       - run: docker run --rm -e KERJA_UID=12001 -e KERJA_GID=12001 -v "$PWD:/src" -w /src agenmini-ci sh -c 'pip install pytest pytest-asyncio && python -m pytest tests -q -p no:cacheprovider'
       - run: bash -n installer-vps-head.sh && bash -n agen-supervisor.sh && bash -n agen-standalone && bash -n agen-uninstall.sh
-      - run: node --check app/static/ui-state.js && node --check app/static/social.js && node --check app/static/office-learning.js && node --check app/static/office.js && node --check app/static/control.js && node --check app/static/activity.js && node --check app/static/workspace.js
+      - run: node --check frontend/ui-state.js && node --check frontend/social.js && node --check frontend/office-learning.js && node --check frontend/office.js && node --check frontend/control.js && node --check frontend/activity.js && node --check frontend/workspace.js
       - run: python build_release.py
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_installer.sh
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_supervisor.sh

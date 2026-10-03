@@ -43,9 +43,15 @@ grep -q 'docker-ce' /tmp/apt-calls
 grep -q 'LLM_BACKEND=router' /opt/agenmini/.env
 grep -q 'http://router:20128/v1' /opt/agenmini/.env
 [[ $(stat -c '%a' /opt/agenmini/.env) == 600 ]]
+[[ -f /opt/agenmini/frontend/index.html && -f /opt/agenmini/frontend/app.js ]]
+mkdir -p /opt/agenmini/app/static
+echo legacy-design > /opt/agenmini/app/static/custom.css
+echo legacy-guide > /opt/agenmini/DESIGN.md
 echo keep-me > /opt/agenmini/data/marker
 printf '\nCUSTOM_SETTING=keep\n' >> /opt/agenmini/.env
 bash /src/dist/pasang-vps.sh > /tmp/update-output
+[[ ! -d /opt/agenmini/app/static && ! -f /opt/agenmini/DESIGN.md ]]
+find /opt/agenmini/data/backup -path '*/legacy-static/custom.css' -exec grep -q legacy-design {} \; -print | grep -q .
 grep -q 'keep-me' /opt/agenmini/data/marker
 grep -q 'CUSTOM_SETTING=keep' /opt/agenmini/.env
 if MOCK_FAIL=1 bash /src/dist/pasang-vps.sh > /tmp/fail-output 2>&1; then echo 'Build failure was swallowed'; exit 1; fi
