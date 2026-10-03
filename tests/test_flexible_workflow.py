@@ -98,3 +98,8 @@ def test_project_messages_ignore_stale_approval_chat_but_preserve_history():
         assert db.one('SELECT id FROM messages WHERE id=?',(old,))
     finally:
         db.run('DELETE FROM messages WHERE chat_id=?',(chat['id'],));db.run('DELETE FROM chats WHERE id=?',(chat['id'],))
+
+
+def test_server_timeout_recovery_requires_runtime_probe():
+    assert agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python -m app.main'})==agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python tests/test_server.py'})
+    assert agent.tool_failure_scope('run_project_command',{'folder':'p','command':'python tests/test_server.py'})!=agent.tool_failure_scope('run_project_command',{'folder':'p','command':'pip install aiohttp'})

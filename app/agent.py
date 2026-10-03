@@ -240,7 +240,7 @@ def tool_failure_scope(name,args):
     scope=args.get('path') or args.get('folder') or args.get('url') or args.get('query') or ''
     if name=='run_project_command':
         command=args.get('command','')
-        kind='test' if re.search(r'jest|pytest|unittest|test',command,re.I) else 'build' if re.search(r'build|tsc|compile',command,re.I) else 'install' if re.search(r'install|npm i\b|pip',command,re.I) else 'other'
+        kind='runtime' if re.search(r'app\.main|test[_-]server|test[_-]runtime|smoke[_-]server',command,re.I) else 'test' if re.search(r'jest|pytest|unittest|test',command,re.I) else 'build' if re.search(r'build|tsc|compile',command,re.I) else 'install' if re.search(r'install|npm i\b|pip',command,re.I) else 'other'
         scope=str(scope)+':'+kind
     return name,str(scope)
 

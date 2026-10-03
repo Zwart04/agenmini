@@ -1,5 +1,5 @@
 /* Original CSS characters. One observer, persistent nodes, no rendering loop. */
-let officeSnapshot=null,officeRosterKey='',officeResizeObserver;
+let officeSnapshot=null,officeRosterKey='',officeResizeObserver,officeLayoutWidth=0;
 const officePalette=['#f6be89','#aecada','#c5b6e3','#afcdaa','#f0cc76','#e5adc0'];
 const officeAccessories=['glasses','headphones','cap','sprout','scarf','bow'];
 function officePlacement(d,width){
@@ -12,7 +12,7 @@ function officePlacement(d,width){
   let point=home,zone='Meja kerja';
   if(meeting.has(b.id)){
    const n=[...meeting].indexOf(b.id),count=meeting.size;
-   point=compact?{x:width*(.11+(.38*(n+1)/(count+1))),y:height-125+(n%2)*48}:{x:width*(.67+.26*(n+1)/(count+1)),y:95+(n%3)*65+Math.floor(n/3)*24};zone='Ruang rapat';
+   point=compact?{x:width*(.11+(.38*(n+1)/(count+1))),y:height-150+(n%2)*46}:{x:width*(.67+.26*(n+1)/(count+1)),y:95+(n%3)*65+Math.floor(n/3)*24};zone='Ruang rapat';
   }else if(b.status==='waiting'||b.status==='queued'||(b.status==='working'&&b.phase==='queued')){
    point={x:compact?width*(.65+.19*(i%2)):width*(.73+.16*(i%2)),y:height-100-(i%3)*27};zone='Area tunggu';
   }
@@ -43,6 +43,7 @@ function renderOfficeScene(d){
 function positionOffice(){
  const d=officeSnapshot,room=$('#officeRoom');if(!d||!room||document.hidden)return;
  const floor=room.querySelector('.office-floor'),width=room.clientWidth;if(!floor||!width)return;
+ const resized=width!==officeLayoutWidth;officeLayoutWidth=width;if(resized)floor.classList.add('office-resized');
  const layout=officePlacement(d,width);floor.style.height=layout.height+'px';floor.classList.toggle('compact',layout.compact);floor.classList.toggle('has-meeting',!!layout.meeting.size);
  const nodes=[...floor.querySelectorAll('[data-bot]')],desks=[...floor.querySelectorAll('[data-desk]')];
  layout.positions.forEach((p,i)=>{
@@ -52,6 +53,7 @@ function positionOffice(){
   const member=[...$('#officeRoster').querySelectorAll('[data-presence]')].find(n=>n.dataset.presence===b.id);if(member)member.textContent=p.zone+' · '+status;
   const desk=desks[i];desk.style.left=(p.home.x-37)+'px';desk.style.top=(p.home.y+20)+'px';
  });
+ if(resized){void floor.offsetWidth;floor.classList.remove('office-resized')}
 }
 function updateOfficePresence(ev){
  if(!officeSnapshot)return;const b=officeSnapshot.bots.find(b=>b.id===ev.bot);if(b)Object.assign(b,ev);
