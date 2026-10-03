@@ -79,3 +79,28 @@ async def test_streamed_truncation_is_detected_and_retried(monkeypatch):
         assert value=={'bot':'teknisi'} and len(requests)==2
         assert response['stats']['finish_reason']=='stop'
     finally:await runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_api_native_tools_ignore_local_text_mode_and_accept_object_arguments(monkeypatch):
+    from aiohttp import web
+    from app import llm,tools,router
+    from aiohttp.test_utils import TestServer
+    async def handler(request):
+        payload=await request.json()
+        assert payload['tools'][0]['function']['name']=='write_file'
+        assert '<tool>' not in payload['messages'][0]['content']
+        return web.json_response({'choices':[{'message':{'tool_calls':[{'function':{'name':'write_file','arguments':{'path':'probe.txt','content':'real'}}}]},'finish_reason':'tool_calls'}]})
+    app=web.Application();app.router.add_post('/v1/chat/completions',handler)
+    server=TestServer(app);await server.start_server()
+    settings={'compatible_base':str(server.make_url('/')).rstrip('/'),'compatible_key':'test-only','tool_mode':'text'}
+    monkeypatch.setattr(llm.db,'setting',lambda key:settings.get(key,''))
+    monkeypatch.setattr(router,'base',lambda:str(server.make_url('/')).rstrip('/'))
+    async def ensure_key():return 'test-only'
+    monkeypatch.setattr(router,'ensure_key',ensure_key)
+    token=llm.backend_context.set('router')
+    try:
+        result=await llm._chat_online([{'role':'user','content':'write a file'}],[tools.REGISTRY['write_file'].schema()],.2,None,local=True,model_override='test-model')
+        assert result['tool_calls']==[{'name':'write_file','arguments':{'path':'probe.txt','content':'real'}}]
+    finally:
+        llm.backend_context.reset(token);await server.close()

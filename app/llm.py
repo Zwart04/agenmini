@@ -549,7 +549,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
         elif m["role"] == "tool":
             m = {"role": "tool", "tool_call_id": pending.pop(0) if pending else "call_x", "content": m["content"]}
         msgs.append(m)
-    text_tools = local and db.setting("tool_mode") != "native"
+    text_tools = local and backend not in ("router", "freellmapi") and db.setting("tool_mode") != "native"
     if text_tools:
         msgs = to_text_mode(messages, tools)
     body = {"model": model, "messages": msgs, "temperature": temperature,
@@ -611,7 +611,8 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     msg = data["choices"][0]["message"]
     calls = []
     for c in msg.get("tool_calls") or []:
-        calls.append({"name": c["function"]["name"], "arguments": _loads(c["function"].get("arguments") or "{}")})
+        arguments=c["function"].get("arguments") or {}
+        calls.append({"name": c["function"]["name"], "arguments": arguments if isinstance(arguments,dict) else _loads(arguments)})
     usage = data.get("usage", {})
     return {"content": msg.get("content") or "", "tool_calls": calls,
             "stats": {"usage_reported": "prompt_tokens" in usage and "completion_tokens" in usage, "tokens": usage.get("completion_tokens", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
