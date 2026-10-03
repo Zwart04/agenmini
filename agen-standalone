@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${1:-}" == uninstall || "${1:-}" == hapus ]]; then
+  shift; exec bash /opt/agenmini/agen-uninstall.sh "$@"
+fi
 cd /opt/agenmini
 touch data/local-runtime.env
 compose() { docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml --profile router --profile local --profile free "$@"; }

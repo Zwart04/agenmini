@@ -1,4 +1,4 @@
-AGEN MINI 0.5.0 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.5.2 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
@@ -103,3 +103,9 @@ Setup awal menyatukan AI, akun host, OAuth Threads/Instagram profesional/Meta Ad
 Kantor empat ruang tim, bubble diskusi dan aktivitas nyata; diskusi saat senggang opsional sekali sejam dengan tiga panggilan pendek serial dan batas estimasi token harian. Saran belum diterapkan; pelajaran disimpan setelah ditinjau pemilik.
 Token berasal dari usage provider; biaya tanpa tarif ditandai belum tersedia. USD/IDR/mata uang lain memakai kurs ECB bertanggal.
 Windows: gunakan agenmini-setup-0.5.0-windows-x64.exe dan panduan Windows. Ini pemasangan lewat wizard/menu Start, bukan portable. Data terpisah dari program. API native tersedia; komponen lokal/9router/FreeLLMAPI otomatis dikelola Linux/WSL/Docker.
+
+PENGHAPUSAN
+Lihat rencana: sudo agen uninstall --all --dry-run
+Simpan data: sudo agen uninstall --yes
+Hapus SEMUA data/model/kredensial Agen Mini: sudo agen uninstall --all --yes
+Perintah terakhir tidak dapat dibatalkan tanpa backup. Docker/aplikasi lain tetap ada.

@@ -1,4 +1,8 @@
-# Agen Mini 0.5.0
+# Agen Mini 0.5.2
+
+Tampilan ringkas: empat menu utama, proyek dengan detail yang bisa dibuka, dan konfigurasi lanjutan terlipat. Polling mempertahankan pilihan provider/model yang belum disimpan, detail log, dan posisi bacaan. Pemilihan sumber AI tetap tersedia saat model lokal sedang diunduh.
+
+Hapus layanan saja sambil menyimpan data: `sudo agen uninstall --yes`. Hapus seluruh Agen Mini termasuk data, sandi, model dan konfigurasi provider: `sudo agen uninstall --all --yes`. Periksa rencana tanpa menghapus: `sudo agen uninstall --all --dry-run`. Docker, aplikasi lain, dan login akun host tidak dihapus.
 
 9router opsional kini memakai backend Go yang dipin digest dan panel koneksi HTML/CSS/JavaScript bawaan. Akun upstream dipertahankan dengan backup SQLite sebelum migrasi; image khusus tetap dipertahankan. Dashboard lanjutan memakai ikon SVG lokal tanpa Google Fonts. Layanan router hanya dipublikasikan pada loopback, API key/login diwajibkan, dan TLS ketat diaktifkan.
 

@@ -2,6 +2,9 @@
 # Perintah pengelola Agen Mini. Ketik: agen bantuan
 DIR=/opt/agenmini
 C=agenmini
+if [[ "${1:-}" == uninstall || "${1:-}" == hapus ]]; then
+  shift; exec bash /opt/agenmini/agen-uninstall.sh "$@"
+fi
 cd "$DIR" 2>/dev/null || { echo "Agen Mini belum terpasang di $DIR"; exit 1; }
 # The standalone installation uses Compose service names, never the old fixed container name.
 if [[ -f "$DIR/docker-compose.standalone.yml" ]] && ! grep -q '^OLLAMA_NETWORK=.' "$DIR/.env"; then

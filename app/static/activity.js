@@ -16,7 +16,6 @@ function renderRuntime(r){
  clearInterval(runtimeClock);runtimeClock=null;elapsed.classList.toggle('hidden',!busy);
  if(busy){const tick=()=>{if(!document.hidden)elapsed.textContent='Berjalan '+Math.max(0,Math.floor((Date.now()-runtimeStarted)/1000))+' dtk · status diperiksa otomatis'};tick();runtimeClock=setInterval(tick,1000)}
  if(r.phase!=='downloading')$('#runtimeBytes').textContent='';
- $$('[data-mode]').forEach(b=>b.disabled=['queued','preparing','downloading','verifying'].includes(r.phase));
 }
 function showActivity(ev){
  if(typeof updateOfficePresence==='function')updateOfficePresence(ev);
