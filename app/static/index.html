@@ -205,6 +205,7 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 }
 </style>
 <link rel="stylesheet" href="/static/control.css">
+<link rel="stylesheet" href="/static/office.css">
 </head>
 <body>
 
@@ -270,10 +271,10 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
 
     <div class="view hidden" id="v-office"><div class="page"><div class="page-in">
       <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('office')">Kantor</button><button class="btn sm " type="button" onclick="go('bots')">Tim bot</button><button class="btn sm " type="button" onclick="go('jobs')">Jadwal</button></nav><div class="workspace-hero"><div><span class="section-kicker">TIM & PROYEK</span><h2>Workspace</h2><p>Anda menentukan tujuan.<br>Orchestrator mengatur pekerjaan tim.</p><button class="btn pri" onclick="pickBot('orchestrator')">Beri tugas ke Orchestrator ↗</button></div><div class="workspace-summary" id="officeStats"><b>Memeriksa aktivitas…</b><span>Data berasal dari tugas yang berjalan.</span></div></div>
-      <div class="office-scene"><div class="office-wall"><span class="office-title">TIM ANDA</span><span class="room-plant" aria-hidden="true">✦</span><div class="wall-chart" aria-hidden="true"><svg viewBox="0 0 90 36" width="90" height="36"><path d="M4 29L20 19L35 24L53 10L68 17L85 5" fill="none" stroke="#9cb8a6" stroke-width="3"/></svg></div></div><div class="office-room" id="officeRoom"></div></div>
+      <div class="office-scene"><div class="office-wall"><span class="office-title">TIM ANDA</span><span class="room-plant" aria-hidden="true">✦</span><div class="wall-chart" aria-hidden="true"><svg viewBox="0 0 90 36" width="90" height="36"><path d="M4 29L20 19L35 24L53 10L68 17L85 5" fill="none" stroke="#9cb8a6" stroke-width="3"/></svg></div></div><p class="office-hint">Klik karakter untuk membuka chat. Rapat mengikuti delegasi nyata; gerakan diam menandakan kehadiran.</p><div class="office-room" id="officeRoom" aria-label="Kantor tim agen"></div><div id="officeRoster" class="office-roster"></div></div>
       <section class="project-section"><div class="row"><div class="grow"><span class="section-kicker">BUKAN SEKADAR SATU JAWABAN</span><h3>Proyek berkelanjutan</h3></div><button class="btn sm" id="projectRefresh">Periksa status</button></div><p class="sub">Untuk repo besar: baca kode → rencana tahap → implementasi → build/test → review. Checkpoint tersimpan dan pekerjaan bisa dilanjutkan.</p><form id="projectForm" class="project-form"><label>Tujuan & kriteria hasil<textarea class="inp" id="projectBrief" rows="3" required placeholder="Contoh: kembangkan dashboard dengan autentikasi, penyimpanan data dan test integrasi. Pertahankan arsitektur repo."></textarea></label><label>Repo publik (opsional)<input class="inp" id="projectRepo" type="url" placeholder="https://github.com/pemilik/repo"></label><button class="btn pri">Mulai proyek</button></form><div id="projectList"></div></section>
       <form class="control-form" id="officeForm"><div class="row"><select class="inp" id="officeTarget" aria-label="Bot tujuan"></select><input class="inp grow" id="officeText" placeholder="Tugas untuk rekan Anda" required><button class="btn pri">Kirim tugas</button></div></form>
-      <div id="officeLog" class="control-form hidden"><div class="row"><h3 class="grow" id="officeLogTitle">Log aktivitas</h3><button class="btn sm" id="officeLogClose">Tutup log</button></div><div id="officeLogEntries"></div></div><h3>Aktivitas kantor</h3><div class="group"><div class="rows" id="officeTasks"></div></div>
+      <div id="officeLog" class="control-form hidden"><div class="row"><h3 class="grow" id="officeLogTitle">Log aktivitas</h3><button class="btn sm" id="officeLogClose">Tutup log</button></div><div id="officeLogEntries"></div></div><div class="row office-activity-heading"><h3 class="grow">Aktivitas kantor</h3><button type="button" class="btn sm" id="clearOfficeHistory">Bersihkan aktivitas selesai</button></div><div class="group"><div class="rows" id="officeTasks"></div></div>
     </div></div></div>
     <div class="view hidden" id="v-ai"><div class="page"><div class="page-in" style="max-width:1000px">
       <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('ai')">AI</button><button class="btn sm " type="button" onclick="go('mcp')">MCP</button></nav><span class="section-kicker">PILIH SUMBER, HUBUNGKAN, UJI</span><h2>Koneksi AI</h2><p class="lead">Satu tempat untuk semua model.<br>Mesin aktif: <b id="aiMode">Memeriksa…</b>.</p><ol class="connect-steps"><li><b>1</b>Pilih sumber AI</li><li><b>2</b>Siapkan model/provider</li><li><b>3</b>Uji jawaban nyata</li></ol>
@@ -889,7 +890,7 @@ async function sideStatus() {
 }
 function listen() {
   const es = new EventSource('/api/events');
-  es.onmessage = e => { const ev = JSON.parse(e.data); if(ev.type==='activity'&&typeof showActivity==='function')showActivity(ev); if (ev.type === 'notice') { toast(ev.text.slice(0, 90)); if (S.view === 'chat' && ev.bot === S.bot?.id && ev.channel === 'web' && !S.busy) loadChat() } };
+  es.onmessage = e => { const ev = JSON.parse(e.data); if(ev.type==='activity'&&typeof showActivity==='function')showActivity(ev); if(ev.type==='office_task'&&typeof updateOfficeTask==='function')updateOfficeTask(ev); if (ev.type === 'notice') { toast(ev.text.slice(0, 90)); if (S.view === 'chat' && ev.bot === S.bot?.id && ev.channel === 'web' && !S.busy) loadChat() } };
   es.onerror = () => { es.close(); setTimeout(listen, 10000) };
 }
 
@@ -900,6 +901,7 @@ async function start() {
 }
 start();
 </script>
+<script src="/static/office.js"></script>
 <script src="/static/control.js"></script>
 <script src="/static/activity.js"></script><script src="/static/workspace.js"></script>
 </body>

@@ -96,7 +96,7 @@ def test_checkpoint_requires_changed_source_and_real_test():
     milestone={'task':'Buat calculator.py dan uji assert','acceptance':'assert lulus'}
     problems,_=project_jobs.acceptance_problems(milestone,{'meta':{'tools':['list_files']}},{},{})
     assert len(problems)==2
-    problems,changed=project_jobs.acceptance_problems(milestone,{'meta':{'trace':[{'alat':'run_project_command','hasil':'[kode keluar 0]\nassert lulus'}]}},{},{'calculator.py':'actualhash'})
+    problems,changed=project_jobs.acceptance_problems(milestone,{'meta':{'trace':[{'alat':'run_project_command','arg':'python -c assert_calculator_test','hasil':'[kode keluar 0]\nassert lulus'}]}},{},{'calculator.py':'actualhash'})
     assert problems==[] and changed==['calculator.py']
 
 

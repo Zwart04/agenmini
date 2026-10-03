@@ -1,4 +1,4 @@
-# Agen Mini 0.4.0
+# Agen Mini 0.4.1
 
 9router opsional kini memakai backend Go yang dipin digest dan panel koneksi HTML/CSS/JavaScript bawaan. Akun upstream dipertahankan dengan backup SQLite sebelum migrasi; image khusus tetap dipertahankan. Dashboard lanjutan memakai ikon SVG lokal tanpa Google Fonts. Layanan router hanya dipublikasikan pada loopback, API key/login diwajibkan, dan TLS ketat diaktifkan.
 
@@ -104,3 +104,5 @@ Kandidat ringan [9router-go](https://github.com/luqman-v1/9router-go) diuji terp
 ### 0.3.5: tim pelaksana dan proyek bertahap
 
 Orchestrator menugaskan pekerjaan nyata, membuat spesialis domain dengan izin terbatas, dan meminta review. Telegram utama memakai Orchestrator. Workspace menampilkan tim, aktivitas, proyek persisten dan checkpoint. Koneksi memandu setup dan uji lokal/9router/FreeLLMAPI/API langsung serta Smart Router milik Agen Mini. Unduhan HTML memakai nama berkas produk; coding memakai anggaran lebih besar, pemeriksaan dan layout interaktif yang hemat untuk lokal. Node/npm/git tersedia sebagai alat proyek, dengan build serial dan batas RAM. Baca [alur proyek besar dan batas pengujiannya](PROYEK-BESAR.md).
+
+Workspace menampilkan kantor dengan karakter CSS original, meja kerja, ruang rapat untuk delegasi aktif, dan area tunggu. Gerakan mengikuti status server; animasi diam hanya menunjukkan kehadiran. Animasi/polling dijeda saat tab tersembunyi dan pilihan reduced motion dihormati. Aktivitas diringkas dengan detail lengkap yang bisa dibuka. Bersihkan aktivitas selesai hanya menghapus tugas kantor done/failed, bukan tugas aktif, percakapan atau berkas proyek. Izin proyek menampilkan perintah/folder/alasan sebelum diizinkan atau ditolak; tindakan berhasil melanjutkan checkpoint, kegagalan tetap ditandai gagal.

@@ -106,7 +106,7 @@ async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None
     if os.geteuid() == 0:
         extra = {"user": config.KERJA_UID, "group": config.KERJA_GID, "extra_groups": []}
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(config.WORK_DIR), "LANG": "C.UTF-8",
-           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg", "NODE_OPTIONS":"--max-old-space-size=192", "GIT_TERMINAL_PROMPT":"0"}  # grafik matplotlib ke berkas
+           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg", "NODE_OPTIONS":"--max-old-space-size="+str(384 if project else 192), "GIT_TERMINAL_PROMPT":"0"}  # grafik matplotlib ke berkas
     proc = await asyncio.create_subprocess_exec(
         *argv, stdin=asyncio.subprocess.PIPE if stdin else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
@@ -593,7 +593,7 @@ async def run_project_command(ctx,folder='',command='',timeout=180,**_):
     target=_ctx_workpath(ctx,'.' if scope and folder in ('','.',Path(scope).name) else folder) if scope else _workpath(folder)
     if not target.is_dir():return 'Error: folder proyek belum ada.'
     async with _project_command_lock:
-        return await _run_sandboxed(['bash','-c',command],timeout=min(max(int(timeout),1),300),cwd=target,project=True)
+        return await _run_sandboxed(['bash','-o','pipefail','-c',command],timeout=min(max(int(timeout),1),300),cwd=target,project=True)
 
 @tool('inspect_project','Memeriksa proyek','Read project tree/manifests and verify JSON/Python/JavaScript syntax without running installation scripts. Reports actual checks and remaining build/test requirements.',{'folder':S('workspace project folder')},['folder'])
 async def inspect_project(ctx,folder='',**_):

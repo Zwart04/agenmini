@@ -40,7 +40,7 @@ async def run(ctx,text,on_event):
     continuation=previous_project(ctx,text)
     if continuation:return continuation
     started=time.time();trace=[];is_site=coding.website_request(text)
-    if re.search(r'kompleks|besar|full.?stack|repo(?:sitori)?|berkelanjutan|milestone',text,re.I):
+    if (coding.functional_request(text) and projects.project_request(text)) or re.search(r'kompleks|besar|full.?stack|repo(?:sitori)?|berkelanjutan|milestone',text,re.I):
         from . import project_jobs
         match=re.search(r'https://github\.com/[\w.-]+/[\w.-]+',text)
         pid=project_jobs.create(ctx,text,match.group(0) if match else '')

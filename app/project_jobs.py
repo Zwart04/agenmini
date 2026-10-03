@@ -73,6 +73,10 @@ def rows():
     init();result=db.q('SELECT * FROM project_jobs ORDER BY id DESC LIMIT 30')
     for row in result:
         row['plan']=json.loads(row['plan'] or '{}');row['events']=db.q('SELECT phase,text,created_at FROM project_events WHERE project_id=? ORDER BY id DESC LIMIT 12',(row['id'],))
+        row['approval']=None
+        if row.get('approval_id'):
+            approval=db.one('SELECT id,tool,args,reason,status FROM approvals WHERE id=?',(row['approval_id'],))
+            if approval and approval['status']=='menunggu':row['approval']=approval
     return result
 
 
@@ -88,6 +92,7 @@ def acceptance_problems(milestone,response,before,after):
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
     if re.search(r'uji|test|assert|build|kompil|compile',criteria,re.I):
         commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and t.get('hasil','').startswith('[kode keluar 0]')]
+        commands=[t for t in commands if re.search(r'build|tsc|compile|pytest|unittest|jest|test|assert',str(t.get('arg','')),re.I)]
         if not commands:problems.append('Build/test yang diminta belum memiliki perintah nyata dengan exit code 0.')
     return problems,changed
 
@@ -172,9 +177,10 @@ async def step():
             text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
-                  'Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
+                  'Jalankan tes secara serial; untuk Jest gunakan --runInBand. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
             inventory=await inspect(job['folder'])
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
+            ctx.stage_goal=milestone['task']+' '+milestone['acceptance']
             before=snapshot(root)
             response=await office.execute(ctx,milestone['bot'],text);event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)

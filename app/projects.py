@@ -9,8 +9,9 @@ from . import llm,structured
 
 
 def project_request(text):
+    from .coding import functional_request
     return bool(re.search(r'\b(buat(?:kan|in)?|bikin(?:kan)?|build|create|generate|kembangkan)\b',text,re.I)
-                and re.search(r'\b(game|permainan|web\s*app|aplikasi|project|proyek)\b',text,re.I))
+                and (functional_request(text) or re.search(r'\b(game|permainan|web\s*app|aplikasi|project|proyek)\b',text,re.I)))
 
 
 class Document(HTMLParser):

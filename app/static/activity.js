@@ -19,14 +19,7 @@ function renderRuntime(r){
  $$('[data-mode]').forEach(b=>b.disabled=['queued','preparing','downloading','verifying'].includes(r.phase));
 }
 function showActivity(ev){
- const station=$$('#officeRoom [data-bot]').find(el=>el.dataset.bot===ev.bot);
- if(station){
-  station.classList.toggle('working',ev.status==='working');
-  ['thinking','writing','tool','delegating','queued','idle','alert'].forEach(p=>station.classList.toggle('phase-'+p,p===(ev.phase||'idle')));
-  station.querySelector('.sub').textContent=ev.status==='working'?(ev.action||'Berpikir…'):({done:'Selesai',failed:'Tugas terakhir gagal',waiting:'Menunggu izin'})[ev.last_status]||'Siap membantu';
-  station.querySelector('.office-task').textContent=ev.task||'Menunggu tugas baru';
-  const image=station.querySelector('.dot-asset');const state=dotState(ev);image.src=image.src.replace(/-[a-z]+\.svg$/, '-'+state+'.svg');
- }
+ if(typeof updateOfficePresence==='function')updateOfficePresence(ev);
  if(S.busy&&ev.bot===S.bot?.id&&ev.action){const label=$('#thread .activity-label');if(label)label.textContent=ev.action}
 }
 async function loadChatModels(backend,keep=false){

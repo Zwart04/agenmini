@@ -3,29 +3,36 @@ const dotShapes=['round','triangle','square','cloud','star','flame'];
 const dotState=(b,t)=>b.status==='working'?({tool:'writing',delegating:'listening',queued:'listening'}[b.phase]||b.phase||'thinking'):({done:'success',failed:'error',waiting:'alert',queued:'listening'})[b.last_status||t?.status]||'idle';
 const officeColors=['#f5ba92','#b1c9e9','#beb2db','#b6d4b4','#e7c578','#dfa6bb'];
 let aiDraftMode=null;
-let openedOfficeLog=null,officeRoomFingerprint="",officeLogFingerprint="",officeTimer, aiTimer, oauthFlow=null, oauthTimer, mcpDiscovered=[], editedSkill=null;
+let openedOfficeLog=null,officeRoomFingerprint="",officeTasksFingerprint="",officeLogFingerprint="",officeTimer, aiTimer, oauthFlow=null, oauthTimer, mcpDiscovered=[], editedSkill=null;
 const sayError=e=>toast(e.message || String(e));
+function officeTaskSummary(text){
+ const stage=String(text||'').match(/(?:^|\n)Tahap:\s*([^\n]+)/);
+ const line=(stage?stage[1]:String(text||'').replace(/\s+/g,' ').trim());
+ return line.length>140?line.slice(0,137)+'…':line;
+}
+$('#clearOfficeHistory').onclick=async()=>{try{const d=await api('/api/office/history',{method:'DELETE'});toast(d.cleared+' aktivitas selesai dibersihkan');await loadOffice()}catch(e){sayError(e)}};
 async function loadOffice(){
   clearTimeout(officeTimer);
   try{
     const d=await api('/api/office');
-    const roomFingerprint=JSON.stringify(d.bots);
-    if(roomFingerprint!==officeRoomFingerprint){officeRoomFingerprint=roomFingerprint;
-    $('#officeRoom').innerHTML=d.bots.map((b,i)=>`<div class="office-station"><button class="office-desk avatar-${i%6} phase-${b.phase||'idle'} state-${b.status==='working'?(b.phase||'thinking'):(d.tasks.find(t=>t.target===b.id)?.status||'idle')} ${b.status==='working'?'working':''}" data-bot="${esc(b.id)}" title="${esc(b.task||'Buka percakapan')}"><div class="mini-dot" style="--dot-color:${officeColors[i%officeColors.length]}"><img class="dot-asset" src="/static/dots/${dotShapes[i%6]}-${dotState(b,d.tasks.find(t=>t.target===b.id))}.svg" alt=""><i class="state-eyes"></i><i class="accessory"></i></div><span class="bot-role">${esc(b.id==='orchestrator'?'Koordinator tim':b.name)}</span><b>${esc(b.name)}</b><div class="sub">${b.status==='working'?esc(b.action||'Berpikir'):({done:'Selesai',failed:'Tugas terakhir gagal',waiting:'Menunggu izin'})[b.last_status]||'Siap membantu'}</div><div class="office-task">${esc(b.task||'Menunggu tugas baru')}</div></button><button class="btn sm office-log" data-log="${esc(b.id)}">Lihat log ${esc(b.name)}</button></div>`).join('');
-    $$('#officeRoom [data-bot]').forEach(x=>x.onclick=()=>pickBot(x.dataset.bot));
-    $$('#officeRoom [data-log]').forEach(x=>x.onclick=()=>showOfficeLog(x.dataset.log));
-    }
+    renderOfficeScene(d);
     $('#officeStats').innerHTML=`<b>${d.bots.filter(b=>b.status==='working').length} bot bekerja</b><span>${d.tasks.filter(t=>t.status==='queued').length} tugas menunggu · ${d.bots.length} anggota tim</span><small>Aktivitas langsung dari server</small>`;
     if(typeof loadProjects==='function')await loadProjects();
     const target=$('#officeTarget').value||'orchestrator';
     $('#officeTarget').innerHTML=d.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
     if(target)$('#officeTarget').value=target;
  const labels={queued:'Menunggu',working:'Dikerjakan',done:'Selesai',failed:'Gagal',waiting:'Butuh tindakan'};
-    $('#officeTasks').innerHTML=d.tasks.map(t=>`<div class="r"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p>${esc(t.text)}</p>${t.approval?`<div class="approval-preview"><p>${esc(t.approval.reason)}</p><pre class="task-result">${esc(t.approval.args)}</pre><button class="btn pri" data-office-approve="${t.id}">Izinkan tindakan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div>`:''}${t.result?`<details><summary>Lihat hasil</summary><div class="task-result">${esc(t.result)}</div></details>`:''}</div></div>`).join('')||empty('Belum ada tugas. Kirim satu tugas ke bot di atas.');
+    const tasksFingerprint=JSON.stringify(d.tasks);
+    if(tasksFingerprint!==officeTasksFingerprint){
+    const openDetails=new Set([...$('#officeTasks').querySelectorAll('details[open]')].map(n=>n.dataset.key));
+    officeTasksFingerprint=tasksFingerprint;
+    $('#officeTasks').innerHTML=d.tasks.map(t=>`<div class="r"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p class="office-task-summary">${esc(officeTaskSummary(t.text))}</p><details data-key="task-${t.id}"><summary>Lihat detail tugas</summary><div class="task-result">${esc(t.text)}</div></details>${t.approval?`<div class="approval-preview"><p>${esc(t.approval.reason)}</p><pre class="task-result">${esc(t.approval.args)}</pre><button class="btn pri" data-office-approve="${t.id}">Izinkan tindakan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div>`:''}${t.result?`<details data-key="result-${t.id}"><summary>Lihat hasil</summary><div class="task-result">${esc(t.result)}</div></details>`:''}</div></div>`).join('')||empty('Belum ada tugas. Kirim satu tugas ke bot di atas.');
     $$('[data-office-approve],[data-office-deny]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('/api/office/approval/'+(b.dataset.officeApprove||b.dataset.officeDeny),{method:'POST',body:{ok:!!b.dataset.officeApprove}});toast('Keputusan disimpan');loadOffice()}catch(e){sayError(e);b.disabled=false}});
+    $$('#officeTasks details').forEach(n=>{n.open=openDetails.has(n.dataset.key)});
+    }
     if(openedOfficeLog)await showOfficeLog(openedOfficeLog,true);
     if(typeof wireBusy==='function')wireBusy($('#v-office'));
-    if(S.view==='office'&&!document.hidden) officeTimer=setTimeout(loadOffice,5000);
+    if(S.view==='office'&&!document.hidden) officeTimer=setTimeout(loadOffice,d.bots.some(b=>b.status==='working')?5000:15000);
   }catch(e){sayError(e)}
 }
 $('#officeForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/office',{method:'POST',body:{target:$('#officeTarget').value,text:$('#officeText').value}});$('#officeText').value='';loadOffice()}catch(e){sayError(e)}};
@@ -102,9 +109,9 @@ async function loadUpdates(){const d=await api('/api/update');$('#updateVersion'
 $('#updateAuto').onchange=async e=>{try{await api('/api/update',{method:'POST',body:{auto:e.target.checked}});toast('Pengaturan update disimpan')}catch(e){sayError(e)}};
 $('#updateCheck').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{check:true}});toast('VPS akan memeriksa release dalam sekitar 30 detik.')}catch(e){sayError(e)}};
 $('#updateInstall').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{install:true}});toast('Update diminta. VPS akan membuat backup dan memasang release terbaru.')}catch(e){sayError(e)}};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(officeTimer);clearTimeout(aiTimer)}else if(S.view==='office')loadOffice();else if(S.view==='ai')loadAI().catch(sayError)});
 
-async function showOfficeLog(bot,refresh=false){try{const d=await api('/api/office/log/'+encodeURIComponent(bot));openedOfficeLog=bot;$('#officeLog').classList.remove('hidden');const fingerprint=bot+':'+(d.events[0]?.id||0)+':'+(d.entries[0]?.id||0);if(refresh&&fingerprint===officeLogFingerprint)return;officeLogFingerprint=fingerprint;$('#officeLogTitle').textContent='Log '+(S.bots.find(b=>b.id===bot)?.name||bot);$('#officeLogEntries').innerHTML=(d.events.length?'<h4>Aktivitas terbaru</h4>'+d.events.map(e=>`<div class="log-event"><small>${esc(new Date(e.created_at*1000).toLocaleTimeString())} · ${esc(e.kind)}</small><div>${esc(e.text)}</div></div>`).join(''):'')+d.entries.map(e=>`<div class="r"><div><small>${esc(new Date(e.created_at*1000).toLocaleString())} · ${esc(e.channel)}</small><div class="task-result">${esc(e.content)}</div>${e.trace.map(t=>`<details><summary>${esc(t.tool)}</summary><pre class="task-result">${esc(t.result)}</pre></details>`).join('')}</div></div>`).join('')||empty('Belum ada aktivitas tercatat.');if(!refresh)$('#officeLog').scrollIntoView({block:'nearest'})}catch(e){sayError(e)}}
+
+async function showOfficeLog(bot,refresh=false){try{const d=await api('/api/office/log/'+encodeURIComponent(bot));openedOfficeLog=bot;$('#officeLog').classList.remove('hidden');const fingerprint=bot+':'+(d.events[0]?.id||0)+':'+(d.entries[0]?.id||0);if(refresh&&fingerprint===officeLogFingerprint)return;officeLogFingerprint=fingerprint;$('#officeLogTitle').textContent='Log '+(S.bots.find(b=>b.id===bot)?.name||bot);$('#officeLogEntries').innerHTML=(d.events.length?'<h4>Aktivitas terbaru</h4>'+d.events.map(e=>`<div class="log-event"><small>${esc(new Date(e.created_at*1000).toLocaleTimeString())} · ${esc(e.kind)}</small><div class="office-task-summary">${esc(officeTaskSummary(e.text))}</div><details><summary>Lihat lengkap</summary><pre class="task-result">${esc(e.text)}</pre></details></div>`).join(''):'')+d.entries.map(e=>`<div class="r"><div><small>${esc(new Date(e.created_at*1000).toLocaleString())} · ${esc(e.channel)}</small><div class="office-task-summary">${esc(officeTaskSummary(e.content))}</div><details><summary>Lihat jawaban lengkap</summary><div class="task-result">${esc(e.content)}</div></details>${e.trace.map(t=>`<details><summary>${esc(t.tool)}</summary><pre class="task-result">${esc(t.result)}</pre></details>`).join('')}</div></div>`).join('')||empty('Belum ada aktivitas tercatat.');if(!refresh)$('#officeLog').scrollIntoView({block:'nearest'})}catch(e){sayError(e)}}
 $('#officeLogClose').onclick=()=>{openedOfficeLog=null;$('#officeLog').classList.add('hidden')};
 
 async function loadLocalModels(){

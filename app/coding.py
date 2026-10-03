@@ -6,9 +6,16 @@ from html.parser import HTMLParser
 from . import llm
 
 
+def functional_request(text):
+    wants_landing=bool(re.search(r'landing\s*page|halaman promosi',text,re.I)) and not re.search(r'(?:bukan|jangan|not)\s+(?:cuma\s+|hanya\s+)?landing',text,re.I)
+    if wants_landing:return False
+    return bool(re.search(r'e[ -]?commerce|ecommers|toko\s+online|marketplace|multi[ -]?(?:seller|tenant)|banyak\s+seller|autobalas|auto[ -]?reply|web[ -]?app|upload\s+produk|unggah\s+produk',text,re.I))
+
+
 def website_request(text):
     return bool(re.search(r'\b(buat(?:kan|in)?|bikin(?:kan)?|create|build|desain(?:kan)?|generate)\b', text, re.I)
-                and re.search(r'\b(website|landing\s?page|halaman\s+(web|html)|situs\s+web)\b', text, re.I))
+                and re.search(r'\b(website|landing\s?page|halaman\s+(web|html)|situs\s+web)\b', text, re.I)
+                and not functional_request(text))
 
 
 def extract_html(text):

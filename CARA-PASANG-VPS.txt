@@ -1,4 +1,4 @@
-AGEN MINI 0.3.6 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.4.1 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
@@ -91,3 +91,9 @@ PROYEK DAN KONEKSI 0.3.5
 Pilih Smart Router di Koneksi untuk routing lokal/API; aktifkan hanya kandidat yang dibutuhkan. Telegram utama menuju Orchestrator. Workspace menyimpan tahap proyek, hasil alat dan checkpoint; proyek besar bukan satu jawaban instan. Baca PROYEK-BESAR.md di ZIP source.
 
 VERSI 0.3.6: 9router Lite (Go) dipasang opsional. Akun router lama di-backup sebelum migrasi. Akun GitHub/Cloudflare host dideteksi setiap 5 menit; setelah reinstall login lama harus dipulihkan atau login ulang. Host CLI tanpa kredensial valid tidak dianggap terkoneksi. Panel Koneksi bawaan tidak memerlukan dashboard berat.
+
+TINJAU IZIN
+Workspace > Kantor > Proyek berkelanjutan: kartu Perlu izin menampilkan
+alat, folder, alasan dan perintah lengkap. Izinkan dan lanjutkan menjalankan
+tindakan itu; Tolak dan jeda mempertahankan berkas. Aktivitas kantor memiliki
+Lihat detail tugas / Lihat hasil dan Bersihkan aktivitas selesai.

@@ -241,3 +241,47 @@ async def test_settings_cannot_bypass_runtime_switch():
     finally:
         db.set_setting('llm_backend', old)
         await c.close()
+
+@pytest.mark.asyncio
+async def test_office_clear_preserves_active_tasks_and_chat():
+    office.init();ids=[];c=await client()
+    try:
+        for status in ('done','failed','working','waiting','queued'):
+            ids.append((status,db.run('INSERT INTO office_tasks(source,target,text,status) VALUES(?,?,?,?)',('owner','teknisi','clear-test',status))))
+        before=db.one('SELECT count(*) n FROM messages')['n']
+        assert (await c.delete('/api/office/history')).status==401
+        response=await c.delete('/api/office/history',headers={'Cookie':'agen_sesi='+pages.make_token()})
+        assert response.status==200
+        for status,tid in ids:
+            assert bool(db.one('SELECT id FROM office_tasks WHERE id=?',(tid,))) == (status not in ('done','failed'))
+        assert db.one('SELECT count(*) n FROM messages')['n']==before
+    finally:
+        for _,tid in ids:db.run('DELETE FROM office_tasks WHERE id=?',(tid,))
+        await c.close()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('allow,outcome,expected',[(True,'done','queued'),(True,'failed','failed'),(False,'done','paused')])
+async def test_project_approval_preview_and_decision(monkeypatch,allow,outcome,expected):
+    from app import project_jobs
+    project_jobs.init();c=await client();aid=pid=None;calls=[]
+    try:
+        aid=db.run('INSERT INTO approvals(chat_id,bot_id,tool,args,reason,status) VALUES(?,?,?,?,?,?)',(1,'teknisi','run_project_command',json.dumps({'folder':'projects/example','command':'npm test'}),'Run scoped command','menunggu'))
+        pid=db.run('INSERT INTO project_jobs(brief,folder,status,approval_id) VALUES(?,?,?,?)',('Approval test','projects/example','waiting',aid))
+        headers={'Cookie':'agen_sesi='+pages.make_token()}
+        listing=await (await c.get('/api/projects',headers=headers)).json()
+        entry=next(p for p in listing['projects'] if p['id']==pid)
+        assert json.loads(entry['approval']['args'])['command']=='npm test'
+        assert (await c.post(f'/api/projects/{pid}/approval',json={'ok':allow})).status==401
+        async def resolve(id,ok):
+            calls.append((id,ok));db.run('UPDATE approvals SET status=? WHERE id=?',('diizinkan' if ok else 'ditolak',id))
+            return {'text':'Tugas belum berhasil: exit 1' if outcome=='failed' else 'Actual command result','meta':{'status':outcome}}
+        monkeypatch.setattr(agent,'resolve_approval',resolve)
+        response=await c.post(f'/api/projects/{pid}/approval',headers=headers,json={'ok':allow})
+        assert response.status==200 and (await response.json())['status']==expected
+        assert db.one('SELECT status FROM project_jobs WHERE id=?',(pid,))['status']==expected
+        assert (await c.post(f'/api/projects/{pid}/approval',headers=headers,json={'ok':True})).status==400
+        assert calls==[(aid,allow)]
+    finally:
+        if pid:db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,))
+        if aid:db.run('DELETE FROM approvals WHERE id=?',(aid,))
+        await c.close()

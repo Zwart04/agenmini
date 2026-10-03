@@ -286,3 +286,19 @@ async def test_same_local_selection_repairs_disconnected_runtime(monkeypatch):
         assert requested==[('local','qwen35-08b')]
     finally:
         db.delete_chat(chat['id']);db.set_setting('local_model_id',old)
+
+@pytest.mark.asyncio
+async def test_office_task_sse_tracks_persisted_delegation():
+    from app import office,db,hub
+    queue=asyncio.Queue(maxsize=4);hub.web_listeners.add(queue);tid=None
+    try:
+        tid=office.enqueue('orchestrator','teknisi','Real delegation metadata')
+        ev=queue.get_nowait()
+        assert ev=={'type':'office_task','id':tid,'source':'orchestrator','target':'teknisi','status':'queued'}
+        db.run("UPDATE office_tasks SET status='working' WHERE id=?",(tid,));office.task_event(tid)
+        assert queue.get_nowait()['status']=='working'
+        db.run("UPDATE office_tasks SET status='done' WHERE id=?",(tid,));office.task_event(tid)
+        assert queue.get_nowait()['status']=='done'
+    finally:
+        hub.web_listeners.discard(queue)
+        if tid:db.run('DELETE FROM office_tasks WHERE id=?',(tid,))

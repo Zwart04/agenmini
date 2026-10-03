@@ -347,6 +347,14 @@ async def workspace(request):
     return web.json_response({'bots': bots, 'tasks': rows, 'busy_model': llm.gate.current})
 
 
+@routes.delete('/api/office/history')
+async def clear_office_history(request):
+    office.init()
+    count=db.one("SELECT count(*) n FROM office_tasks WHERE status IN ('done','failed')")['n']
+    db.run("DELETE FROM office_tasks WHERE status IN ('done','failed')")
+    return web.json_response({'ok':True,'cleared':count})
+
+
 @routes.post('/api/office')
 async def create_office_task(request):
     data = await request.json()
@@ -547,6 +555,23 @@ async def project_create(request):
     from . import project_jobs
     data=await request.json();bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
     return web.json_response({'id':project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))})
+
+@routes.post('/api/projects/{id}/approval')
+async def project_approval(request):
+    from . import project_jobs,office,agent
+    data=await request.json();pid=int(request.match_info['id'])
+    async with _approval_lock:
+        job=db.one('SELECT * FROM project_jobs WHERE id=?',(pid,))
+        if not job or job['status']!='waiting' or not job['approval_id']:raise ValueError('Tidak ada izin tertunda pada proyek ini.')
+        approval=db.one('SELECT status FROM approvals WHERE id=?',(job['approval_id'],))
+        if not approval or approval['status']!='menunggu':raise ValueError('Izin ini sudah ditindaklanjuti.')
+        ok=data.get('ok') is True
+        response=await agent.resolve_approval(job['approval_id'],ok)
+        state='paused' if not ok else 'waiting' if response.get('approval') else 'failed' if office.outcome(response)=='failed' else 'queued'
+        db.run('UPDATE project_jobs SET status=?,approval_id=?,result=?,updated_at=? WHERE id=?',
+               (state,response.get('approval',0),response.get('text','')[:2000],time.time(),pid))
+        project_jobs.event(pid,'approval',('Diizinkan' if ok else 'Ditolak')+': '+response.get('text','')[:2000])
+        return web.json_response({'ok':True,'status':state,'text':response.get('text','')})
 
 @routes.post('/api/projects/{id}')
 async def project_action(request):

@@ -65,6 +65,15 @@ def broadcast(bot):
         except asyncio.QueueFull: pass
 
 
+def task_event(task_id):
+    from . import hub
+    row=db.one('SELECT id,source,target,status FROM office_tasks WHERE id=?',(task_id,))
+    if not row:return
+    for queue in tuple(hub.web_listeners):
+        try:queue.put_nowait({'type':'office_task',**row})
+        except asyncio.QueueFull:pass
+
+
 def state(bot):
     return presence.get(bot) or _recent.get(bot) or {'status':'idle'}
 
@@ -101,8 +110,10 @@ def enqueue(source, target, text, owner_task=False):
         raise ValueError('Bot tujuan tidak aktif atau tidak ditemukan.')
     if db.one("SELECT count(*) n FROM office_tasks WHERE status='queued'")['n'] >= 30:
         raise ValueError('Antrean penuh; tunggu tugas sebelumnya selesai.')
-    return db.run('INSERT INTO office_tasks(source,target,text,created_at,updated_at,owner_task) VALUES(?,?,?,?,?,?)',
+    tid=db.run('INSERT INTO office_tasks(source,target,text,created_at,updated_at,owner_task) VALUES(?,?,?,?,?,?)',
                   (source, target, text[:4000], time.time(), time.time(), int(owner_task)))
+    task_event(tid)
+    return tid
 
 
 async def consult(source, target, text, task_id=None):
@@ -145,6 +156,7 @@ async def loop():
             await asyncio.sleep(2)
             continue
         db.run("UPDATE office_tasks SET status='working',updated_at=? WHERE id=?", (time.time(), row['id']))
+        task_event(row['id'])
         try:
             approval_id=0
             if row.get('owner_task'):
@@ -159,6 +171,7 @@ async def loop():
             result, status, approval_id = str(exc)[:500], 'failed',0
         db.run('UPDATE office_tasks SET result=?,status=?,updated_at=?,approval_id=? WHERE id=?',
                (result[:6000], status, time.time(), approval_id, row['id']))
+        task_event(row['id'])
 
 async def execute(ctx,target,text,on_event=None):
     """Owner-authorized work, serial and bounded; consultation remains read-only."""
@@ -182,6 +195,7 @@ async def execute(ctx,target,text,on_event=None):
         bot['tools']=[name for name in bot['tools'] if name not in ('web_search','read_webpage','browser')]
     tid=enqueue(ctx.bot['id'],target,text,owner_task=True)
     db.run("UPDATE office_tasks SET status='working' WHERE id=?",(tid,))
+    task_event(tid)
     phase('Menugaskan '+bot['name'],'delegating');log(ctx.bot['id'],'delegating',f'{target}: {text[:300]}')
     token=_chain.set(chain+(ctx.bot['id'],))
     response={}
@@ -191,6 +205,7 @@ async def execute(ctx,target,text,on_event=None):
         turn=agent.Turn(bot,ctx.channel,ctx.ext_id,event,prio=llm.PRIO_TASK);turn.bot=bot;turn.delegated=True;turn.review_only=target=='reviewer'
         if getattr(ctx,'project_folder',None):
             turn.max_steps=18;turn.project_folder=ctx.project_folder
+        turn.intent_text=getattr(ctx,'stage_goal',None)
         turn.display_task=text
         async with asyncio.timeout(900):response=await turn.run(text)
         status=outcome(response)
@@ -205,4 +220,5 @@ async def execute(ctx,target,text,on_event=None):
         _chain.reset(token)
         db.run('UPDATE office_tasks SET status=?,result=?,approval_id=?,updated_at=? WHERE id=?',
                (status,response.get('text','')[:6000],response.get('approval',0),time.time(),tid))
+        task_event(tid)
     return response

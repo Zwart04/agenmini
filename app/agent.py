@@ -236,6 +236,15 @@ def clean_answer(text: str) -> str:
 # Event yang dikirim ke layar: ("status", teks) ("token", potongan) ("approval", {...}) ("done", {...})
 
 
+def tool_failure_scope(name,args):
+    scope=args.get('path') or args.get('folder') or args.get('url') or args.get('query') or ''
+    if name=='run_project_command':
+        command=args.get('command','')
+        kind='test' if re.search(r'jest|pytest|unittest|test',command,re.I) else 'build' if re.search(r'build|tsc|compile',command,re.I) else 'install' if re.search(r'install|npm i\b|pip',command,re.I) else 'other'
+        scope=str(scope)+':'+kind
+    return name,str(scope)
+
+
 def tool_label(name: str, args: dict) -> str:
     t = tools.REGISTRY.get(name)
     label = t.label if t else name
@@ -246,10 +255,11 @@ def tool_label(name: str, args: dict) -> str:
     return label
 
 
-def context_block(bot: dict, text: str) -> tuple[str, list[int]]:
+def context_block(bot: dict, text: str, hint_text=None) -> tuple[str, list[int]]:
     parts = [f"Waktu sekarang: {db.now_str()}"]
     prof = memory.profile_memories(bot)
-    rel = memory.search_memories(bot, text, k=5)
+    topic = text if hint_text is None else hint_text
+    rel = memory.search_memories(bot, topic, k=5)
     seen, mems = set(), []
     for m in prof + rel:
         if m["id"] not in seen:
@@ -260,17 +270,17 @@ def context_block(bot: dict, text: str) -> tuple[str, list[int]]:
     lessons = db.q("SELECT text FROM memories WHERE kind='pelajaran' AND scope=? ORDER BY id DESC LIMIT 2", (bot["id"],))
     if lessons:
         parts.append("Catatan penting untukmu:\n" + "\n".join(f"- {l['text']}" for l in lessons))
-    hints = task_hints(text, bot.get("tools", []))
+    hints = task_hints(topic, bot.get("tools", []))
     if hints:
         parts.append("Petunjuk:\n" + "\n".join(f"- {h}" for h in hints))
-    skills = [] if is_light(text,bot.get('tools',[])) else memory.search_skills(bot, text)
+    skills = [] if is_light(topic,bot.get('tools',[])) else memory.search_skills(bot, topic)
     for s in skills:
         parts.append(f"Skill tersimpan \"{s['name']}\" (dipakai bila: {s['when_to_use']}):\n{s['steps']}")
         db.run("UPDATE skills SET uses=uses+1 WHERE id=?", (s["id"],))
     return "[Konteks]\n" + "\n\n".join(parts), [s["id"] for s in skills]
 
 
-def build_messages(bot: dict, chat: dict, text: str) -> tuple[list[dict], list[int]]:
+def build_messages(bot: dict, chat: dict, text: str, hint_text=None) -> tuple[list[dict], list[int]]:
     system = system_prompt(bot)
     msgs = [{"role": "system", "content": system}]
     if chat.get("summary"):
@@ -285,7 +295,7 @@ def build_messages(bot: dict, chat: dict, text: str) -> tuple[list[dict], list[i
             content += f"\n[alat dipakai: {', '.join(dict.fromkeys(used))}]"
         if h["role"] == "user" or content:
             msgs.append({"role": h["role"], "content": content})
-    ctx, skill_ids = context_block(bot, text)
+    ctx, skill_ids = context_block(bot, text, hint_text)
     msgs.append({"role": "user", "content": f"{ctx}\n\n[Pesan]\n{text}"})
     return msgs, skill_ids
 
@@ -370,7 +380,7 @@ class Turn:
             # jangan biarkan model mengarang isi gambar yang tidak pernah ia lihat
             reply = FAILED_IMAGE_REPLY if recent_image(chat["id"]) == "gagal" else NO_IMAGE_REPLY
             return await self._reply(text, reply, {}, t0)
-        msgs, skill_ids = build_messages(bot, chat, model_text)  # riwayat dimuat sebelum pesan ini disimpan
+        msgs, skill_ids = build_messages(bot, chat, model_text, getattr(self,'intent_text',None))  # riwayat dimuat sebelum pesan ini disimpan
         if save_user:
             db.add_message(chat["id"], "user", text or "(gambar)", user_meta)
         if extra_msgs:
@@ -448,6 +458,8 @@ class Turn:
         failures: list[str] = []
         successes: list[str] = []
         seen_calls: dict[str, str] = {}
+        failures_by_scope = {}
+        recovered_tools = []
         turn_start = len(msgs) - 1
         answer, stats, mode = "", {}, "lengkap"
         model = bot.get("model") or None
@@ -470,19 +482,23 @@ class Turn:
                 last = step == max_steps
                 await self.on_event("status", "Berpikir…" if step == 0 else "Menimbang hasil…")
                 res = await llm.chat(msgs, tools=None if last else schemas, model=model,
-                                     on_token=lambda p: self.on_event("token", p), prio=self.prio)
+                                     on_token=lambda p: self.on_event("token", p), prio=self.prio,
+                                     max_tokens=(1400 if llm.active_backend()=='local' else 3000) if getattr(self,'project_folder',None) else None)
                 stats = res.get("stats", {})
                 calls = res["tool_calls"][:3]
                 if not calls:
+                    if not last and ('<tool>' in res['content'] or res.get('stats',{}).get('finish_reason')=='length'):
+                        msgs.append({'role':'user','content':'The preceding response/tool arguments were incomplete and were not executed. Do not paste long code inside tool-call JSON. Use edit_project_file with folder, path and short instructions to write complete raw code, or use smaller write_file calls. Return a complete tool call and then actually run validation.'})
+                        continue
                     pending,_=llm.extract_tool_calls(res['content'],set(bot.get('tools',[])))
                     if last and pending:
                         failures.append('Error: batas langkah tercapai sebelum panggilan alat berikutnya dijalankan.')
                         answer='Tugas belum berhasil: batas langkah tercapai. Lanjutkan dari checkpoint; tindakan berikutnya belum dijalankan.'
                         break
                     answer = res["content"].strip()
-                    if (last or nudged) and not getattr(self,'review_only',False) and needs_nudge(answer, used, names, text):
+                    if (last or nudged) and not getattr(self,'review_only',False) and needs_nudge(answer, used, names, getattr(self,'intent_text',None) or text):
                         answer = "Saya belum berhasil menjalankan alat yang diperlukan, jadi hasilnya belum bisa saya pastikan."
-                    nudge = None if (last or nudged or getattr(self,'review_only',False)) else needs_nudge(answer, used, names, text)
+                    nudge = None if (last or nudged or getattr(self,'review_only',False)) else needs_nudge(answer, used, names, getattr(self,'intent_text',None) or text)
                     if nudge:
                         nudged = True
                         msgs += [{"role": "assistant", "content": answer}, {"role": "user", "content": nudge}]
@@ -558,11 +574,17 @@ class Turn:
                             result = f"Error: {e}"
                     result = str(result)
                     if key not in seen_calls: seen_calls[key] = result
+                    scope=tool_failure_scope(name,args)
                     if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan", "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:")) or re.search(r"\[kode keluar (?!0\])", result):
                         failures.append(result[:500])
+                        failures_by_scope.setdefault(scope,set()).add(result[:500])
                         if name == 'send_file':
                             result += '\nPerbaiki: berkas belum ada. Panggil write_file dengan isi lengkap terlebih dahulu, atau build_website untuk HTML. Jangan mengulang send_file pada berkas yang belum dibuat.'
                     elif name in used:
+                        if scope in failures_by_scope:
+                            resolved=failures_by_scope.pop(scope)
+                            failures=[failure for failure in failures if failure not in resolved]
+                            recovered_tools.append(name)
                         successes.append(name)
                         if name in ("web_search", "read_webpage"):
                             evidence.append(result)
@@ -586,11 +608,11 @@ class Turn:
 
         if failures and not successes:
             answer = "Tugas belum berhasil, jadi saya belum bisa memastikan hasilnya.\n\n" + "\n".join(failures[:3])
-        if not getattr(self,'review_only',False):answer = grounded_current_answer(text, answer, evidence, used)
+        if not getattr(self,'review_only',False):answer = grounded_current_answer(getattr(self,'intent_text',None) or text, answer, evidence, used)
         if not answer:
             answer = "Maaf, saya belum menemukan jawabannya."
         meta = {"tools": used, "skills": skill_ids, "seconds": round(time.time() - t0, 1), "stats": stats,
-                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "status": "partial" if failures else "done"}
+                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "recovered_tools":recovered_tools, "status": "partial" if failures else "done"}
         mid = db.add_message(chat["id"], "assistant", answer, meta)
         await self.on_event("done", {"text": answer, "message_id": mid, "meta": meta})
 
