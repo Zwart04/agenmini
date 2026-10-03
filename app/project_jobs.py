@@ -52,13 +52,22 @@ def repository_protected(brief, repository):
 
 def create(ctx,brief,repository=''):
     init()
-    if not str(brief).strip():raise ValueError('Tujuan proyek belum diisi.')
+    if not isinstance(brief,str) or not brief.strip():raise ValueError('Tujuan proyek belum diisi.')
+    if not isinstance(repository,str):raise ValueError('URL repo wajib berupa teks.')
     if repository and not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+(?:\.git)?/?',repository):raise ValueError('Gunakan URL GitHub tanpa token; repo privat memakai login host yang terverifikasi.')
     if db.one("SELECT count(*) n FROM project_jobs WHERE status IN ('queued','working','planning')")['n']>=5:raise ValueError('Selesaikan atau jeda proyek sebelumnya; maksimal lima antrean.')
     if repository_protected(brief,repository):raise ValueError('Repo ini ada dalam daftar jangan disentuh. Pilih repo lain; proyek lama tetap dipertahankan.')
-    pid=db.run('INSERT INTO project_jobs(brief,repository,status,channel,ext_id,engine,model,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
-               (brief[:12000],repository,'queued',ctx.channel,ctx.ext_id,ctx.bot.get('backend') or db.setting('llm_backend'),ctx.bot.get('model') or '',time.time(),time.time()))
-    folder='projects/project-'+str(pid);db.run('UPDATE project_jobs SET folder=? WHERE id=?',(folder,pid));event(pid,'queued','Proyek dijadwalkan. Progress dihitung dari tahap yang benar-benar selesai.');return pid
+    # SQLite INTEGER PRIMARY KEY can reuse IDs after record deletion. Persist a
+    # high-water mark and skip preserved folders/archives before allocating one.
+    with db._lock:
+        highest=db.one('SELECT max(id) n FROM project_jobs')['n'] or 0
+        pid=max(highest+1,int(db.setting('project_next_id') or 1))
+        while tools._workpath('projects/project-'+str(pid)).exists() or tools._workpath('projects/project-'+str(pid)+'-source.zip').exists():pid+=1
+        folder='projects/project-'+str(pid)
+        db.run('INSERT INTO project_jobs(id,brief,repository,folder,status,channel,ext_id,engine,model,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+               (pid,brief[:12000],repository,folder,'queued',ctx.channel,ctx.ext_id,ctx.bot.get('backend') or db.setting('llm_backend'),ctx.bot.get('model') or '',time.time(),time.time()))
+        db.set_setting('project_next_id',str(pid+1))
+    event(pid,'queued','Proyek dijadwalkan. Progress dihitung dari tahap yang benar-benar selesai.');return pid
 
 
 async def inspect(folder):

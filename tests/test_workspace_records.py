@@ -13,11 +13,16 @@ async def test_project_and_activity_crud_preserve_files_and_conversations(tmp_pa
     async with TestClient(TestServer(app)) as client:
         headers={'Cookie':'agen_sesi='+auth.make_token()}
         denied=await client.delete('/api/projects?scope=all');assert denied.status==401
+        count=db.one('SELECT count(*) n FROM project_jobs')['n']
+        for invalid in ([],{'name':True,'brief':'invalid name'},{'brief':42},{'brief':'invalid repo','repository':True}):
+            response=await client.post('/api/projects',headers=headers,json=invalid);assert response.status==400
+        assert db.one('SELECT count(*) n FROM project_jobs')['n']==count
         ctx=tools.Ctx(db.bot('orchestrator'),db.chat_for('orchestrator','crud-test','private'),'crud-test','private')
         first=project_jobs.create(ctx,'Project CRUD regression');second=project_jobs.create(ctx,'Completed fixture')
         source=tmp_path/('projects/project-'+str(first));source.mkdir(parents=True);(source/'source.txt').write_text('must survive record removal')
         db.run("UPDATE project_jobs SET status='done' WHERE id=?",(second,))
         response=await client.patch('/api/projects/'+str(first),headers=headers,json={'name':'Changed','brief':'Actual revised goal'});assert response.status==200
+        invalid=await client.patch('/api/projects/'+str(first),headers=headers,json=[]);assert invalid.status==400
         assert db.one('SELECT name,brief FROM project_jobs WHERE id=?',(first,))=={'name':'Changed','brief':'Actual revised goal'}
         project_jobs.running_projects.add(first)
         response=await client.delete('/api/projects?scope=all',headers=headers);assert response.status==400
@@ -81,3 +86,22 @@ def test_project_archive_includes_source_beyond_inventory_limit_and_excludes_run
         assert len(names) == 502 and 'file-500.txt' in names
         assert not any(name in names for name in ('.env', 'app.db', 'app.db-wal', 'app.db-shm', 'key.pem'))
         assert json.loads(archive.read('AGENMINI-ARCHIVE.json'))['omitted'] == report['omitted']
+
+
+def test_deleted_project_id_cannot_reuse_preserved_source_or_archive(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, 'WORK_DIR', tmp_path)
+    ctx = tools.Ctx(db.bot('orchestrator'), db.chat_for('orchestrator', 'id-safety', 'x'), 'id-safety', 'x')
+    old = project_jobs.create(ctx, 'Preserved source regression')
+    folder = tmp_path / ('projects/project-' + str(old))
+    folder.mkdir(parents=True)
+    (folder / 'important.txt').write_text('original repository')
+    workspace_records.delete_project(old)
+    archive_only = old + 1
+    (tmp_path / ('projects/project-' + str(archive_only) + '-source.zip')).write_bytes(b'old archive fixture')
+    new = project_jobs.create(ctx, 'New independent project')
+    try:
+        assert new > archive_only
+        assert (folder / 'important.txt').read_text() == 'original repository'
+        assert db.one('SELECT folder FROM project_jobs WHERE id=?', (new,))['folder'] != str(folder.relative_to(tmp_path))
+    finally:
+        workspace_records.delete_project(new)

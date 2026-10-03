@@ -17,6 +17,8 @@ def editable_project(project_id):
 
 def update_project(project_id, data):
     editable_project(project_id)
+    if not isinstance(data, dict):
+        raise ValueError('Isi perubahan harus berupa objek JSON.')
     fields = {}
     for field, limit in [('name', 180), ('brief', 12000)]:
         if field not in data:
@@ -82,12 +84,16 @@ def delete_task(task_id):
 
 def update_task(task_id, data):
     row = task_record(task_id)
+    if not isinstance(data, dict):
+        raise ValueError('Isi perubahan harus berupa objek JSON.')
     if row['status'] != 'queued':
         raise ValueError('Hanya tugas yang belum dijalankan dapat diubah. Buat tugas baru untuk mengulang hasil lama.')
     text = data.get('text', row['text'])
     target = data.get('target', row['target'])
     if not isinstance(text, str) or not text.strip() or len(text) > 4000:
         raise ValueError('Isi tugas wajib berupa teks, maksimal 4000 karakter.')
+    if not isinstance(target, str):
+        raise ValueError('Bot tidak tersedia.')
     bot = db.bot(target)
     if not bot or not bot['active']:
         raise ValueError('Bot tidak tersedia.')

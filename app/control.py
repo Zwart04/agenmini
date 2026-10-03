@@ -632,11 +632,13 @@ async def office_delete(request):
 @routes.post('/api/projects')
 async def project_create(request):
     from . import project_jobs
-    data=await request.json();bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Isi proyek harus berupa objek JSON.')
+    name=data.get('name','')
+    if not isinstance(name,str) or len(name)>180:raise ValueError('Nama proyek maksimal 180 karakter.')
+    bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
     pid=project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))
-    if data.get('name'):
-        name=data['name']
-        if isinstance(name,str) and len(name)<=180:db.run('UPDATE project_jobs SET name=? WHERE id=?',(name.strip(),pid))
+    if name.strip():db.run('UPDATE project_jobs SET name=? WHERE id=?',(name.strip(),pid))
     return web.json_response({'id':pid})
 
 @routes.post('/api/projects/{id}/approval')
