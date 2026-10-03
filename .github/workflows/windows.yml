@@ -16,6 +16,8 @@ jobs:
         run: |
           if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
       - run: python windows/build.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Actual installer lifecycle and native app
         shell: pwsh
         run: |
