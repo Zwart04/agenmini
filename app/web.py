@@ -150,7 +150,7 @@ async def login(request):
         return web.json_response({"error": "Kata sandi salah."}, status=401)
     _fail.pop(ip, None)
     resp = web.json_response({"ok": True})
-    resp.set_cookie(COOKIE, make_token(), max_age=30 * 86400, httponly=True, secure=request.secure, samesite="Strict")
+    resp.set_cookie(COOKIE, make_token(), max_age=30 * 86400, httponly=True, secure=request.secure, samesite="Lax")
     return resp
 
 
