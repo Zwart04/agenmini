@@ -36,7 +36,7 @@ def publish(did,bot,text):
     from . import hub
     db.run('INSERT INTO office_discussion_messages(discussion_id,bot,text,created_at) VALUES(?,?,?,?)',(did,bot,text[:2000],time.time()))
     for queue in tuple(hub.web_listeners):
-        try:queue.put_nowait({'type':'office_discussion','discussion':did,'bot':bot,'text':text[:300]})
+        try:queue.put_nowait({'type':'office_discussion','discussion':did,'bot':bot,'text':text[:300],'created_at':time.time()})
         except asyncio.QueueFull:pass
 
 async def discuss(manual=False):

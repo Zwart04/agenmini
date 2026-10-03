@@ -526,7 +526,7 @@ async def bench_start(request):
 
 # pengaturan
 
-PUBLIC_SETTINGS = ["llm_backend", "compatible_base", "tool_mode", "model", "num_ctx", "keep_alive", "online_base", "online_model", "searx_url", "max_steps",
+PUBLIC_SETTINGS = ["full_access", "llm_backend", "compatible_base", "tool_mode", "model", "num_ctx", "keep_alive", "online_base", "online_model", "searx_url", "max_steps",
                    "browser_engine", "dns_aman", "vision_model", "image_gen", "cpu_hemat", "auto_local", "auto_9router"]
 
 
@@ -547,6 +547,9 @@ async def set_settings(request):
     data = await request.json()
     if 'llm_backend' in data and data['llm_backend'] != db.setting('llm_backend'):
         return web.json_response({'error': 'Ganti mesin melalui menu AI agar layanan VPS ikut disesuaikan.'}, status=400)
+    if 'full_access' in data and str(data['full_access']) not in ('0', '1'):
+        return web.json_response({'error': 'Mode akses harus 0 atau 1.'}, status=400)
+    activating_full_access = str(data.get('full_access', '')) == '1' and db.setting('full_access') != '1'
     for k in PUBLIC_SETTINGS:
         if k in data:
             db.set_setting(k, str(data[k]).strip())
@@ -570,8 +573,12 @@ async def set_settings(request):
         llm._session = None
         if old and not old.closed:
             asyncio.get_running_loop().call_later(60, lambda: asyncio.ensure_future(old.close()))
+    resumed = 0
+    if activating_full_access:
+        from . import permissions
+        resumed = permissions.resume_waiting()
     await telegram.sync()
-    return web.json_response({"ok": True})
+    return web.json_response({"ok": True, "resumed": resumed})
 
 
 # ---------- server ----------

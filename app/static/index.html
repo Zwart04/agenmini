@@ -359,6 +359,9 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
       <nav class="section-tabs" aria-label="Bagian halaman"><button class="btn sm tab-active" type="button" onclick="go('settings')">Umum</button><button class="btn sm " type="button" onclick="go('skills')">Skill</button><button class="btn sm " type="button" onclick="go('memory')">Ingatan</button><button class="btn sm " type="button" onclick="go('updates')">Update</button><button class="btn sm " type="button" onclick="go('models')">Diagnostik</button></nav><h2>Pengaturan</h2>
       <p class="lead">Semua opsional kecuali model.</p>
       <form id="setForm">
+        <div class="group"><div class="group-h">Izin tindakan</div><div class="group-b">
+          <div class="field"><label for="fullAccess">Mode akses agen</label><select class="inp" id="fullAccess" name="full_access"><option value="0">Tinjau tindakan berisiko</option><option value="1">Akses penuh — jalankan tanpa tinjauan</option></select><span class="hint">Akses penuh mengizinkan alat yang diberikan kepada bot untuk mengubah dan menghapus berkas, memasang dependensi, serta menjalankan tindakan layanan yang sudah terhubung. Berlaku untuk web, proyek, delegasi, dan Telegram. Proyek yang menunggu izin akan melanjutkan checkpoint. Batas folder, kredensial, dan pemeriksaan hasil tetap berlaku.</span></div>
+        </div></div>
         <div class="group"><div class="group-h">Telegram</div><div class="group-b">
           <div class="field"><label>Token bot utama</label><input class="inp" name="telegram_token" placeholder="dari @BotFather"></div>
           <div class="field"><label>User ID yang diizinkan</label><input class="inp" name="tg_user_ids" inputmode="numeric" placeholder="misalnya 123456789"><span class="hint">Buka @userinfobot di Telegram, kirim /start, salin angka Id. Pisahkan dengan koma untuk lebih dari satu orang. Berlaku untuk semua bot.</span></div>
@@ -859,14 +862,14 @@ async function loadSettings() {
   $('#modelSel').value = s.model;
   $('#modelChoices').innerHTML = [...new Set([s.model, "online", ...st.installed.map(m => m.name)])].map(n => `<option value="${esc(n)}" ${n === s.model ? 'selected' : ''}>${esc(prettyModel(n))}</option>`).join('');
   $('#visionSel').innerHTML = `<option value="">Tidak ada</option>` + [...new Set([s.vision_model, ...st.installed.map(m => m.name)].filter(Boolean))].map(n => `<option value="${esc(n)}" ${n === s.vision_model ? 'selected' : ''}>${esc(prettyModel(n))}</option>`).join('');
-  for (const k of ['llm_backend', 'compatible_base', 'compatible_key', 'tool_mode', 'telegram_token', 'num_ctx', 'max_steps', 'browser_engine', 'online_base', 'online_key', 'online_model', 'searx_url', 'dns_aman', 'image_gen', 'cpu_hemat']) if (f.elements[k]) f.elements[k].value = s[k] || '';
+  for (const k of ['full_access', 'llm_backend', 'compatible_base', 'compatible_key', 'tool_mode', 'telegram_token', 'num_ctx', 'max_steps', 'browser_engine', 'online_base', 'online_key', 'online_model', 'searx_url', 'dns_aman', 'image_gen', 'cpu_hemat']) if (f.elements[k]) f.elements[k].value = s[k] || '';
   f.elements.tg_user_ids.value = (s.tg_user_ids || []).join(', ');
   $('#pairCode').textContent = s.pair_code;
   $('#consol').textContent = st.last_consolidate ? 'Perapian malam terakhir: ' + st.last_consolidate : '';
 }
 $('#setForm').onsubmit = async e => {
   e.preventDefault(); const f = e.target; const body = {};
-  for (const k of ['compatible_base', 'compatible_key', 'tool_mode', 'telegram_token', 'model', 'num_ctx', 'max_steps', 'browser_engine', 'online_base', 'online_key', 'online_model', 'searx_url', 'dns_aman', 'vision_model', 'image_gen', 'cpu_hemat', 'new_password']) body[k] = f.elements[k].value;
+  for (const k of ['full_access', 'compatible_base', 'compatible_key', 'tool_mode', 'telegram_token', 'model', 'num_ctx', 'max_steps', 'browser_engine', 'online_base', 'online_key', 'online_model', 'searx_url', 'dns_aman', 'vision_model', 'image_gen', 'cpu_hemat', 'new_password']) body[k] = f.elements[k].value;
   body.tg_user_ids = f.elements.tg_user_ids.value.split(/[,\s]+/).filter(Boolean);
   if (!body.new_password) delete body.new_password;
   try { await api('/api/settings', {method: 'POST', body}); f.elements.new_password.value = ''; toast('Tersimpan'); loadSettings(); sideStatus() } catch (err) { toast(err.message) }

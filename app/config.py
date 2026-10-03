@@ -17,6 +17,7 @@ DEFAULTS = {
     "llm_backend": os.environ.get("LLM_BACKEND", "ollama"),
     "compatible_base": os.environ.get("COMPATIBLE_BASE", "http://host.docker.internal:8080/v1"),
     "compatible_key": os.environ.get("COMPATIBLE_KEY", ""),
+    "full_access": "0",
     "tool_mode": os.environ.get("TOOL_MODE", "text"),
     "ollama_url": os.environ.get("OLLAMA_URL", "http://ollama:11434"),
     "model": os.environ.get("MODEL", "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"),

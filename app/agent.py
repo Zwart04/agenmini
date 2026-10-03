@@ -50,7 +50,10 @@ def decision_table(tool_names) -> str:
 
 
 def system_prompt(bot: dict) -> str:
-    return BASE_RULES.format(name=bot["name"], persona=bot["persona"], decisions=decision_table(bot.get("tools", [])))
+    prompt = BASE_RULES.format(name=bot["name"], persona=bot["persona"], decisions=decision_table(bot.get("tools", [])))
+    if db.setting("full_access") == "1":
+        prompt += "\nOwner enabled full access: execute assigned tools for the requested task without requesting repeated action approval. Preserve the user's task scope and verify actual tool results; full access does not grant missing tools or credentials."
+    return prompt
 
 
 UNTRUSTED_TOOLS = {"web_search", "read_webpage", "browser"}
@@ -545,7 +548,7 @@ class Turn:
                     elif not t or name not in bot["tools"]:
                         result = f"Tool '{name}' is not available."
                     else:
-                        reason = t.danger(args) if t.danger else None
+                        reason = t.danger(args) if t.danger and db.setting("full_access") != "1" else None
                         if reason:
                             aid = db.run("INSERT INTO approvals(chat_id,bot_id,tool,args,reason,created_at) VALUES(?,?,?,?,?,?)",
                                          (chat["id"], bot["id"], name, json.dumps(args, ensure_ascii=False), reason, time.time()))

@@ -1,5 +1,6 @@
 /* Original CSS characters. One observer, persistent nodes, no rendering loop. */
 let officeSnapshot=null,officeRosterKey='',officeResizeObserver,officeLayoutWidth=0;
+const officeSpeech=new Map();
 const officePalette=['#f6be89','#aecada','#c5b6e3','#afcdaa','#f0cc76','#e5adc0'];
 const officeAccessories=['glasses','headphones','cap','sprout','scarf','bow'];
 const teamNames={coordination:'Koordinasi',creative:'Kreatif',engineering:'Engineering',research:'Riset'};
@@ -53,7 +54,14 @@ function positionOffice(){
  layout.positions.forEach((p,i)=>{
   const b=d.bots[i],node=nodes[i];node.style.setProperty('--x',(p.point.x-30)+'px');node.style.setProperty('--y',(p.point.y-32)+'px');
   node.classList.toggle('is-working',b.status==='working');node.classList.toggle('is-meeting',layout.meeting.has(b.id));node.classList.toggle('is-tool',b.status==='working'&&['tool','writing'].includes(b.phase));node.classList.toggle('is-waiting',p.zone==='Area tunggu');
-  const bubble=node.querySelector('.character-bubble');const talking=b.status==='working';const spoken=b.bubble&&Date.now()/1000-(b.bubble_at||0)<45;bubble.classList.toggle('visible',talking||spoken);bubble.classList.toggle('typing',talking);bubble.innerHTML=talking?'<span>'+esc(b.phase==='delegating'?'Mengajak diskusi':b.action||'Sedang berpikir')+'</span><i></i><i></i><i></i>':spoken?esc(b.bubble):'';
+  const bubble=node.querySelector('.character-bubble'),speech=officeSpeech.get(b.id);
+  const spoken=speech&&Date.now()/1000-speech.at<45,talking=b.status==='working',typing=talking&&!spoken;
+  const text=spoken?speech.text:typing?(b.phase==='delegating'?'Mengajak diskusi':b.action||'Sedang berpikir'):'';
+  const bubbleKey=JSON.stringify([typing,text,spoken?speech.at:0]);
+  bubble.classList.toggle('visible',!!(talking||spoken));bubble.classList.toggle('typing',typing);bubble.classList.toggle('speaking',!!spoken);
+  // Keep nodes intact during polling so animations can actually finish their cycles.
+  if(bubble.dataset.message!==bubbleKey){bubble.dataset.message=bubbleKey;bubble.innerHTML=text?'<span>'+esc(text)+'</span><em class="bubble-dots" aria-hidden="true"><i></i><i></i><i></i></em>':'';}
+  if(speech&&!spoken)officeSpeech.delete(b.id);
   const status=officeStatus(b);node.title=b.name+' · '+p.zone+' · '+status+(b.task?'\n'+b.task:'');node.setAttribute('aria-label',node.title+' · Buka chat');node.querySelector('.character-name').textContent=b.name;node.querySelector('.character-activity').textContent=b.status==='working'?(layout.meeting.has(b.id)?'Berdiskusi':b.phase==='tool'?'Memakai alat':'Bekerja'):p.zone==='Area tunggu'?'Menunggu':'Siap';
   const member=[...$('#officeRoster').querySelectorAll('[data-presence]')].find(n=>n.dataset.presence===b.id);if(member)member.textContent=p.zone+' · '+status;
   const desk=desks[i];desk.style.left=(p.home.x-37)+'px';desk.style.top=(p.home.y+20)+'px';
@@ -72,4 +80,9 @@ function updateOfficeTask(ev){
  if(!document.hidden&&S.view==='office')positionOffice();
 }
 
-function updateOfficeDiscussion(ev){if(!officeSnapshot)return;const bot=officeSnapshot.bots.find(b=>b.id===ev.bot);if(bot){bot.bubble=ev.text;bot.bubble_at=Date.now()/1000}if(!document.hidden&&S.view==='office')positionOffice()}
+function updateOfficeDiscussion(ev){
+ if(!ev.bot||!ev.text)return;
+ const at=Number(ev.created_at)||Date.now()/1000,previous=officeSpeech.get(ev.bot);
+ if(!previous||at>=previous.at)officeSpeech.set(ev.bot,{text:ev.text,at});
+ if(officeSnapshot&&!document.hidden&&S.view==='office')positionOffice();
+}
