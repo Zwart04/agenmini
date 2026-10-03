@@ -41,7 +41,7 @@ def test_continue_protected_project_does_not_choose_new_specialist(monkeypatch):
     from app import project_jobs
     monkeypatch.setattr(project_jobs,'init',lambda:None)
     monkeypatch.setattr(workflow.db,'q',lambda *a:[{'meta':'{"project_id":1}'}])
-    monkeypatch.setattr(workflow.db,'one',lambda *a:{'id':1,'channel':'web','ext_id':'owner','repository':'https://github.com/Zwart04/ntpro','brief':'Repo yang jangan di sentuh:\n- https://github.com/Zwart04/ntpro','status':'paused'})
+    monkeypatch.setattr(workflow.db,'one',lambda *a:{'id':1,'channel':'web','ext_id':'owner','repository':'https://github.com/example-owner/protected-app','brief':'Repo yang jangan di sentuh:\n- https://github.com/example-owner/protected-app','status':'paused'})
     ctx=SimpleNamespace(chat={'id':2},channel='web',ext_id='owner')
     result=workflow.previous_project(ctx,'lanjutkan dan laporkan ke telegram')
     assert result['meta']['project_id']==1 and result['meta']['status']=='paused'

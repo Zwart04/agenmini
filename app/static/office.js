@@ -7,7 +7,7 @@ const teamNames={coordination:'Koordinasi',creative:'Kreatif',engineering:'Engin
 const teamColors={coordination:'#eee2cf',creative:'#eee0e4',engineering:'#dbe8e5',research:'#e1e6d8'};
 function officeBotTeam(b){return b.team||(['orchestrator','strategi'].includes(b.id)?'coordination':['desainer','copywriter'].includes(b.id)?'creative':['teknisi','reviewer'].includes(b.id)?'engineering':'research')}
 function officePlacement(d,width){
- const compact=width<600,gap=14,roomWidth=compact?(width-42)/2:(width*.63-42)/2,cols=roomWidth>=290?3:roomWidth>=210?2:1;
+ const compact=width<600,gap=14,roomWidth=compact?(width-42)/2:(width*.63-42)/2,cols=roomWidth>=290?3:roomWidth>=110?2:1;
  const keys=Object.keys(teamNames),groups=keys.map(key=>d.bots.filter(b=>officeBotTeam(b)===key));
  const roomHeights=groups.map(g=>70+Math.max(1,Math.ceil(g.length/cols))*116),rows=[Math.max(roomHeights[0],roomHeights[1]),Math.max(roomHeights[2],roomHeights[3])];
  const rooms=keys.map((key,i)=>({key,title:teamNames[key],color:teamColors[key],left:14+(i%2)*(roomWidth+gap),top:48+(i>=2?rows[0]+gap:0),width:roomWidth,height:rows[Math.floor(i/2)]}));
@@ -39,8 +39,6 @@ function renderOfficeScene(d){
    const desk=document.createElement('div');desk.className='office-worktable';desk.dataset.desk=b.id;desk.innerHTML='<i class="office-monitor"></i><i class="office-keyboard"></i><i class="office-mug"></i>';furniture.append(desk);
    const node=document.createElement('button');node.type='button';node.className='office-character';node.dataset.bot=b.id;node.style.setProperty('--character-color',officePalette[i%6]);node.style.setProperty('--idle-delay',(-i*.8)+'s');node.innerHTML=`<span class="character-bubble" aria-hidden="true"></span><span class="character-shadow"></span><span class="office-creature accessory-${officeAccessories[i%6]}"><span class="creature-face"><i class="creature-eye"></i><i class="creature-eye"></i><i class="creature-mouth"></i><i class="creature-cheek left"></i><i class="creature-cheek right"></i></span><i class="creature-accessory"></i><i class="creature-hands"></i></span><span class="character-name"></span><span class="character-activity"></span>`;node.onclick=()=>pickBot(b.id);characters.append(node);
   });
-  $('#officeRoster').innerHTML=d.bots.map(b=>`<article class="office-member"><div><b>${esc(b.name)}</b><small data-presence="${esc(b.id)}"></small></div><button type="button" class="btn sm" data-log="${esc(b.id)}">Lihat log</button></article>`).join('');
-  $$('#officeRoster [data-log]').forEach(b=>b.onclick=()=>showOfficeLog(b.dataset.log));
   if(!officeResizeObserver){officeResizeObserver=new ResizeObserver(()=>{if(officeSnapshot&&!document.hidden&&S.view==='office')positionOffice()});officeResizeObserver.observe(room)}
  }
  positionOffice();
@@ -63,7 +61,6 @@ function positionOffice(){
   if(bubble.dataset.message!==bubbleKey){bubble.dataset.message=bubbleKey;bubble.innerHTML=text?'<span>'+esc(text)+'</span><em class="bubble-dots" aria-hidden="true"><i></i><i></i><i></i></em>':'';}
   if(speech&&!spoken)officeSpeech.delete(b.id);
   const status=officeStatus(b);node.title=b.name+' · '+p.zone+' · '+status+(b.task?'\n'+b.task:'');node.setAttribute('aria-label',node.title+' · Buka chat');node.querySelector('.character-name').textContent=b.name;node.querySelector('.character-activity').textContent=b.status==='working'?(layout.meeting.has(b.id)?'Berdiskusi':b.phase==='tool'?'Memakai alat':'Bekerja'):p.zone==='Area tunggu'?'Menunggu':'Siap';
-  const member=[...$('#officeRoster').querySelectorAll('[data-presence]')].find(n=>n.dataset.presence===b.id);if(member)member.textContent=p.zone+' · '+status;
   const desk=desks[i];desk.style.left=(p.home.x-37)+'px';desk.style.top=(p.home.y+20)+'px';
  });
  if(resized){void floor.offsetWidth;floor.classList.remove('office-resized')}

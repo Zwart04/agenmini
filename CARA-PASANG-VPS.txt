@@ -1,4 +1,4 @@
-AGEN MINI 0.5.4 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
+AGEN MINI 0.5.5 — VPS UBUNTU/DEBIAN, TANPA OLLAMA
 
 PASANG BARU / UPDATE VERSI LAMA
 1. Ekstrak agenmini-vps.zip di komputer, unggah pasang-vps.sh ke /root VPS.
@@ -49,8 +49,8 @@ versi baru mungkin sudah tersalin, tetapi skrip lama terpotong karena ditimpa sa
 Versi 0.3.2 mengganti skrip secara atomik dan sudah diuji saat caller masih aktif.
 Untuk melewati updater lama, jalankan sebagai root:
 cd /root
-curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.6/pasang-vps.sh -o pasang-vps.sh
-curl -fL https://github.com/Zwart04/agenmini/releases/download/v0.3.6/pasang-vps.sha256 -o pasang-vps.sha256
+curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps.sh -o pasang-vps.sh
+curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps.sha256 -o pasang-vps.sha256
 sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
 Setelah TERPASANG, muat ulang browser; jangan hapus data atau .env.
 

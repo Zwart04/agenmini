@@ -43,7 +43,7 @@ jobs:
           for name in ('agenmini-source.zip','agenmini-vps.zip'):
               with zipfile.ZipFile(Path('dist')/name) as archive:assert archive.testzip() is None
           Path('release-tag.txt').write_text('v'+version)
-          Path('release-notes.md').write_text('Perbaikan koneksi FreeLLMAPI/9router, penemuan model OpenCode gratis, fallback antar-model, kuota per model, argumen alat dan checkpoint proyek.\n\nDiuji: regresi Linux dan siklus pemasangan/update/uninstall Windows pada commit rilis ini. Ketersediaan API tetap mengikuti kuota provider. Kelulusan koneksi bukan jaminan seluruh model atau proyek kompleks berhasil; proyek pengguna tetap diproses dari checkpoint dengan pemeriksaan berkas dan tes nyata.\n\nData, konfigurasi provider dan bobot model tidak termasuk aset. Pemasang update mempertahankan data instalasi lama.\n')
+          Path('release-notes.md').write_text(Path('RELEASE-NOTES.md').read_text())
           PY
       - name: Publish and verify public downloads
         shell: bash

@@ -1,195 +1,22 @@
-# Validation - Agen Mini 0.3.4
+# Validasi Agen Mini 0.5.5
 
-Checked on 2026-10-02. Testing is separated from deployment and model-quality claims.
+Pemeriksaan ini membedakan regresi kode, integrasi layanan dan kualitas keluaran model.
 
-## Completed
+## Pemeriksaan
 
-- Linux pytest suite in the runtime Docker image: 78 passed.
-- Windows regression suite (Linux sandbox chart test excluded); actual stdio MCP SDK discovery/invocation.
-- Installer in a disposable Debian container with package/system commands mocked: fresh Docker install branch, payload extraction, private .env, update preserves data/config, build failure stops instead of reporting success.
-- Host supervisor in a disposable container with Docker/network commands mocked: reads real /proc hardware, defers while tasks busy, switches runtime, rejects unknown model IDs, checks versions, rejects bad SHA256.
-- Real 9router image: JWT-authenticated providers/models/combos returned HTTP 200; key creation returned 201; authenticated chat passed key validation and correctly rejected missing provider credentials. No provider account was connected.
-- Real pinned llama.cpp image loaded QwenPaw Flash 2B Q4, two CPU threads, 4096 context. Process memory observed about 2.04 GiB. Direct arithmetic returned 1000. Full Agen Mini arithmetic executed actual Python and returned 1000 in 33.1 seconds after reducing tool schemas (an earlier run took 73.3 seconds).
-- Real-model current-price trial withheld unverified numbers; unknown-email-password question used the deterministic guard. This caught hallucinations seen in the initial run; it does not establish that all answers are factual.
-- Real specialist consultation produced a response from Teknisi. Persistent office worker completed a guard task and recorded actual activity logs.
-- Office approval integration: file remained absent until authenticated approval, was written afterward, and replay was rejected. Bot-to-bot consultation remains read-only; explicit owner office tasks use target permissions and can request approval.
-- Browser desktop/mobile: login, workspace, queued task, completion, logs, hardware/model cards; mobile width 390px had equal client/scroll width, with all character SVGs loaded. UI screenshot artifacts saved separately.
-- Final packaged app: health, login, skills, MCP, office, updates and model catalogue endpoints returned HTTP 200.
-- JS syntax, Python compilation, Bash syntax, dependency-lock Docker build, self-extracting payload and compose validation.
+- Regresi Linux: 212 tes pada runtime Python aplikasi, memakai database terpisah. Cakupan meliputi autentikasi, alat, argumen terstruktur, checkpoint, izin, CRUD, arsip proyek dan preservasi berkas.
+- Chromium nyata: empat menu di viewport 1440, 1280, 320, 390 dan 430 piksel. Pemeriksaan overflow horizontal, JavaScript, bagian fitur yang terlihat, scroll, dialog rincian dan pagination. Pemeriksaan dilakukan pada antarmuka kandidat serta pemasangan setelah update.
+- Pilihan provider/model, draft formulir dan log tidak ditimpa polling. Kantor memakai status server/SSE; diskusi tidak membuat progres tugas palsu.
+- ZIP source/pemasangan: CRC, SHA256, versi dan daftar berkas diperiksa. Source berasal dari berkas Git terlacak, tanpa data instalasi, database, log privat, kredensial atau bobot model.
+- Pipeline release mensyaratkan CI Linux dan pemasangan/update/uninstall Windows pada commit yang sama. Aset publik kemudian diunduh ulang dan checksum diverifikasi.
+- Pemasang/supervisor diuji dalam lingkungan sekali pakai untuk preservasi konfigurasi/data, pergantian skrip atomik, penundaan saat sibuk dan penolakan checksum tidak valid. Perintah paket/Docker pada tes pemasang tertentu menggunakan mock.
 
-## Limits
+## Batas
 
-No installation/update was performed on the user's VPS. Installer package installation and rollback/download branch were tested with mocks, not a fresh cloud VM. Automatic release rollback was not induced on a live server. OAuth exchanges, real paid API provider chats, Telegram network delivery, external GitHub/email MCP credentials, and GPU acceleration were not exercised with user accounts. GPU acceleration is not provided by this CPU profile.
+Browser dan regresi tidak membuktikan semua proyek kompleks dapat selesai. Mutu HTML, game, aplikasi dan riset bergantung model serta spesifikasi tugas. Model kecil tetap berpotensi salah; skill dan pemeriksaan alat bukan jaminan bebas halusinasi.
 
-Qwen3.5 0.8B was inference-tested; Qwen3.5 2B/4B/9B remain metadata-only checks. Recommendations are conservative RAM/CPU heuristics with an available-memory check, not a leaderboard. Model selection is curated and updated with app releases, not an automatic promise of the newest model globally. Larger models can be much slower on CPU.
+Pengujian tidak melakukan email, posting sosial, perubahan iklan, pembayaran atau trading. Integrasi layanan tersebut memerlukan kredensial, izin dan pemeriksaan tersendiri. Koneksi yang terkonfigurasi belum membuktikan semua model memiliki kuota.
 
-Skills/MCP improve available instructions/tools; they do not train weights or guarantee intelligence. Source/number and tool guards reduce specific failure modes; hallucinations remain possible. Actual VPS RAM, disk, provider quotas and throughput remain environment-dependent.
+Tes pemasang sekali pakai bukan bukti instalasi pada semua penyedia VPS kosong. GPU, semua varian GGUF, OAuth seluruh provider, serta pemulihan bencana pada setiap sistem tidak diuji. Windows native memakai API; layanan lokal yang dikelola memerlukan Linux/WSL/Docker.
 
-
-## Additional 0.3.1 checks
-
-- Verified the exact Qwen3.5 0.8B GGUF bytes/hash against the pinned Hugging Face revision and loaded the real file in the pinned llama.cpp container with --no-mmproj. Actual model ID matched /v1/models; process initially observed around 380 MiB before inference. Full agent Python arithmetic returned 1000 in 37.6 seconds. Memory varies with context/use.
-- Real pinned FreeLLMAPI image: declarative private account created; login, unified key lookup, provider list and available model list worked. Registered the real local llama.cpp endpoint as a custom upstream and received HTTP 200 with X-Routed-Via custom/qwen35-08b. This tests transport/auth/routing without user provider credentials. The upstream returned a reasoning-style answer under a short token cap; no universal instruction-following claim is made.
-- Regression coverage for valid/corrupt/resumable downloads, live health/model-ID matching, duplicate switch rejection, per-bot engine context isolation, seed preservation, and rejecting invented per-bot model IDs. Supervisor mock additionally verifies a stale API request does not stop a DB-selected running local model.
-- Four main navigation entries, ten bots, per-bot engine/model editor and native FreeLLMAPI panel were checked in browser. Saved model IDs are validated against connected router/free model lists. Local bots share one active model.
-- User VPS logs show successful model loading followed by graceful Exited (0), not a missing-weight exception. The precise external stop trigger is not established from those logs; no remote VPS deployment was performed.
-
-- Real supervisor end-to-end: verified cached Qwen3.5 0.8B was launched through Compose, live health/model alias matched; injecting an obsolete API flag did not change the running local container start time. Switching through the UI to FreeLLMAPI stopped local and started the pinned router; generated private admin credentials worked and live provider/model discovery returned successfully. No provider key from the user was used.
-- 0.3.1 desktop/mobile checks include four-menu navigation, ten bots and the persisted per-bot engine/model editor. At 390px, page/modal scroll width equalled viewport width.
-
-- Real download continuation was exercised end-to-end in the packaged app/supervisor with Qwen3.5 0.8B: the UI showed received bytes/percentage, the verified download completed and live readiness changed to Siap. This ran locally in an isolated Docker project, not on the user VPS.
-
-## Additional 0.3.2 checks
-
-- Reproduced the legacy installer replacing a running Bash caller in place: the caller failed while reading fragments of the replacement file. The new installer uses same-directory atomic rename for root scripts and /usr/local/bin/agen. Both the running supervisor and CLI completed their original >100KB script tail after the actual new installer replaced the path; inode changed and stored data/config survived. These use real Bash/file operations and the real installer payload inside a disposable Debian container; system/package/Docker commands are mocked.
-- 78 Linux Python tests passed in the 0.3.2 Docker build; 77 Windows tests passed with the Linux sandbox chart test excluded. Supervisor checks, dependency-lock build and JS/Bash syntax passed.
-- Browser viewport checks at 320/390/430px: Chat/Workspace/AI/settings, secondary settings tabs, MCP and bot editing; page/form widths had no horizontal overflow. Ten local SVG characters loaded. Bot dialog remained vertically scrollable at 320px; drawer open/outside-close and navigation were exercised. These are browser viewport tests, not a physical iOS/Android keyboard or safe-area certification.
-- No commands were executed on the user's VPS in this run. VPS-reported version 0.3.1 after the updater error indicates the earlier payload had already been copied; actual cloud update recovery remains for the user to run.
-
-
-## Additional 0.3.3 checks
-
-- Linux runtime regression suite: 92 tests passed. JS syntax and Python compilation passed. Installer/supervisor mocks again passed, including the running-script atomic replacement case.
-- Real Linux tools: UTF-8 write/read/send roundtrip, isolated Python/shell arithmetic 1000, editing a newly created nested folder as user kerja, remember/recall, schedule/list/cancel (test-only future reminder), live web search and official Python documentation read, and actual stdio MCP hardware invocation.
-- Found and fixed a regression guard gap: repeating a failed tool previously produced a synthetic success-like result. The cached original error now remains an error; regression coverage verifies the final task status is failed.
-- Real Qwen3.5 0.8B Q4 via pinned llama.cpp (1 CPU thread, context 4096): initial unconstrained full HTML timed out/truncated, and one generic-JSON attempt reached its cap. The final bounded JSON-schema copy + trusted responsive layout produced and attached a complete Seller Studio HTML prototype in 12.2 seconds (2771 bytes). This is a bounded landing-page capability, not proof of reliable general coding by 0.8B.
-- Streaming OpenAI-compatible answers/code is exercised against actual local llama.cpp and a protocol test server; native tool arguments are still validated as complete JSON. Timeout errors show an actionable message. All generated HTML/JS/SVG downloads use attachment disposition.
-- Public Hugging Face import queried real immutable revisions/LFS hashes; Ollama qwen3:0.6b manifest resolved to one 522640096-byte model layer, and a range fetch returned GGUF magic. Full Ollama-weight inference was not performed. Download corrupt/resume/hash tests cover the shared downloader; additional models are marked untested until actual runtime load.
-- Actual pinned 9router and FreeLLMAPI dashboards rendered under owner-authenticated /apps/router/ and /apps/free/. Native navigation between providers/endpoint and models/keys worked. API auth stayed server-side; owner cookie was not forwarded to upstream. No user provider credentials/OAuth exchanges were used.
-- Browser: actual animated chat ring, changing CSS transforms on local SVG avatars, queued provider-switch ring, model chooser save, cross-bot history, copying a Telegram fixture into web, and 390px viewport with equal page/client widths were checked. Temporary test data is excluded from releases. Telegram /model callback tests include owner scope/long model IDs; live Telegram network delivery remains untested.
-
-These checks run locally in disposable fixtures, not on the user's VPS. API/provider/email/GitHub/image availability depends on real connections and quotas. Animations are CSS in the browser, with bounded existing SSE queues and paused hidden-tab polling; no animation engine/server render loop or new dependency was added.
-
-## 0.3.4: actual owner VPS validation (2026-10-02)
-
-Earlier sections describe historical fixture runs; this section describes the actual /opt/agenmini VPS.
-
-- Host: Debian 13.6, Linux 6.12.94, 3729 MiB RAM, 2 CPU, 2 GiB swap, approximately 29 GiB free disk. Kernel OOM records exist on September 25–26. The latest pre-repair local shutdown was exit 0 with OOMKilled=false; global DB mode was FreeLLMAPI, so the latest stopped model was not itself proof of an OOM fault.
-- Linux regression suite: 93 passed. Installer/supervisor disposable container tests passed: data/config preservation, build failure, atomic replacement of running shell scripts, component setup choices, busy deferral, hardware detection, model selection, release version/checksum rejection. Fresh package installation uses mocks; no empty cloud VPS was provisioned.
-- Actual existing-install update completed using the generated installer. Web health passed; code and online SQLite backups were created under data/backup. Secrets, provider state, bots, skills, MCP and conversation data retained. Only required engines started.
-- Actual authenticated web/API Seller Studio request before repair: 15.8 seconds, 6143-byte complete HTML downloaded with attachment disposition. After deployment: 5.7 seconds, actual routed model xkiro/mistralai/mistral-medium-3.5 recorded in metadata, generated file attached. This confirms FreeLLMAPI has a working provider in this installation.
-- Exact cached Qwen3.5 0.8B SHA256 verified; pinned llama.cpp served health and model ID qwen35-08b with no Ollama daemon. Real local landing-page evaluation: 23.8 seconds; Python 125*8: 26.8 seconds, actual shell output [kode keluar 0] / 1000. Model RSS observed up to roughly 934 MiB, cgroup memory roughly 577 MiB after the trial. Limit calibrated to 1400 MiB plus 700 MiB host reserve; not a universal model benchmark or hallucination-free claim.
-- Detected/fixed stale failed status blocking a now-healthy local server, same-model selection failing to request recovery, mandatory idle router startup during updates, standalone CLI using legacy container names, and landing-page metadata hiding the served model behind auto.
-- Actual Linux tool roundtrip: nested directory editable by kerja, UTF-8 write/read/list/send, Python and shell, memory save/recall, future test reminder create/list/cancel without delivery, live web search and official Python documentation read, real built-in stdio MCP hardware. Temporary tool tests used separate databases.
-- Real consultation orchestrator -> reviewer completed through the configured provider. Its answer included an obsolete Google mobile-test recommendation, illustrating that connected tools/delegation do not guarantee factual advice. No external emails, social posts or trading transactions were performed.
-- Authenticated browser: 1280/320/390/430 widths, Chat/Workspace/Koneksi/Pengaturan and subpages; all document scroll widths matched viewport widths, no page JavaScript errors. Real CSS avatar transform changed across frames. Native FreeLLMAPI dashboard returned HTTP 200. Waiting/writing/tool/delegating animation states and hidden-tab pause/polling have regression/code coverage; not every animation was captured live with every provider.
-- Real HF/Ollama import inspection returned immutable revisions/model-layer hashes. Cached model full load tested; arbitrary imported model inference and a new complete model download/resume on this VPS were not run. Corrupt/resume/hash paths covered by Linux regression tests. Existing model files retained.
-- Existing 9router native API auth/providers/models/combos responded; connected model list was empty. No new provider OAuth login was attempted. Existing dashboard and account data preserved.
-- Lightweight fork investigation: 9router-go v1.9.7 binary checksum verified, /health HTTP 200, idle RSS approximately 32 MiB. Docker image digest d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba used approximately 12 MiB cgroup idle in an isolated test. Providers/combos JWT endpoints worked; /api/models rejected the current Agen Mini adapter with HTTP 401, including a fresh isolated key setup. It was not substituted for upstream or attached to the owner's router volume. See https://github.com/luqman-v1/9router-go.
-
-Remaining limits: live Telegram delivery/model selection on Telegram requires an owner interaction (regression-tested command/callback paths); real external GitHub/email/image MCP credentials, provider quota exhaustion, OAuth refresh, induced live update rollback, fresh cloud-machine installation, and every arbitrary model architecture are not certified. Web copying Telegram history is regression-tested; no owner Telegram message was sent as a test. Existing provider credentials are never included in source/release assets.
-
-
-## 0.3.5 — VPS Linux, 2026-10-02
-
-Debian 13.6, RAM 3729 MiB, 2 CPU, swap 2 GiB. Existing applications, provider credentials, model cache and installation data preserved. Tests below are separate from CI; model calls are serial and the CPU local server is stopped after its test.
-
-- Regression: 106 tests passed, including permission inheritance for specialists, actual delegation/file transfer, failed checkpoint behavior, changed-source/test evidence, project path containment, HTML/inline JavaScript checks and serial routing fallback. Native JS files checked by Node.
-- Installer container: new installation, data/config preservation, failure handling and atomic replacement of running supervisor/CLI passed. Supervisor container: hardware detection, busy deferral, runtime/model allowlist, version comparison and bad checksum rejection passed.
-- Real connected FreeLLMAPI: models discovered from its API, actual served model `xkiro/mistralai/devstral-medium` for coding. Seller Studio request goes Copywriter → Desainer → Reviewer → Orchestrator, creates/saves/reads/delivers an HTML file. One measured run took 93.8 seconds including correction/fallback. Tiny model probes initially did not obey a literal response; an HTTP response is not marked as instruction-following success.
-- Download endpoint: HTTP 200 with `attachment; filename="seller-studio.html"; filename*=UTF-8''seller-studio.html`, about 16 KB, instead of a generic files.htm name.
-- Real cached Qwen3.5 0.8B: llama.cpp `/health` and `/v1/models` ready, served ID `qwen35-08b`; model-authored copy and the frontend foundation generated in 19.9 seconds. Model RSS about 738 MiB under its 1400 MiB cgroup limit. No Ollama daemon; no weight files removed.
-- Chromium: authenticated Chat/Workspace/Koneksi/Pengaturan at 1280, 320, 390, 430 px without horizontal overflow or page exceptions. Workspace avatar overlap found by visual inspection and corrected. API/local frontend examples: product form changes output, format tabs change output, no JS exceptions, no overflow at those four widths. A real browser found a Python-string newline escaping error that HTML parsing missed; template and inline JS validation corrected it.
-- Real browser tool: Lightpanda loads a workspace frontend through a temporary scoped local server, checks a product-form assertion, reports no JS errors, closes its process/server. DOM/JS is not presented as visual/WebGL rendering.
-- Real 2D Snake: multi-file ZIP CRC, matching DOM IDs, JS syntax, start/pause, four direction buttons and 320/390/430/1280 widths passed. An earlier 320px overflow/missing mobile controls was rejected/corrected rather than claimed successful.
-- Real 3D WebGL prototype: generated source required corrections for time/shader/matrix globals and camera placement. After correction, Chromium/SwiftShader compositor frames change under held-key input, pause keeps the frame stable, no JS exceptions or width overflow at the four widths. This proves this small prototype; it does not prove arbitrary complex 3D games.
-- Public repo clone into a fresh isolated working folder, actual inventory/AST/Node checks and compile command with exit code 0 passed. Real two-stage project test created calculator.py, ran positive and negative assertions via commands with exit code 0, persisted pause/resume/checkpoints and generated a source ZIP awaiting review. Early phantom-completion/wrong-folder cases led to path scoping and changed-file/test-evidence gates; they did not advance after failing the new checks.
-- A real custom accessibility specialist was created with only read/list/inspect tools. Duplicates and permission expansion are rejected. Local bots share one active runtime; specialists do not spawn model daemons.
-
-Limits: no claim of having reproduced Studio ZAI, ZwartOS, NTPro, Paperclip, Postiz or Gods Eye. Large repositories need concrete acceptance criteria, dependencies, sufficient model capability and actual build/integration evidence at each stage. Local 0.8B and free API models can misunderstand instructions or invent claims; prompts/skills are not a hallucination guarantee. Build heap is bounded and may be insufficient for some large toolchains. Chromium is optional; the default lightweight image uses Lightpanda, which cannot prove visual/WebGL rendering. Telegram polling/default routing is checked, but no test message is sent. No email/social/trading actions are tested. GitHub/email/image service credentials are not inferred from tool presence. The Go 9router fork remains unselected after the previous real adapter/model-endpoint incompatibility test.
-
-## 0.3.6 — 9router Lite, host discovery and fresh data
-- Root causes reproduced: stopped router has no reachable Docker DNS endpoint; provider connection `antigravity` mismatched catalog `ag`; switching mode retained FreeLLMAPI `auto:smart` as a 9router model. Alias mapping, validation and mode reset corrected.
-- Pinned 9router-go v1.9.7 tested on an online SQLite backup of the existing router. Existing Antigravity connection and 20 chat models discovered. Actual `ag/gemini-3-flash` answered AGEN_OK through Agen Mini SSE adapter; raw probes on two models also passed. A 30-token reasoning-model probe returned no text and was recorded as failure, then a sufficient-budget Flash probe passed.
-- Measured idle Go RSS/cgroup approximately 22 MiB versus 165 MiB upstream in this session. Managed upstream image migration has online integrity-checked backup; custom image overrides are preserved. No claim that every provider/model/quota combination is tested.
-- Real API authentication: unauthenticated providers/settings/models HTTP401; configured dashboard password200, default123456 rejected401. requireLogin/requireApiKey enforced, loopback publishing, STRICT_SSL=true. Sandbox reads of private integration tokens denied by Linux permissions.
-- Real host gh login detected and GitHub /user read returned the owner's account. Cloudflare has no credentials on this VPS: not connected, not reported as working. Other detected CLIs are installation inventory only. Arbitrary service auto-login and write/deploy operations are not implied.
-- Fresh actual Go database and fresh app bootstrap: key provisioned, no fake accounts/models, unauthorized APIs rejected, sandbox file write succeeded. Empty host home correctly has no connected account. Installer OS/Docker package flows and atomic-update failure paths tested in disposable mocked Linux fixtures; no VPS reinstall was performed.
-- 119 regression tests passed. Authenticated Chromium: four main menus at1280/320/390/430 have no horizontal overflow/JS errors. Smart source cards rendered and accessories visible. Advanced Go dashboard rendered at430px; 19 font ligatures replaced by local SVGs with no Google Font requirement. Basic provider connection uses native framework-free Agen Mini panel.
-
-- Actual Orchestrator -> teknisi -> reviewer file task completed in146.5s. Python returned1000, file written/read/attached, reviewer actually read it and ran Python. Coordinator tool metadata correctly contains delegation, not child tool names; an initial test assertion expecting the child tool on the parent was corrected by inspecting actual child traces. Repeated Python requests reused cached output, not additional execution. Final model summary was incomplete; workflow now preserves verified specialist output and real filenames when the summary is incomplete, covered by regression. Removed delegation permission is respected.
-
-## 0.3.7 — navigation and host accounts
-
-Sidebar shows Orchestrator and the selected specialist, with a Tim bot link to the complete Workspace team. Mobile selection offers the same short list. No bots, credentials or history are removed. Host accounts use compact cards with actual verification status; installed commands and diagnostic messages are collapsed. Account status reloads when opening Koneksi and unchanged polling preserves expanded details.
-
-Validation: JavaScript syntax checks and Chromium integration on an isolated copy of VPS data. Bot switching, full team access, detail expansion, account status and horizontal overflow checked at desktop 1280 and mobile 320, 390, 430 pixels. UI changes do not exercise new provider inference or external writes.
-
-## 0.3.8 — private GitHub clone
-
-Project #1 requested Zwart04/ntpro, a private repository. The host GitHub account could read it but the old clone tool was anonymous-only and misleadingly appended a success-style repo path after exit 128. A privileged fetch broker now uses host credentials for GitHub HTTPS clone without checkout, hooks, global Git configuration or submodules. Only a credential-free checkout runs as the sandbox user. Credentials remain outside sandbox permissions and outside repository config. Existing folders are never overwritten. Clone failures stay failures; the background worker verifies HEAD before planning against an existing repository folder.
-
-Live authenticated clone of ntpro: exit 0, HEAD df2556fbab4f7a78b7ca48017843c6438534b289, clean working tree, sandbox denied access to secrets. Original GitHub repository is unchanged; project execution uses a private local backup and checkpoints. Completion of its requested milestones must be reported separately from repairing clone.
-
-Telegram reporting is opt-in and uses the connected main bot and an allowed chat. It runs inside the existing application event loop, reads persisted checkpoints/audit status without LLM calls, reports every ten minutes during active work and status changes/final results, and avoids repeated idle reports. /laporan off disables it. Delivery is recorded only after Telegram returns a message_id. The owner's requested initial report was delivered through the real Telegram API.
-
-## 0.3.9 — bounded JSON validation and conversation continuation
-
-A stored Orchestrator response to “lanjutkan dan laporkan ke telegram” failed with JSONDecodeError and no attachments. The specialist chooser parsed model content directly and had no retry/schema checks; raw output and finish_reason were not retained, so the historical error does not prove a particular provider or truncation cause. Specialist selection and small project plans now validate complete JSON objects and their schema, retry once with a bounded larger output budget, and stop with an actionable failure if still invalid. Streaming finish_reason is retained, and length-limited JSON is rejected even if superficially parseable. Missing strings/braces are never fabricated.
-
-A continuation locates the previous project in the same conversation/channel/owner instead of treating it as a new generic specialist task. Failed/paused nonprotected jobs can be queued from the saved checkpoint; protected repositories remain paused.
-
-Regression includes malformed/truncated JSON, invalid specialist IDs, SSE truncation through a real local HTTP endpoint, bounded retry, no partial success, and preventing cross-owner/protected-project continuation. Historical messages and user project files are preserved.
-
-## 0.4.0 — conversation, review, original design and project capability
-
-Production history showed a greeting delegated to Asisten and then Reviewer, where review wording triggered unrelated forced tools/search guards. A paused protected project and a separate failed TypeScript project were different failure modes: the latter exhausted read steps and assigned a compilation milestone to Asisten without run_project_command. Simple conversation now uses the direct model path; continuation retains project context. Reviewer tools are scoped to actual files/build evidence and its review mode avoids unrelated intent/search nudges. Coordinator retries specialist work once and can report its own evidence review with the peer-review limitation stated.
-
-Website generation preserves model-authored HTML/CSS on both local/API modes, uses no fixed layout fallback, permits creative composition and does not require an unsolicited form, fixed section count or palette. Invalid/incomplete code is repaired once; failed drafts are not silently replaced by a template.
-
-Project stages receive the actual inventory/manifests and a bounded 18-step budget. Workers are selected by required edit/build tools without expanding parent permissions. Compilation acceptance requires a real successful command. Existing files/checkpoints and protected repositories are preserved.
-
-## 0.4.1 — lightweight office and visible project approvals
-
-Original soft CSS characters inspired by the interaction style of Louis-CFM/coucou, with distinct accessories, work desks, a meeting room and a waiting area. No Coucou assets, desktop process, frontend framework or animation render loop is installed. Existing SSE now includes persisted office-task source/target/status: active real delegations move the corresponding characters to the meeting room. Presence arrives on existing SSE; polling is 5 seconds active/15 seconds idle and stops when hidden. Persistent character nodes avoid restarting animations on each poll. Motion preferences and reduced motion are respected.
-
-Project approval preview includes exact tool arguments, folder and reason. Allow executes once, then queues the same checkpoint on success; reject pauses; failure remains failed. Replay and unauthenticated requests are rejected. Office history clearing deletes only done/failed task rows; active tasks, waiting approvals, chats, source files and project logs remain. Activity rows and logs offer short summaries with full details on demand.
-
-Regression suite: 159 tests, including approval preview/allow/reject/failure/replay, history preservation, actual pipeline exit codes, stage-specific hints and SSE delegation metadata. Authenticated Chromium preview at 1280/320/390/430 had equal viewport/document widths, all 10 characters inside the office and no JS exceptions. Browser-only delegation fixture moved two characters; animation time advanced, paused under the hidden-tab motion flag, and reduced motion disabled animation. These fixture checks do not claim a user task was completed.
-
-Additional engine fixes: functional ecommerce requests enter persistent projects instead of landing-page generation; project tool-call budgets are larger and truncated/raw-tool output is retried safely; recovery records successful scope-specific repairs. Project commands use bash pipefail, so pip/test errors are not hidden by a trailing tail command. Node heap is 384 MiB only for serialized project commands, 192 MiB otherwise. No claim that complex user ecommerce projects are complete based on these regression checks.
-
-A further live observation caught legacy approvals marked diizinkan while project state remained waiting. The shared approval completion callback now updates checkpoints for decisions through web, Telegram or office using the actual tool result, including nonzero command exit codes. Startup recovers consumed legacy approvals by queuing the same milestone for evidence rechecking without advancing its cursor. Four additional regressions cover success/failure/reject and legacy recovery.
-
-Fresh project turns use the current brief, stage and source inventory instead of unrelated shared-chat history; the stored user history is preserved. A live free-provider response had repeated obsolete approval text without making a tool call, which was rejected by the evidence gate. A regression verifies old approval messages cannot enter the new stage prompt. This reduces a reproduced loop; model capability still requires real milestone execution.
-
-## 0.4.2 — mobile meeting boundaries
-
-A live task after 0.4.1 publication exposed the second meeting participant's label extending 3 px below the mobile office. Meeting positions now reserve the full character/name height; viewport resizing snaps layout coordinates instead of animating from off-screen desktop coordinates. A Node regression covers 36 idle/waiting/active office cases at 288/358/398/936 content widths with 2/10/30 bots. Browser preview and deployed checks repeat the four viewports and active-delegation fixture.
-
-Project #2 completed its four saved milestones after the heap/tool/context fixes and produced a 54,970-byte source ZIP awaiting owner review. This is the existing TypeScript scaffold, not the requested WhatsApp application. Project #3's initial password/schema tests passed 5/5, but running its server in the foreground hit a timeout; the stage was correctly rejected. Project guidance now requires bounded HTTP smoke tests that start/check/close the server. Runtime recovery scopes distinguish those tests from package installation. Completion of the WhatsApp app remains subject to actual API/UI integration checks.
-
-## 0.5.0 — installed Windows app, official accounts and bounded office discussion
-
-The real VPS is Debian 13.6, 2 CPU and 3,729 MiB RAM with 2 GiB swap. Deployment uses code/database backups and retains data, credentials, old model weights and protected repositories. The agent health endpoint is checked after installation; local llama.cpp stays stopped in API mode, without an Ollama daemon.
-
-Four original CSS team rooms and accessories, actual delegation movement, typing/discussion bubbles and manual/hourly idle discussions use existing SSE and small serial model calls. Automatic discussion is opt-in on fresh installs; enabled hourly on this owner's VPS by explicit request. A real three-member discussion produced a reviewable draft. No model weights are trained or automatic code/social/trading changes made by idle discussion. Usage is provider-reported, with unknown usage/pricing identified; a dated ECB conversion was fetched successfully.
-
-Authenticated account setup includes Threads, Instagram professional, Meta Ads and YouTube OAuth/read APIs, private secret storage, PKCE/state/callback checking and read-only connection tests. These four services remain unconnected on the tested VPS because developer credentials were absent. Publishing Threads/Instagram is gated by an exact action approval and was not tested against a live account. YouTube upload/ad changes require a suitable MCP connection.
-
-Actual 9router account metadata and a real request revealed Antigravity account quota exhaustion (RESOURCE_EXHAUSTED/QUOTA_EXHAUSTED), rather than a DNS or model-name inference. The UI shows the provider error, retains its model catalog and excludes unavailable models from automatic inference. FreeLLMAPI served xkiro/mistralai/devstral-medium successfully; this does not establish all provider models as usable.
-
-Windows CI builds a real per-user Inno Setup installer with verified upstream Node/MinGit downloads and bundled CPython. It silently installs the EXE, starts the installed app, authenticates its loopback web API, exercises native Python/Node and timeout Job Objects, reinstalls with a SQLite backup, and uninstalls while retaining private data. This is not a portable archive. Native Windows uses the current Windows account, not a separate Linux sandbox UID. Linux-managed local/gateway components require a VPS or WSL/Docker; Windows native can connect to an existing API. The installer is not certificate signed.
-
-Real browser checks cover desktop and 320/390/430px: office characters stay inside their floor, pages do not widen, animation time advances, pause/reduced-motion stop animation, and two actual-delegation fixture characters move to meetings. A model-authored Seller Studio HTML was repaired using exact edits without switching to a layout template; browser checks cover 320/390/430/1280px, three offline demo controls and no JavaScript exceptions. It was attached to web history and Telegram confirmed document delivery. This HTML is an offline demo, not a connected AI product or the separate WhatsApp ecommerce application.
-
-Persistent project recovery keeps original stage baselines and reuses successful approval receipts only while source hashes match. Package installation, cached results and nonzero/timeout outputs do not establish passing tests. File edits include nearby real SQL/API contracts. Filesystem/test caches are invalidated after file changes; Python compilation catches semantic syntax errors that AST parsing alone misses. The WhatsApp project has real HTTP startup/schema/password/session evidence, but further authentication/catalog/checkout/UI acceptance still requires successful integration tests. It is not reported as a finished application.
-
-Linux regression and installer/supervisor checks run on the release commit in GitHub CI. The production Linux deployment and Windows installer lifecycle are real integrations. A newly provisioned blank Debian/Ubuntu VM, live social posting/ad operations, every local model, and all large user repositories were not comprehensively exercised.
-
-
-Owner-controlled full access defaults off and is available in Settings → Izin tindakan. When enabled, assigned tools execute without danger-review prompts across web, Telegram and delegated turns; unavailable bot tools still fail. Pending project/office approvals are superseded and the same checkpoint is requeued without an execution receipt or cursor advancement. An authenticated HTTP regression verifies enable/invalid input/unauthenticated denial and checkpoint preservation. Linux suite: 184 passed before the final prompt annotation; release CI reruns the final source.
-
-Speech bubbles retain their SSE message across office snapshots and hydrate recent persisted discussion messages on refresh. Actual recent speech takes precedence over typing. Persistent text/dot nodes avoid polling animation resets; transform/opacity animations stop while hidden and under reduced motion. Chromium at 320/390/430/1280px showed no sideways page overflow or JS errors; measured animation time advanced, survived a real office API refresh, and paused under the hidden-tab flag. These animation fixtures do not claim a model discussion occurred during the fixture.
-
-## 0.5.2: compact interface and refresh state (2026-10-03)
-
-- Linux runtime regression suite: 206 passed, including uninstall exercised in isolated directories with mocked Docker/systemd. Full removal leaves another app and its unit intact; keep-data mode retains .env/history/provider volumes; dry-run executes no host commands.
-- Real Chromium against authenticated VPS read APIs with candidate frontend files: 11 views at 1280, 320, 390 and 430 px, no horizontal overflow and no JavaScript page errors. FreeLLMAPI OpenRouter selection and an unsaved key remained unchanged through the actual 10-second polling interval.
-- Controlled browser log responses: updated text under the same event ID is rendered; open details survive; closing during an outstanding request does not reopen the log; switching bots rejects the older response. Model-selection drafts survive a changed catalogue, and clearing the submitted draft permits server state to update.
-- Source switches remain available while local-runtime downloads are busy. Office characters render on opening the optional office overview; core project checkpoints and pending approvals remain available.
-- These UI checks do not certify every upstream model, OAuth account, project or external service. No live uninstall, paid/social action, or freshly erased VPS was used as a test. Historical validation sections describe their respective older versions.
-
-## 0.5.3: visible office and full main pane (2026-10-03)
-
-Chromium on Debian checked 11 screens at 1440, 1280, 320, 390 and 430 px (55 combinations): the page fills the main pane, no document horizontal overflow, no JavaScript page errors. Workspace office, new-project form and task activity are visible without opening disclosures. Every character remains inside the office boundary; creature animations are active. Desktop team rooms use three columns where space permits. Essential host accounts, permissions, Telegram, security and usage are open; lengthy logs/plans and advanced configuration remain expandable. The earlier polling/draft fixes are retained. These are interface checks, not new claims about upstream model quotas or unfinished projects.
+Bukti operasional dan log akun instalasi tidak disertakan di repo publik. Untuk kondisi instalasi sendiri, gunakan Diagnostik, uji koneksi, log server dan hasil tahap proyek.

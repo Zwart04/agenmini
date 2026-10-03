@@ -33,8 +33,8 @@ async def test_exit_zero_requires_actual_metadata(monkeypatch,tmp_path):
     monkeypatch.setattr(tools,'_run_sandboxed',fake_success)
     assert (await repository.clone('https://github.com/owner/repo',tmp_path/'new')).startswith('Error:')
 
-@pytest.mark.parametrize('url,blocked',[('https://github.com/Zwart04/ntpro',True),('https://github.com/Zwart04/Studio-ZAI.git',True),('https://github.com/Zwart04/other',False)])
+@pytest.mark.parametrize('url,blocked',[('https://github.com/example-owner/protected-app',True),('https://github.com/example-owner/protected-studio.git',True),('https://github.com/example-owner/other',False)])
 def test_worker_honors_protected_repository_list(url,blocked):
     from app import project_jobs
-    brief="Rapihkan semua repo.\nlist repo yang jangan di sentuh penting:\n- https://github.com/Zwart04/ntpro\n- https://github.com/Zwart04/Studio-ZAI"
+    brief="Rapihkan semua repo.\nlist repo yang jangan di sentuh penting:\n- https://github.com/example-owner/protected-app\n- https://github.com/example-owner/protected-studio"
     assert project_jobs.repository_protected(brief,url) is blocked

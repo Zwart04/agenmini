@@ -1,0 +1,111 @@
+/* Shared layout: system fonts, native controls and CSS dots; no UI runtime. */
+:root { --accent: #29292c; --r: 16px; }
+.page { padding: 36px clamp(16px, 4vw, 48px) 64px; }
+.page-in { max-width: 1024px !important; }
+.page h2 { font-size: 30px; letter-spacing: -.04em; }
+.page h3 { font-size: 17px; letter-spacing: -.02em; }
+.page h4 { font-size: 14px; }
+.page .lead { font-size: 14px; margin-bottom: 24px; }
+.btn { border-radius: 10px; min-height: 36px; }
+.btn.pri { background: var(--inv); color: var(--on-inv); }
+.inp { border-radius: 10px; }
+.row { gap: 8px; }
+.group, .card, .setup-note { border-radius: 16px; }
+.group { overflow: hidden; }
+.merged-section { margin-top: 32px; padding-top: 24px; }
+.merged-section h2 { font-size: 22px; }
+.compact-section { padding: 20px 0; }
+.control-form { padding: 16px 0; }
+.control-form .field { margin: 0 0 16px; }
+.field label, form > label { font-size: 12px; font-weight: 500; }
+.field .inp, form > label .inp { margin-top: 6px; }
+.hint, .sub { line-height: 1.6; }
+.workspace-hero { padding: 0; margin-bottom: 24px; }
+.workspace-hero h2 { font-size: 30px; }
+.workspace-summary { padding: 0; }
+.workspace-summary b { font-size: 15px; }
+.workspace-summary span, .workspace-summary small { font-size: 12px; }
+.office-wall { display: flex; justify-content: space-between; height: auto; padding: 0 0 8px; background: none; border: 0; }
+.office-wall .office-title { font-size: 10px; letter-spacing: .12em; color: var(--muted); }
+.office-wall .room-plant, .office-wall .wall-chart { display: none; }
+.office-room { background: var(--soft) !important; border-color: var(--line) !important; box-shadow: none; }
+.office-floor { background: radial-gradient(circle, #92929825 1px, transparent 1px) 0 0 / 16px 16px, var(--soft); }
+.office-team-room { background: var(--panel); border: 1px solid var(--line); box-shadow: none; border-radius: 12px; }
+.office-team-room > span { color: var(--muted); font-size: 10px; }
+.team-room-mark { width: 6px; height: 6px; background: var(--muted); box-shadow: none; }
+.office-window i { background: var(--panel); border-color: var(--line); height: 12px; }
+.office-meeting, .office-lounge { background: var(--panel); border: 1px solid var(--line); box-shadow: none; }
+.office-zone-title { color: var(--muted); }
+.office-worktable { width: 60px; background: #e5e5e7; border: 1px solid #c7c7cc; box-shadow: 0 3px #c7c7cc40; }
+.office-monitor { border-color: #75757b; background: #c9d8d5; }
+.office-keyboard { background: #fafafa; }
+.office-mug { background: #fff; }
+.meeting-table { background: #d9dbdd; border-color: #b6b8bd; box-shadow: 0 4px #b6b8bd40; }
+.meeting-table i, .office-sofa { background: #c5cfca; border-color: #a7b5af; }
+.character-name { font-size: 9px; background: var(--panel); border: 0; color: var(--text); width: 70px; left: -5px; }
+.character-activity { color: var(--muted); font-size: 8px; width: 70px; left: -5px; }
+.office-creature { border-radius: 50%; }
+.creature-eye { width: 5px; height: 7px; top: 20px; left: 17px; }
+.creature-eye:nth-child(2) { left: 31px; }
+.creature-eye::after, .creature-cheek { display: none; }
+.creature-mouth { top: 32px; }
+.character-bubble { background: var(--panel); color: var(--text); border-color: var(--line); box-shadow: 0 3px 12px #0000000b; }
+.character-bubble.visible { animation: speech-arrive .25s ease-out; }
+@keyframes speech-arrive { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.project-section { margin: 28px 0; }
+.project-new { background: var(--soft); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 12px; }
+.project-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.project-form > label:nth-of-type(2), .project-form > .row { grid-column: 1 / -1; }
+.project-form > label:nth-of-type(3) { grid-column: 2; grid-row: 1; }
+.project-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 12px 0; background: var(--panel); }
+.project-result, .project-current { font-size: 12px; max-height: 76px; }
+.project-evidence { display: block; }
+.activity-row { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.activity-row b { font-size: 12px; }
+.office-task-summary { font-size: 12px; line-height: 1.6; margin: 6px 0 10px; color: var(--muted); }
+.record-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px; }
+.record-pagination span { font-size: 11px; color: var(--muted); text-align: center; }
+#officeLogEntries { max-height: 400px; overflow: auto; }
+#botCards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#botCards .card { padding: 16px; }
+.bot-purpose { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 10px 0; }
+#skillList > .r, #memList > .r { align-items: flex-start; padding: 16px; }
+#skillList > .r > .row { flex-wrap: wrap; }
+#skillList b { font-size: 13px; }
+.memory-preview { display: block; font-size: 13px; }
+.engine-choice { gap: 8px; }
+.engine-choice button { min-height: 44px; padding: 10px 12px; border-radius: 10px; }
+.account-card { padding: 16px; min-height: 82px; }
+.host-details { padding-top: 16px; }
+.host-detail { padding: 10px 0; }
+.route-card { padding: 14px; }
+.route-models { max-height: 130px; }
+.record-detail { width: min(720px, calc(100vw - 32px)); max-height: 86dvh; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--text); box-shadow: 0 24px 80px #0003; }
+.record-detail::backdrop { background: #0005; }
+.record-detail > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.record-detail h3 { font-size: 16px; margin: 0; overflow-wrap: anywhere; }
+.record-detail-body { padding: 20px; overflow: auto; max-height: calc(86dvh - 76px); }
+.detail-text { font-size: 13px; line-height: 1.7; font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 20px; }
+.record-detail .project-stage { margin: 10px 0; }
+@media (max-width: 680px) {
+ .page { padding: 22px 16px 44px; }
+ .page h2, .workspace-hero h2 { font-size: 26px; }
+ #botCards, .project-form { grid-template-columns: 1fr; }
+ .project-form > label:nth-of-type(3) { grid-column: 1; grid-row: auto; }
+ .btn { min-height: 44px; }
+ .office-activity-heading { align-items: stretch; }
+ .office-activity-heading select { width: 100%; }
+ .office-activity-heading h3 { width: 100%; flex-basis: 100%; }
+ .record-detail-body { padding: 16px; }
+ .activity-row { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .character-bubble.visible { animation: none; } }
+/* The scene keeps the same activity layout, with a quiet dotted canvas. */
+.office-overview .office-floor { background: radial-gradient(circle, #92929825 1px, transparent 1px) 0 0 / 16px 16px, var(--soft); }
+.office-overview .office-team-room { border-color: var(--line) !important; box-shadow: none; }
+.office-overview .office-meeting, .office-overview .office-lounge { background: var(--panel); border-color: var(--line); }
+@media (max-width: 680px) {
+ #skillList > .r { flex-wrap: wrap; gap: 8px; }
+ #skillList > .r > .grow { flex-basis: 100%; }
+ #skillList > .r > .row { width: 100%; }
+}

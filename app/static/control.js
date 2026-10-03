@@ -11,6 +11,28 @@ function officeTaskSummary(text){
  return line.length>140?line.slice(0,137)+'…':line;
 }
 $('#clearOfficeHistory').onclick=async()=>{try{const d=await api('/api/office/history',{method:'DELETE'});officeTasksFingerprint='';officeLogFingerprint='';toast(d.cleared+' aktivitas selesai/gagal dibersihkan');await loadOffice()}catch(e){sayError(e)}};
+
+let taskHistoryPage=0,taskHistoryRows=[];
+function showDetail(title,html){
+ let dialog=$('#recordDetail');
+ if(!dialog){dialog=document.createElement('dialog');dialog.id='recordDetail';dialog.className='record-detail';document.body.append(dialog);dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close()});}
+ dialog.innerHTML='<header><h3>'+esc(title)+'</h3><button type="button" class="btn sm" aria-label="Tutup rincian">Tutup</button></header><div class="record-detail-body">'+html+'</div>';
+ dialog.querySelector('button').onclick=()=>dialog.close();if(!dialog.open)dialog.showModal();dialog.querySelector('.record-detail-body').scrollTop=0;
+}
+function renderTaskHistory(rows){
+ rows=[...rows].sort((a,b)=>Number(!!b.approval)-Number(!!a.approval));taskHistoryRows=rows;const fingerprint=JSON.stringify([rows,taskHistoryPage]);if(fingerprint===officeTasksFingerprint)return;
+ officeTasksFingerprint=fingerprint;const count=Math.ceil(rows.length/8);taskHistoryPage=Math.max(0,Math.min(taskHistoryPage,count-1));
+ const labels={queued:'Antre',working:'Bekerja',done:'Selesai',failed:'Perlu perbaikan',waiting:'Perlu tindakan',paused:'Dijeda'};
+ $('#officeTasks').innerHTML=rows.slice(taskHistoryPage*8,taskHistoryPage*8+8).map(t=>`<article class="activity-row"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p class="office-task-summary">${esc(officeTaskSummary(t.text))}</p><div class="row"><button class="btn sm" data-task-read="${t.id}">${t.approval?'Tinjau tindakan':'Baca lengkap'}</button>${t.status==='queued'?`<button class="btn sm" data-task-edit="${t.id}">Ubah</button>`:''}${t.status!=='working'?`<button class="btn sm ghost danger" data-task-delete="${t.id}">Hapus</button>`:''}</div></div></article>`).join('')||empty('Belum ada aktivitas.');
+ if(rows.length>8)$('#officeTasks').insertAdjacentHTML('beforeend',`<nav class="record-pagination" aria-label="Halaman aktivitas"><button class="btn sm" data-task-page="-1" ${taskHistoryPage===0?'disabled':''}>Sebelumnya</button><span>${taskHistoryPage+1} / ${count} · ${rows.length} aktivitas</span><button class="btn sm" data-task-page="1" ${taskHistoryPage>=count-1?'disabled':''}>Berikutnya</button></nav>`);
+ $$('[data-task-page]').forEach(b=>b.onclick=()=>{taskHistoryPage+=Number(b.dataset.taskPage);renderTaskHistory(taskHistoryRows)});
+ $$('[data-task-read]').forEach(b=>b.onclick=()=>{const t=rows.find(t=>t.id===Number(b.dataset.taskRead));showDetail('Aktivitas tim','<h4>Tugas</h4><pre class="detail-text">'+esc(t.text)+'</pre>'+(t.result?'<h4>Hasil</h4><pre class="detail-text">'+esc(t.result)+'</pre>':'')+(t.approval?`<section class="approval-preview"><h4>Tinjau izin</h4><p>${esc(t.approval.reason)}</p><pre class="detail-text">${esc(t.approval.args)}</pre><div class="row"><button class="btn pri" data-office-approve="${t.id}">Izinkan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div></section>`:''));
+ $$('[data-office-approve],[data-office-deny]').forEach(a=>a.onclick=async()=>{a.disabled=true;try{await api('/api/office/approval/'+t.id,{method:'POST',body:{ok:!!a.dataset.officeApprove}});$('#recordDetail').close();officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e);a.disabled=false}});
+ });
+ $$('[data-task-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus aktivitas ini?'))return;try{await api('/api/office/tasks/'+b.dataset.taskDelete,{method:'DELETE'});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
+ $$('[data-task-edit]').forEach(b=>b.onclick=async()=>{const t=rows.find(t=>t.id===Number(b.dataset.taskEdit)),text=prompt('Ubah tugas yang belum dijalankan:',t.text);if(text===null)return;try{await api('/api/office/tasks/'+t.id,{method:'PATCH',body:{text}});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
+}
+
 async function loadOffice(){
   clearTimeout(officeTimer);
   try{
@@ -26,16 +48,7 @@ async function loadOffice(){
     $('#officeTarget').innerHTML=d.bots.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
     if(target)$('#officeTarget').value=target;
  const labels={queued:'Menunggu',working:'Dikerjakan',done:'Selesai',failed:'Gagal',waiting:'Butuh tindakan'};
-    const tasksFingerprint=JSON.stringify(d.tasks);
-    if(tasksFingerprint!==officeTasksFingerprint){
-
-    officeTasksFingerprint=tasksFingerprint;
-    $('#officeTasks').innerHTML=d.tasks.map(t=>`<div class="r"><div class="grow"><div class="row"><b>${esc(t.source==='owner'?'Anda':S.bots.find(b=>b.id===t.source)?.name||t.source)} → ${esc(S.bots.find(b=>b.id===t.target)?.name||t.target)}</b><span class="pill">${labels[t.status]||esc(t.status)}</span></div><p class="office-task-summary">${esc(officeTaskSummary(t.text))}</p><section data-section data-key="task-${t.id}"><h4>Tugas lengkap</h4><div class="task-result">${esc(t.text)}</div></section>${t.approval?`<div class="approval-preview"><p>${esc(t.approval.reason)}</p><pre class="task-result">${esc(t.approval.args)}</pre><button class="btn pri" data-office-approve="${t.id}">Izinkan tindakan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div>`:''}${t.result?`<section data-section data-key="result-${t.id}"><h4>Hasil</h4><div class="task-result">${esc(t.result)}</div></section>`:''}<div class="row">${t.status==='queued'?`<button class="btn sm" data-task-edit="${t.id}">Ubah</button>`:''}${t.status!=='working'?`<button class="btn sm danger" data-task-delete="${t.id}">Hapus</button>`:''}</div></div></div>`).join('')||empty('Belum ada tugas. Kirim satu tugas ke bot di atas.');
-    $$('[data-office-approve],[data-office-deny]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('/api/office/approval/'+(b.dataset.officeApprove||b.dataset.officeDeny),{method:'POST',body:{ok:!!b.dataset.officeApprove}});toast('Keputusan disimpan');loadOffice()}catch(e){sayError(e);b.disabled=false}});
-    $$('[data-task-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus aktivitas ini?'))return;try{await api('/api/office/tasks/'+b.dataset.taskDelete,{method:'DELETE'});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
-    $$('[data-task-edit]').forEach(b=>b.onclick=async()=>{const t=d.tasks.find(t=>t.id===Number(b.dataset.taskEdit)),text=prompt('Ubah tugas yang belum dijalankan:',t.text);if(text===null)return;try{await api('/api/office/tasks/'+t.id,{method:'PATCH',body:{text}});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
-
-    }
+    renderTaskHistory(d.tasks);
     if(openedOfficeLog)await showOfficeLog(openedOfficeLog,true);
     if(typeof wireBusy==='function')wireBusy($('#v-office'));
     if(S.view==='office'&&!document.hidden) officeTimer=setTimeout(loadOffice,d.bots.some(b=>b.status==='working')?5000:15000);
@@ -127,7 +140,9 @@ async function showOfficeLog(bot,refresh=false){
  if(generation!==logGeneration||openedOfficeLog!==bot)return;
  $('#officeLog').classList.remove('hidden');
  $('#officeLogTitle').textContent='Log '+(S.bots.find(b=>b.id===bot)?.name||bot);
- stablePanel($('#officeLogEntries'),(d.events.length?'<h4>Aktivitas terbaru</h4>'+d.events.map(e=>`<div class="log-event"><small>${esc(new Date(e.created_at*1000).toLocaleTimeString())} · ${esc(e.kind)}</small><div class="office-task-summary">${esc(officeTaskSummary(e.text))}</div><section data-section data-ui-key="event-${bot}-${e.id}"><h4>Lihat lengkap</h4><pre data-ui-scroll="event-${e.id}" class="task-result">${esc(e.text)}</pre></section></div>`).join(''):'')+d.entries.map(e=>`<div class="r"><div><small>${esc(new Date(e.created_at*1000).toLocaleString())} · ${esc(e.channel)}</small><div class="office-task-summary">${esc(officeTaskSummary(e.content))}</div><section data-section data-ui-key="entry-${bot}-${e.id}"><h4>Lihat jawaban lengkap</h4><div data-ui-scroll="entry-${e.id}" class="task-result">${esc(e.content)}</div></section>${e.trace.map((t,i)=>`<section data-section data-ui-key="trace-${bot}-${e.id}-${i}"><h4>${esc(t.tool)}</h4><pre data-ui-scroll="trace-${e.id}-${i}" class="task-result">${esc(t.result)}</pre></section>`).join('')}</div></div>`).join('')||empty('Belum ada aktivitas tercatat.'));
+ const logRows=[...d.events.map(e=>({title:new Date(e.created_at*1000).toLocaleTimeString()+' · '+e.kind,text:e.text,trace:[]})),...d.entries.map(e=>({title:new Date(e.created_at*1000).toLocaleString()+' · '+e.channel,text:e.content,trace:e.trace||[]}))];
+ stablePanel($('#officeLogEntries'),logRows.map((e,i)=>`<div class="log-event"><small>${esc(e.title)}</small><p class="office-task-summary">${esc(officeTaskSummary(e.text))}</p><button class="btn sm" data-log-read="${i}">Baca lengkap</button></div>`).join('')||empty('Belum ada aktivitas tercatat.'));
+ $$('#officeLogEntries [data-log-read]').forEach(b=>b.onclick=()=>{const e=logRows[Number(b.dataset.logRead)];showDetail(e.title,'<pre class="detail-text">'+esc(e.text)+'</pre>'+e.trace.map(t=>'<h4>'+esc(t.tool)+'</h4><pre class="detail-text">'+esc(t.result)+'</pre>').join(''))});
  if(!refresh)$('#officeLog').scrollIntoView({block:'nearest'});
  }catch(e){if(generation===logGeneration)sayError(e)}
 }
@@ -183,3 +198,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeo
 $('#openOfficeLog').onclick=()=>showOfficeLog($('#officeLogBot').value);
 
 $('#clearAllOfficeHistory').onclick=async()=>{if(!confirm('Bersihkan semua aktivitas tersimpan dan log kantor? Tugas yang sedang berjalan tetap berjalan; source dan percakapan web/Telegram tetap ada.'))return;try{const d=await api('/api/office/history?scope=all',{method:'DELETE'});officeTasksFingerprint='';officeLearningFingerprint='';officeSpeech.clear();openedOfficeLog=null;logGeneration++;$('#officeLog').classList.add('hidden');toast(d.cleared+' aktivitas dibersihkan'+(d.working?' · '+d.working+' tugas masih berjalan':''));await loadOffice()}catch(e){sayError(e)}};
+
+// Paginate records without removing stored data or hiding feature sections.
+function recordPager(container,page,total,onChange){
+ if(total<=8)return;
+ const count=Math.ceil(total/8),nav=document.createElement('nav');nav.className='record-pagination';nav.setAttribute('aria-label','Halaman catatan');
+ nav.innerHTML=`<button class="btn sm" ${page===0?'disabled':''}>Sebelumnya</button><span>${page+1} / ${count} · ${total} catatan</span><button class="btn sm" ${page===count-1?'disabled':''}>Berikutnya</button>`;
+ const buttons=nav.querySelectorAll('button');buttons[0].onclick=()=>onChange(page-1);buttons[1].onclick=()=>onChange(page+1);container.append(nav);
+}
