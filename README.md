@@ -1,5 +1,7 @@
 # Agen Mini 0.5.4
 
+Instruksi pemilik: **Orbit-Router dilindungi dan dikecualikan dari perbaikan otomatis**. Aturan lengkap ada di [AGENTS.md](AGENTS.md).
+
 Empat halaman utama: Chat, Workspace, Koneksi, Pengaturan. Tim bot/jadwal, MCP, skill/ingatan/update/diagnostik digabung ke halaman induknya sebagai bagian yang langsung terlihat, tanpa accordion. Kantor tetap tampil; pemilihan provider dan formulir yang sedang diisi dipertahankan saat polling. Proyek yang lulus seluruh tahap pindah ke Selesai. Proyek mendukung nama/tujuan, ubah dan hapus catatan; source/repo/ZIP tidak ikut dihapus. Aktivitas bisa diubah selama masih antre, dihapus satu per satu, atau dibersihkan termasuk log/diskusi kantor; tugas berjalan dan chat web/Telegram tetap ada.
 
 Perbaikan worker: path perintah relatif terhadap proyek, pembacaan source bertahap, galat alat menyertakan bagian akhir log, retry manual memulai ulang anggaran retry, dan JSON log panjang tetap valid. Build/test harus benar-benar exit0 sebelum checkpoint maju. ZIP proyek mengecualikan SQLite WAL/SHM dan berkas privat; pengecualian dan batas ukuran tercatat dalam manifest. ID proyek baru tidak menggunakan ulang folder atau arsip yang dipertahankan setelah catatan dihapus.
