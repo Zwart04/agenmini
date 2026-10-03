@@ -228,3 +228,12 @@ async def test_file_editor_supplies_actual_sql_contract(monkeypatch,tmp_path):
     result=await tools.edit_project_file(ctx,folder=tmp_path.name,path='backend/app/auth.py',instructions='Fix authentication')
     assert 'dibaca ulang' in result
     assert 'password_hash' in seen[0]['project']['related_source']['backend/app/db.py']
+
+@pytest.mark.asyncio
+async def test_python_semantic_syntax_error_cannot_replace_existing_file(monkeypatch,tmp_path):
+    (tmp_path/'safe.py').write_text('def original(): return 42')
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path.parent)
+    async def chat(*a,**kw):return {'content':'def invalid():\n    await something()'}
+    monkeypatch.setattr(llm,'chat',chat)
+    with pytest.raises(SyntaxError):await tools.edit_project_file(context('teknisi'),folder=tmp_path.name,path='safe.py',instructions='Change function')
+    assert (tmp_path/'safe.py').read_text()=='def original(): return 42'

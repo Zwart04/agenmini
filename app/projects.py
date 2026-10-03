@@ -111,7 +111,7 @@ async def generate(brief, ctx, on_event=None):
             check=inspect_html(code)
             if not check['ok']:raise ValueError(path+': '+' '.join(check['errors']))
         if path.endswith('.json'):json.loads(code)
-        if path.endswith('.py'):ast.parse(code)
+        if path.endswith('.py'):compile(code,path,'exec')
         contents[path]=code;stats=result.get('stats',{})
         # Stage files privately until all modules have passed validation.
     errors=project_errors(contents,brief)
@@ -128,7 +128,7 @@ async def generate(brief, ctx, on_event=None):
         for path,code in contents.items():
             if path.endswith('.html') and not inspect_html(code)['ok']:raise ValueError('HTML proyek setelah perbaikan belum valid.')
             if path.endswith('.json'):json.loads(code)
-            if path.endswith('.py'):ast.parse(code)
+            if path.endswith('.py'):compile(code,path,'exec')
     for path,html in contents.items():
         if path.endswith('.html'):
             for resource in inspect_html(html)['resources']:

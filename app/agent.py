@@ -539,7 +539,8 @@ class Turn:
                         continue
                     key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
                     t = tools.REGISTRY.get(name)
-                    if key in seen_calls:
+                    cached=key in seen_calls
+                    if cached:
                         result = seen_calls[key] + "\nYou already did exactly this. Do not repeat it; use the original result above."
                     elif not t or name not in bot["tools"]:
                         result = f"Tool '{name}' is not available."
@@ -576,6 +577,9 @@ class Turn:
                         except Exception as e:
                             result = f"Error: {e}"
                     result = str(result)
+                    if not cached and name in ('write_file','edit_project_file','run_shell','run_python','run_project_command'):
+                        for previous in tuple(seen_calls):
+                            if previous!=key and previous.startswith(('read_file','list_files','inspect_project','inspect_website','preview_project','send_file','run_project_command','run_python','run_shell')):seen_calls.pop(previous,None)
                     if key not in seen_calls: seen_calls[key] = result
                     scope=tool_failure_scope(name,args)
                     if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan", "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:")) or re.search(r"\[kode keluar (?!0\])", result):
@@ -583,7 +587,7 @@ class Turn:
                         failures_by_scope.setdefault(scope,set()).add(result[:500])
                         if name == 'send_file':
                             result += '\nPerbaiki: berkas belum ada. Panggil write_file dengan isi lengkap terlebih dahulu, atau build_website untuk HTML. Jangan mengulang send_file pada berkas yang belum dibuat.'
-                    elif name in used:
+                    elif not cached and name in used:
                         if scope in failures_by_scope:
                             resolved=failures_by_scope.pop(scope)
                             failures=[failure for failure in failures if failure not in resolved]
@@ -595,7 +599,7 @@ class Turn:
                         result = result[:5000] + "\n…(dipotong)"
                     from . import office
                     office.log(bot["id"], "result", name+": "+result[:600])
-                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400]})
+                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400], "cached":cached})
                     if name in ("run_python", "run_shell") and "otomatis dikirim" in result and "[kode keluar 0]" in result:
                         result += "\nSelesai. Jangan jalankan lagi; langsung jawab pengguna."
                     if (name in UNTRUSTED_TOOLS or name.startswith("mcp_")) and not result.startswith("Error"):

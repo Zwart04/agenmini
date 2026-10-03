@@ -274,6 +274,13 @@ async def write_file(ctx: Ctx, path: str = "", content: str = "", **_):
         try: os.chown(folder, config.KERJA_UID, config.KERJA_GID)
         except (OSError, AttributeError): pass
     p.write_text(content, encoding='utf-8')
+    if p.suffix=='.py':
+        cache=p.parent/'__pycache__'
+        if cache.is_dir():
+            for bytecode in cache.iterdir():
+                if bytecode.name.startswith(p.stem+'.') and bytecode.suffix=='.pyc':
+                    try:bytecode.unlink()
+                    except OSError:pass
     try:
         os.chown(p, config.KERJA_UID, config.KERJA_GID)
     except Exception:
@@ -637,7 +644,7 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
                           {'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}],max_tokens=2400 if llm.active_backend()=='local' else 6000,temperature=.2)
     content=re.sub(r'^```[^\n]*\n','',result['content'].strip());content=re.sub(r'\n```\s*$','',content)
     if not content:return 'Error: model menghasilkan berkas kosong.'
-    if target.suffix=='.py':__import__('ast').parse(content)
+    if target.suffix=='.py':compile(content,str(target),'exec')
     if target.suffix=='.json':json.loads(content)
     if target.suffix=='.html' and not projects.inspect_html(content)['ok']:return 'Error: struktur HTML belum valid.'
     # Validate JavaScript privately before replacing existing code.

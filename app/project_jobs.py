@@ -63,7 +63,7 @@ async def inspect(folder):
             manifests[name]=p.read_text(errors='replace')[:5000]
         try:
             if p.suffix=='.json' and p.name not in ('tsconfig.json','jsconfig.json'):json.loads(p.read_text());checks.append({'file':name,'check':'JSON','ok':True})
-            elif p.suffix=='.py':ast.parse(p.read_text());checks.append({'file':name,'check':'Python AST','ok':True})
+            elif p.suffix=='.py':compile(p.read_text(),str(p),'exec');checks.append({'file':name,'check':'Python compile','ok':True})
             elif p.suffix=='.js' and len(checks)<50:
                 output=await tools._run_sandboxed(['node','--check',str(p)],timeout=10,cwd=root,project=True)
                 checks.append({'file':name,'check':'Node syntax','ok':output.startswith('[kode keluar 0]'),'output':output[:500]})
@@ -131,7 +131,7 @@ def acceptance_problems(milestone,response,before,after):
     if re.search(r'\b(buat|pembuatan|create|implement|inisialisasi|pengembangan|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
     if re.search(r'uji|test|assert|build|kompil|compile|\bAPI\b|\bHTTP\b|cookie|otentikasi|autentikasi|isolasi data|checkout|stok|backend|frontend',criteria,re.I):
-        commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and t.get('hasil','').startswith('[kode keluar 0]')]
+        commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and not t.get('cached') and t.get('hasil','').startswith('[kode keluar 0]')]
         def verifies(t):
             arg=t.get('arg','')
             try:command=json.loads(arg).get('command','')

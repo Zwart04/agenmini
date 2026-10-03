@@ -297,3 +297,16 @@ def test_telegram_markdown():
     assert '<a href="https://a.id">tautan</a>' in h and "<pre>x &lt; y\n</pre>" in h
     parts = telegram.split_text("a\n" * 5000, 3800)
     assert all(len(p) <= 3800 for p in parts) and "".join(parts).count("a") == 5000
+
+
+def test_project_verification_runs_again_after_source_edit(monkeypatch):
+    fake=FakeLLM([call('write_file',path='cache-proof/calc.py',content='answer=41'),call('run_project_command',folder='cache-proof',command='python -c "from calc import answer; assert answer == 42"'),call('write_file',path='cache-proof/calc.py',content='answer=42'),call('run_project_command',folder='cache-proof',command='python -c "from calc import answer; assert answer == 42"'),'Verified after actual repair'])
+    monkeypatch.setattr(llm,'chat',fake)
+    original=tools.REGISTRY['run_project_command'];calls=[]
+    async def execute(ctx,**args):calls.append(args);return await tools.run_project_command(ctx,**args)
+    monkeypatch.setitem(tools.REGISTRY,'run_project_command',tools.Tool(original.name,original.label,original.description,original.params,original.required,execute))
+    turn=agent.Turn(db.bot('teknisi'),'web','cache-proof');result=run(turn.run('Perbaiki perhitungan Python di folder cache-proof dan uji assert hasil 42'))
+    assert len(calls)==2,result
+    traces=[t for t in result['meta']['trace'] if t['alat']=='run_project_command']
+    assert traces[0]['hasil'].startswith('[kode keluar 1]') and traces[1]['hasil'].startswith('[kode keluar 0]')
+    assert not traces[1]['cached'] and not result['meta'].get('tool_failures')
