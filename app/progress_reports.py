@@ -17,7 +17,7 @@ def snapshot():
     state={'discussion':discussion,'jobs':jobs,'audit':{'status':audit.get('status'),'count':len(rows),'needs_review':sum(bool(r.get('needs_review')) for r in rows)}}
     fingerprint=hashlib.sha256(json.dumps(state,sort_keys=True).encode()).hexdigest()
     active=any(j['status'] in ('queued','working','planning') for j in jobs) or audit.get('status')=='working'
-    labels={'queued':'antrean','working':'dikerjakan','planning':'menyusun rencana','paused':'dijeda','failed':'gagal; perlu perbaikan','waiting':'menunggu izin','review':'siap ditinjau','done':'selesai'}
+    labels={'queued':'antrean','working':'dikerjakan','planning':'menyusun rencana','paused':'dijeda','failed':'gagal; perlu perbaikan','waiting_model':'menunggu kapasitas model/kuota','waiting':'menunggu izin','review':'siap ditinjau','done':'selesai'}
     lines=['**Laporan Agen Mini**']
     if audit:
         lines.append(f"Audit GitHub baca saja: {audit.get('status')} · {len(rows)} repo tercatat · {state['audit']['needs_review']} repo dengan workflow terakhir gagal.")

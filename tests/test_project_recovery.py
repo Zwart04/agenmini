@@ -59,3 +59,35 @@ def test_owner_pause_survives_failed_checkpoint():
         assert project_jobs.fail_checkpoint(db.one('SELECT * FROM project_jobs WHERE id=?',(pid,)),'failed HTTP')=='paused'
         assert db.one('SELECT status,cursor,retry_count FROM project_jobs WHERE id=?',(pid,))=={'status':'paused','cursor':2,'retry_count':0}
     finally:db.run('DELETE FROM project_jobs WHERE id=?',(pid,))
+
+def test_exhausted_provider_waits_without_spending_repair_retries():
+    project_jobs.init();pid=db.run("INSERT INTO project_jobs(brief,status,cursor,autonomous,retry_count) VALUES('Quota','working',2,1,0)")
+    try:
+        assert project_jobs.fail_checkpoint(db.one('SELECT * FROM project_jobs WHERE id=?',(pid,)),'All models exhausted: rate-limited')=='waiting_model'
+        assert db.one('SELECT status,cursor,retry_count FROM project_jobs WHERE id=?',(pid,))=={'status':'waiting_model','cursor':2,'retry_count':0}
+    finally:db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,))
+
+@pytest.mark.asyncio
+async def test_declared_check_repairs_with_actual_failed_output_and_retests(monkeypatch):
+    from app import tools
+    from test_projects import context
+    ctx=context();ctx.project_folder='projects/owned'
+    results=iter(['[kode keluar 1]\nAssertionError: public health 401','[kode keluar 0]\nPASS actual HTTP'])
+    async def command(child,**args):
+        assert child.project_folder=='projects/owned'
+        return next(results)
+    edited=[]
+    async def edit(child,**args):
+        assert child.bot['id']=='teknisi' and child.project_folder=='projects/owned'
+        assert 'public health 401' in args['instructions']
+        edited.append(args['path']);return 'Berkas diperbarui'
+    monkeypatch.setattr(tools,'run_project_command',command);monkeypatch.setattr(tools,'edit_project_file',edit)
+    result=await project_jobs.execute_declared_check(ctx,{'task':'Repair auth','acceptance':'HTTP tests pass','test_command':'python test_auth.py','repair_files':['main.py']},'teknisi')
+    assert result['meta']['status']=='done' and edited==['main.py']
+    assert [t['alat'] for t in result['meta']['trace']]==['run_project_command','edit_project_file','run_project_command']
+
+@pytest.mark.asyncio
+async def test_declared_check_cannot_widen_worker_tools():
+    from test_projects import context
+    ctx=context();ctx.project_folder='projects/owned'
+    assert await project_jobs.execute_declared_check(ctx,{'test_command':'npm test','repair_files':['main.py']},'pengingat') is None

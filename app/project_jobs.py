@@ -163,10 +163,50 @@ def capable_worker(milestone,parent_tools):
     raise ValueError('Belum ada bot dengan izin alat yang diperlukan untuk tahap ini. Periksa alat bot di Workspace.')
 
 
+async def execute_declared_check(ctx,milestone,worker):
+    """A concrete check/repair loop, avoiding repeated planning instead of execution.
+
+    Only owner-authorized project jobs use this path. It invokes the same scoped
+    tools as the assigned worker; it cannot acquire missing worker permissions.
+    """
+    command=milestone.get('test_command')
+    targets=milestone.get('repair_files',[])
+    bot=db.bot(worker)
+    if not command or not isinstance(targets,list) or len(targets)>3:return None
+    allowed=set(bot['tools']) & set(ctx.bot['tools'])
+    if 'run_project_command' not in allowed or (targets and 'edit_project_file' not in allowed):return None
+    child=tools.Ctx({**bot,'tools':list(allowed),'backend':ctx.bot.get('backend',''),'model':ctx.bot.get('model','')},ctx.chat,ctx.channel,ctx.ext_id,user_text=ctx.user_text)
+    child.project_folder=ctx.project_folder
+    trace=[];used=[]
+    token=office.start(worker,milestone['task'])
+    try:
+        for round_no in range(2):
+            args={'folder':ctx.project_folder,'command':command,'timeout':180}
+            office.phase('Menjalankan tes penerimaan yang ditetapkan','tool')
+            output=await tools.run_project_command(child,**args)
+            used.append('run_project_command');trace.append({'alat':'run_project_command','arg':json.dumps(args),'hasil':output[-6000:],'cached':False})
+            if output.startswith('[kode keluar 0]'):
+                return {'text':output,'meta':{'tools':used,'trace':trace,'status':'done'}}
+            if round_no==1 or not targets:break
+            for target in targets:
+                office.phase('Memperbaiki '+target+' dari galat tes nyata','writing')
+                args={'folder':ctx.project_folder,'path':target,'instructions':
+                      'Perbaiki implementasi yang ada agar tes penerimaan berikut benar-benar lulus. Jangan mengubah tes atau membuat API palsu. '+milestone['task']+'\nKriteria: '+milestone['acceptance']+'\nCommand: '+command+'\nGALAT AKTUAL: '+output[-4500:]+'\nPertahankan interface dari source sekitar dan schema DB, gunakan path portable. Semua fungsi public lama tetap tersedia.'}
+                result=await tools.edit_project_file(child,**args)
+                used.append('edit_project_file');trace.append({'alat':'edit_project_file','arg':json.dumps(args)[:400],'hasil':result,'cached':False})
+                if result.startswith('Error:'):return {'text':result,'meta':{'tools':used,'trace':trace,'status':'failed'}}
+        return {'text':output,'meta':{'tools':used,'trace':trace,'status':'failed','tool_failures':[output[-4500:]]}}
+    finally:office.finish(token,{'text':trace[-1]['hasil'] if trace else 'Error: belum dijalankan'})
+
+
 def fail_checkpoint(job,reason):
     """Recover boundedly from the current source; never advance or fake success."""
     current=db.one('SELECT status FROM project_jobs WHERE id=?',(job['id'],))
     if current and current['status']=='paused':return 'paused'
+    if re.search(r'belum memiliki kandidat siap|all models exhausted|rate_limit_exceeded|quota_exhausted|rate-limited|too many requests',reason,re.I):
+        db.run("UPDATE project_jobs SET status='waiting_model',result=?,next_run=0,updated_at=? WHERE id=?",('Menunggu kapasitas model; source dan checkpoint dipertahankan. '+reason[:1500],time.time(),job['id']))
+        event(job['id'],'waiting_model','Koneksi/model belum memiliki kapasitas; akan dilanjutkan saat model benar-benar siap. '+reason[:1500])
+        return 'waiting_model'
     retry=int(job.get('retry_count') or 0)+1
     recover=bool(job.get('autonomous')) and retry<=4
     state='queued' if recover else 'failed'
@@ -178,8 +218,24 @@ def fail_checkpoint(job,reason):
     return state
 
 
+_model_check_at=0
+async def recover_waiting_models():
+    global _model_check_at
+    now=time.monotonic()
+    if now-_model_check_at<30:return
+    _model_check_at=now
+    rows=db.q("SELECT id,engine FROM project_jobs WHERE status='waiting_model'")
+    if not rows:return
+    from . import auto_router
+    available=await auto_router.discover()
+    for row in rows:
+        if any(r.get('ready') and (row['engine']=='auto' or row['engine']==r['backend']) for r in available):
+            db.run("UPDATE project_jobs SET status='queued',retry_count=0,next_run=0,updated_at=? WHERE id=? AND status='waiting_model'",(time.time(),row['id']))
+            event(row['id'],'recovery','Model kembali siap; melanjutkan checkpoint yang sama, tanpa menganggap tahap sudah lulus.')
+
+
 async def step():
-    init();job=db.one("SELECT * FROM project_jobs WHERE status='queued' AND COALESCE(next_run,0)<=? ORDER BY updated_at,id LIMIT 1",(time.time(),))
+    init();await recover_waiting_models();job=db.one("SELECT * FROM project_jobs WHERE status='queued' AND COALESCE(next_run,0)<=? ORDER BY updated_at,id LIMIT 1",(time.time(),))
     if not job:return False
     if repository_protected(job['brief'],job['repository']):
         reason='Dijeda: repo tujuan ada dalam daftar jangan disentuh. Repo sumber dan salinan lokal dipertahankan. Pilih repo lain untuk implementasi.'
@@ -272,7 +328,8 @@ async def step():
                 event(pid,'recovery','Hasil tindakan yang diizinkan dipakai untuk tahap ini: hash source masih sama dan kriteria bukti uji terpenuhi. Tidak menjalankan ulang tindakan.')
             else:
                 if receipt:text+='\nTindakan yang diizinkan sudah dijalankan, jangan mengulang tanpa alasan. Bukti: '+json.dumps(receipt,ensure_ascii=False)[:3500]
-                response=await office.execute(ctx,milestone['bot'],text)
+                response=await execute_declared_check(ctx,milestone,milestone['bot']) if job.get('autonomous') and milestone.get('test_command') else None
+                if response is None:response=await office.execute(ctx,milestone['bot'],text)
             event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
             if (db.one('SELECT status FROM project_jobs WHERE id=?',(pid,)) or {}).get('status')=='paused':return True
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)
