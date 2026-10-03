@@ -137,6 +137,22 @@ def _find_json_objects(text: str):
         i = start + 1
 
 
+
+def _replace_unquoted(s,pattern,replacement):
+    parts=[];last=scan=0;quoted=escaped=False
+    for match in pattern.finditer(s):
+        while scan<match.start():
+            char=s[scan];scan+=1
+            if escaped:escaped=False
+            elif quoted and char=='\\':escaped=True
+            elif char=='"':quoted=not quoted
+        if quoted:continue
+        parts.extend((s[last:match.start()],replacement(match)))
+        last=match.end()
+    parts.append(s[last:])
+    return ''.join(parts)
+
+
 def _repair_json(s: str):
     """Perbaikan umum untuk JSON berantakan dari model kecil (ide dari mohsinkaleem/agent-mini)."""
     s = re.sub(r"^```(?:json)?\s*", "", s.strip())
@@ -145,7 +161,11 @@ def _repair_json(s: str):
     s = re.sub(r",\s*]", "]", s)
     if "'" in s and '"' not in s:
         s = s.replace("'", '"')
-    s = re.sub(r"(?<=[{,\s])([A-Za-z_]\w*)\s*:", r'"\1":', s)
+    s = _replace_unquoted(s,re.compile(r"(?<=[{,\s])([A-Za-z_]\w*)\s*:"),lambda m:json.dumps(m[1])+':')
+    # Some free gateways return bare simple string values. Repair only complete,
+    # unambiguous tokens; truncated strings and complex expressions remain invalid.
+    s = _replace_unquoted(s,re.compile(r'(:\s*)([A-Za-z_][A-Za-z0-9_./-]*)(?=\s*[,}])'),
+        lambda m:m[1]+(m[2] if m[2] in ('true','false','null') else json.dumps(m[2])))
     return json.loads(s)
 
 
@@ -410,6 +430,8 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
     from . import usage_meter
     cost=usage_meter.record(active_backend(),model,res.get("stats",{}))
     res.setdefault("stats",{})["cost_usd"]=cost
+    if any(not isinstance(c.get("arguments"),dict) for c in res["tool_calls"]):
+        raise LLMError("Argumen alat dari model tidak dapat diurai dengan aman; panggilan tidak dijalankan. Coba model lain.")
     return res
 
 

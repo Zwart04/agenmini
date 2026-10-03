@@ -1,0 +1,68 @@
+name: Publish verified release
+on:
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require successful Linux and installed Windows checks for this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in test.yml windows.yml; do
+            run_id=$(gh run list --workflow "$workflow" --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId')
+            test -n "$run_id" && test "$run_id" != null
+            gh run watch "$run_id" --exit-status
+            test "$(gh run view "$run_id" --json conclusion --jq .conclusion)" = success
+            if test "$workflow" = windows.yml; then echo "WINDOWS_RUN=$run_id" >> "$GITHUB_ENV"; fi
+          done
+      - name: Build source and VPS assets and obtain tested Windows installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 build_release.py
+          gh run download "$WINDOWS_RUN" --name windows-installer --dir dist
+          python3 - <<'PY'
+          import hashlib,re,zipfile
+          from pathlib import Path
+          version=re.search(r'VERSION\s*=\s*"([^"]+)"',Path('app/__init__.py').read_text())[1]
+          exe=Path('dist')/('agenmini-setup-'+version+'-windows-x64.exe')
+          assert exe.read_bytes()[:2]==b'MZ'
+          checksum=exe.with_suffix('.exe.sha256').read_text().split()[0]
+          assert hashlib.sha256(exe.read_bytes()).hexdigest()==checksum
+          for name in ('agenmini-source.zip','agenmini-vps.zip'):
+              with zipfile.ZipFile(Path('dist')/name) as archive:assert archive.testzip() is None
+          Path('release-tag.txt').write_text('v'+version)
+          Path('release-notes.md').write_text('Perbaikan koneksi FreeLLMAPI/9router, penemuan model OpenCode gratis, fallback antar-model, kuota per model, argumen alat dan checkpoint proyek.\n\nDiuji: regresi Linux dan siklus pemasangan/update/uninstall Windows pada commit rilis ini. Ketersediaan API tetap mengikuti kuota provider. Kelulusan koneksi bukan jaminan seluruh model atau proyek kompleks berhasil; proyek pengguna tetap diproses dari checkpoint dengan pemeriksaan berkas dan tes nyata.\n\nData, konfigurasi provider dan bobot model tidak termasuk aset. Pemasang update mempertahankan data instalasi lama.\n')
+          PY
+      - name: Publish and verify public downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=$(cat release-tag.txt)
+          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          gh release edit "$tag" --draft=false
+          mkdir public-verification
+          python3 - <<'PY'
+          import hashlib,json,urllib.request
+          from pathlib import Path
+          import subprocess
+          tag=Path('release-tag.txt').read_text()
+          release=json.loads(subprocess.check_output(['gh','release','view',tag,'--json','assets']))
+          for asset in release['assets']:
+              source=Path('dist')/asset['name']
+              request=urllib.request.Request(asset['url'],headers={'User-Agent':'AgenMini-Release-Verification'})
+              with urllib.request.urlopen(request,timeout=120) as response:data=response.read()
+              assert hashlib.sha256(data).digest()==hashlib.sha256(source.read_bytes()).digest(),asset['name']
+              print('Public SHA256 verified:',asset['name'])
+          PY

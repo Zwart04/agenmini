@@ -104,3 +104,33 @@ async def test_api_native_tools_ignore_local_text_mode_and_accept_object_argumen
         assert result['tool_calls']==[{'name':'write_file','arguments':{'path':'probe.txt','content':'real'}}]
     finally:
         llm.backend_context.reset(token);await server.close()
+
+
+@pytest.mark.parametrize('value,expected',[
+    ('{"content": AGEN_TOOL_OK, "path": diagnostic-probe.txt}', {'content':'AGEN_TOOL_OK','path':'diagnostic-probe.txt'}),
+    ('{"enabled":true,"value":null}', {'enabled':True,'value':None}),
+    ('{"content":"text: bare, words","path": file.txt}', {'content':'text: bare, words','path':'file.txt'}),
+    ('{"path":"unterminated}', None),
+    ('{"command": dangerous()}', None),
+])
+def test_simple_bare_gateway_values_are_bounded(value,expected):
+    from app import llm
+    assert llm._loads(value)==expected
+
+
+@pytest.mark.asyncio
+async def test_malformed_tool_arguments_trigger_router_fallback(monkeypatch):
+    from app import llm,auto_router
+    async def candidates(messages):return [{'backend':'compatible','model':model,'reason':'test'} for model in ('broken','working')]
+    async def reply(*a,**kw):
+        return {'content':'','tool_calls':[{'name':'write_file','arguments':None if kw['model_override']=='broken' else {'path':'safe.txt','content':'actual'}}]}
+    monkeypatch.setattr(auto_router,'candidates',candidates)
+    monkeypatch.setattr(auto_router,'_cooldown',{})
+    monkeypatch.setattr(llm,'_chat_online',reply)
+    token=llm.backend_context.set('auto')
+    try:
+        result=await llm.chat([{'role':'user','content':'write a file'}])
+        assert result['stats']['routing']['selected_model']=='working'
+        assert result['stats']['routing']['attempts']==2
+        assert result['tool_calls'][0]['arguments']['path']=='safe.txt'
+    finally:llm.backend_context.reset(token)
