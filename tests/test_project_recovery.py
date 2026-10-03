@@ -52,3 +52,10 @@ async def test_raw_unavailable_tool_is_rejected_without_execution(monkeypatch):
     result=await agent.Turn(db.bot('pengingat'),'test-project','raw-unavailable').run('Jalankan build/test dengan run_project_command pada folder proyek yang diberikan dan laporkan hasil galatnya secara lengkap setelah menggunakan alat. Jangan memberi saran saja; lakukan verifikasi dengan alat yang tersedia.')
     assert 'not available' in fake.seen[1]['messages'][-1]['content']
     assert result['meta']['status']=='partial' and not result['meta']['tools']
+
+def test_owner_pause_survives_failed_checkpoint():
+    project_jobs.init();pid=db.run("INSERT INTO project_jobs(brief,status,cursor,autonomous,retry_count) VALUES('Pause','paused',2,1,0)")
+    try:
+        assert project_jobs.fail_checkpoint(db.one('SELECT * FROM project_jobs WHERE id=?',(pid,)),'failed HTTP')=='paused'
+        assert db.one('SELECT status,cursor,retry_count FROM project_jobs WHERE id=?',(pid,))=={'status':'paused','cursor':2,'retry_count':0}
+    finally:db.run('DELETE FROM project_jobs WHERE id=?',(pid,))

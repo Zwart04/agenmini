@@ -598,8 +598,9 @@ class Turn:
                     if key not in seen_calls: seen_calls[key] = result
                     scope=tool_failure_scope(name,args)
                     if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan", "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:")) or re.search(r"\[kode keluar (?!0\])", result):
-                        failures.append(result[:500])
-                        failures_by_scope.setdefault(scope,set()).add(result[:500])
+                        failure=(result[:150]+'\n'+result[-1800:]) if len(result)>1800 else result
+                        failures.append(failure)
+                        failures_by_scope.setdefault(scope,set()).add(failure)
                         if name == 'send_file':
                             result += '\nPerbaiki: berkas belum ada. Panggil write_file dengan isi lengkap terlebih dahulu, atau build_website untuk HTML. Jangan mengulang send_file pada berkas yang belum dibuat.'
                     elif not cached and name in used:
@@ -614,7 +615,7 @@ class Turn:
                         result = result[:5000] + "\n…(dipotong)"
                     from . import office
                     office.log(bot["id"], "result", name+": "+result[:600])
-                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400], "cached":cached})
+                    trace.append({"alat": name, "arg": json.dumps(args, ensure_ascii=False)[:400], "hasil": result[:400] if not result.startswith(("Error:","[kode keluar 1]","[kode keluar 2]")) else result[:150]+"\n"+result[-1800:], "cached":cached})
                     if name in ("run_python", "run_shell") and "otomatis dikirim" in result and "[kode keluar 0]" in result:
                         result += "\nSelesai. Jangan jalankan lagi; langsung jawab pengguna."
                     if (name in UNTRUSTED_TOOLS or name.startswith("mcp_")) and not result.startswith("Error"):

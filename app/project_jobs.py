@@ -165,6 +165,8 @@ def capable_worker(milestone,parent_tools):
 
 def fail_checkpoint(job,reason):
     """Recover boundedly from the current source; never advance or fake success."""
+    current=db.one('SELECT status FROM project_jobs WHERE id=?',(job['id'],))
+    if current and current['status']=='paused':return 'paused'
     retry=int(job.get('retry_count') or 0)+1
     recover=bool(job.get('autonomous')) and retry<=4
     state='queued' if recover else 'failed'
@@ -272,9 +274,10 @@ async def step():
                 if receipt:text+='\nTindakan yang diizinkan sudah dijalankan, jangan mengulang tanpa alasan. Bukti: '+json.dumps(receipt,ensure_ascii=False)[:3500]
                 response=await office.execute(ctx,milestone['bot'],text)
             event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
+            if (db.one('SELECT status FROM project_jobs WHERE id=?',(pid,)) or {}).get('status')=='paused':return True
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)
             if not response.get('approval') and (office.outcome(response)=='failed' or problems):
-                correction=text+'\nHasil sebelumnya: '+response.get('text','')[:1500]+'\nPemeriksaan nyata menemukan: '+' '.join(problems)+'\nKerjakan yang belum dilakukan; bukan memberi saran. Jalankan tes dari folder proyek memakai run_project_command. Jangan membaca berkas opsional yang tidak ada.'
+                correction=text+'\nGalat alat aktual (perbaiki source yang ditunjuk stack trace, jangan hanya mengulang tes): '+json.dumps(response.get('meta',{}).get('tool_failures',[]),ensure_ascii=False)[-4000:]+'\nHasil sebelumnya: '+response.get('text','')[:1500]+'\nPemeriksaan nyata menemukan: '+' '.join(problems)+'\nKerjakan yang belum dilakukan; bukan memberi saran. Jalankan tes dari folder proyek memakai run_project_command. Jangan membaca berkas opsional yang tidak ada.'
                 response=await office.execute(ctx,milestone['bot'],correction);event(pid,'correction',json.dumps(response,ensure_ascii=False))
                 after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)
             event(pid,'evidence',json.dumps({'changed_files':changed,'acceptance_problems':problems},ensure_ascii=False))
