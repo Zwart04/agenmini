@@ -484,7 +484,7 @@ class Turn:
                 await self.on_event("status", "Menjawab…")
                 res = await llm.chat(msgs, tools=None, model=model, on_token=lambda p: self.on_event("token", p),
                                      prio=self.prio, max_tokens=500)
-                if not needs_escalation(res["content"]) and not missing_files(res["content"], text, []):
+                if not res.get("tool_calls") and not re.search(r"<(?:tool|tool_call|function_call)>",res["content"]) and not needs_escalation(res["content"]) and not missing_files(res["content"], text, []):
                     answer, stats, mode = clean_answer(res["content"]), res.get("stats", {}), "cepat"
             for step in range(0 if answer else max_steps + 1):
                 last = step == max_steps
@@ -494,6 +494,11 @@ class Turn:
                                      max_tokens=(1400 if llm.active_backend()=='local' else 3000) if getattr(self,'project_folder',None) else None)
                 stats = res.get("stats", {})
                 calls = res["tool_calls"][:3]
+                if not calls and not last:
+                    # Parse known but unavailable tools too, then enforce the bot's actual scope.
+                    # This gives a useful tool error instead of looping on a valid raw tag.
+                    calls,remaining=llm.extract_tool_calls(res['content'],set(tools.REGISTRY))
+                    if calls:res['content']=remaining
                 if not calls:
                     if not last and ('<tool>' in res['content'] or res.get('stats',{}).get('finish_reason')=='length'):
                         msgs.append({'role':'user','content':'The preceding response/tool arguments were incomplete and were not executed. Do not paste long code inside tool-call JSON. Use edit_project_file with folder, path and short instructions to write complete raw code, or use smaller write_file calls. Return a complete tool call and then actually run validation.'})

@@ -233,17 +233,32 @@ async def step():
         cursor=job['cursor'];milestones=plan['milestones']
         if cursor<len(milestones):
             milestone=milestones[cursor]
+            # A repository-wide job keeps each target isolated under its workspace.
+            # Protected source repositories and earlier work folders are never overwritten.
+            stage_folder=job['folder']
+            if milestone.get('repository'):
+                repository=milestone['repository']
+                if not re.fullmatch(r'https://github.com/[\w.-]+/[\w.-]+(?:\.git)?/?',repository):raise ValueError('URL repo tahap tidak valid.')
+                if repository_protected(job['brief'],repository):raise ValueError('Repo tahap dilindungi brief pemilik.')
+                name=repository.rstrip('/').removesuffix('.git').rsplit('/',1)[-1]
+                stage_folder=job['folder']+'/repos/'+name
+                root=tools._workpath(stage_folder)
+                if not root.exists():
+                    output=await tools.clone_repository(ctx,url=repository,folder=stage_folder)
+                    event(pid,'clone',output)
+                    if not output.startswith('[kode keluar 0]'):raise ValueError(output)
+                ctx.project_folder=stage_folder
             selected=capable_worker(milestone,ctx.bot['tools'])
             if selected!=milestone['bot']:
                 event(pid,'capability','Tahap dialihkan dari '+milestone['bot']+' ke '+selected+' karena kebutuhan alat build/edit.')
                 milestone['bot']=selected
                 db.run('UPDATE project_jobs SET plan=? WHERE id=?',(json.dumps(plan,ensure_ascii=False),pid))
             office.phase(f'Tahap {cursor+1}/{len(milestones)}: '+milestone['bot'],'delegating')
-            text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
+            text=('Kerjakan satu tahap proyek di folder '+stage_folder+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
                   'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Untuk uji server, jangan menjalankan server foreground lalu menunggu timeout. Buat smoke test HTTP localhost (misalnya aiohttp TestClient/TestServer atau harness subprocess) yang memulai server, memeriksa respons, menutup server dan keluar 0. Timeout bukan bukti server sehat. Jalankan tes secara serial; hanya untuk runner Jest gunakan --runInBand; pytest dan unittest tidak menerima flag Jest. Jangan memasang runner lain jika tes proyek sudah berjalan dengan runner yang ada. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
-            inventory=await inspect(job['folder'])
+            inventory=await inspect(stage_folder)
             if job.get('retry_count'):
                 text+='\nCheckpoint sebelumnya belum lulus: '+job['result'][:2000]+'. Perbaiki sebabnya dengan alat nyata; jangan mengulang klaim atau hanya menuliskan tool tag.'
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
@@ -293,8 +308,11 @@ async def step():
             with zipfile.ZipFile(archive) as z:
                 if z.testzip():raise ValueError('ZIP proyek gagal CRC.')
             event(pid,'artifact',json.dumps({'file':job['folder']+'-source.zip','bytes':archive.stat().st_size,'note':'Sumber proyek; build/runtime tetap mengikuti bukti log.'}))
-            db.run("UPDATE project_jobs SET status='review',result=? WHERE id=?",('Tahapan selesai. ZIP: '+job['folder']+'-source.zip. Periksa hasil serta log build/test; sintaks saja tidak membuktikan seluruh aplikasi berjalan.',pid))
-            event(pid,'review','Semua tahap tercatat. Menunggu pemeriksaan/penerimaan pemilik; tidak diterapkan atau dipush otomatis.')
+            final_state='done' if job.get('autonomous') else 'review'
+            db.run("UPDATE project_jobs SET status=?,result=? WHERE id=?",(final_state,'Tahapan selesai dengan bukti uji yang tercatat. ZIP: '+job['folder']+'-source.zip. Batasan/kredensial mengikuti laporan proyek.',pid))
+            event(pid,final_state,'Semua tahap dan pemeriksaan akhir tercatat. '+('Kelanjutan sampai selesai diotorisasi pemilik.' if job.get('autonomous') else 'Menunggu penerimaan pemilik.'))
+            chat=db.chat_for('orchestrator',job['channel'],job['ext_id'])
+            db.add_message(chat['id'],'assistant','Proyek #'+str(pid)+' selesai tahap dan pengujiannya. ZIP sumber terlampir. Rincian serta batasan ada di Workspace.',{'files':[job['folder']+'-source.zip'],'project_id':pid})
         else:
             current=db.one('SELECT status FROM project_jobs WHERE id=?',(pid,))
             if current['status']=='working':db.run("UPDATE project_jobs SET status='queued' WHERE id=?",(pid,))
