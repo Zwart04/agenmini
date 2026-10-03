@@ -165,6 +165,8 @@ def _norm_call(obj, names: set[str]):
     if "function" in obj and isinstance(obj["function"], dict):
         obj = obj["function"]
     name = obj.get("name") or obj.get("tool") or obj.get("tool_name")
+    if isinstance(name,str) and name.startswith(('default.','functions.')) and name.split('.',1)[1] in names:
+        name=name.split('.',1)[1]
     if not isinstance(name, str) or name not in names:
         return None
     args = obj.get("arguments", obj.get("args", obj.get("parameters", obj.get("input", {}))))
@@ -323,6 +325,26 @@ def default_model(backend=None):
             'online': db.setting('online_model')}.get(backend, db.setting('model'))
 
 
+def normalize_tool_calls(calls, schemas):
+    declarations={t['function']['name']:t['function'].get('parameters',{}).get('properties',{}) for t in (schemas or [])}
+    aliases={'path':('file_path','filepath','filename'), 'folder':('directory','dir')}
+    result=[]
+    for call in calls:
+        call=dict(call);name=call.get('name','')
+        if name.startswith(('default.','functions.')) and name.split('.',1)[1] in declarations:
+            name=name.split('.',1)[1];call['name']=name
+        args=call.get('arguments')
+        if name in declarations and isinstance(args,dict):
+            args=dict(args)
+            for field,alternatives in aliases.items():
+                present=[alias for alias in alternatives if alias in args]
+                if field in declarations[name] and field not in args and len(present)==1:
+                    args[field]=args.pop(present[0])
+            call['arguments']=args
+        result.append(call)
+    return result
+
+
 async def chat(messages: list[dict], tools: list[dict] | None = None, model: str | None = None,
                on_token=None, prio: int = PRIO_USER, fmt=None, temperature: float = 0.3,
                num_ctx: int | None = None, max_tokens: int | None = None) -> dict:
@@ -384,7 +406,7 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
     if not calls and names:
         calls, content = extract_tool_calls(content, names)
     res["content"] = content
-    res["tool_calls"] = calls
+    res["tool_calls"] = normalize_tool_calls(calls, tools)
     from . import usage_meter
     cost=usage_meter.record(active_backend(),model,res.get("stats",{}))
     res.setdefault("stats",{})["cost_usd"]=cost

@@ -263,3 +263,15 @@ async def test_truncated_source_preserves_original_even_when_syntax_valid(monkey
     result=await tools.edit_project_file(context('teknisi'),folder=tmp_path.name,path='safe.py',instructions='Change function')
     assert result.startswith('Error:')
     assert (tmp_path/'safe.py').read_text()=='def original(): return 42'
+
+
+def test_tool_aliases_respect_actual_schema_and_do_not_resolve_ambiguity():
+    schema=[tools.REGISTRY['write_file'].schema()]
+    parsed,_=llm.extract_tool_calls('{"name":"default.write_file","arguments":{"file_path":"safe.txt","content":"actual"}}',{'write_file'})
+    assert parsed and parsed[0]['name']=='write_file'
+    calls=llm.normalize_tool_calls([{'name':'default.write_file','arguments':{'file_path':'safe.txt','content':'actual'}}],schema)
+    assert calls==[{'name':'write_file','arguments':{'path':'safe.txt','content':'actual'}}]
+    ambiguous=llm.normalize_tool_calls([{'name':'write_file','arguments':{'file_path':'a','filename':'b','content':'actual'}}],schema)
+    assert 'path' not in ambiguous[0]['arguments']
+    forbidden=llm.normalize_tool_calls([{'name':'default.run_shell','arguments':{'command':'do not execute'}}],schema)
+    assert forbidden[0]['name']=='default.run_shell'
