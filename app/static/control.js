@@ -15,7 +15,7 @@ async function loadOffice(){
   clearTimeout(officeTimer);
   try{
     const d=await api('/api/office');
-    officeSnapshot=d;if($('#officeOverview').open)renderOfficeScene(d);
+    renderOfficeScene(d);
     await loadOfficeLearning();
     $('#officeStats').innerHTML=`<b>${d.bots.filter(b=>b.status==='working').length} bot bekerja</b><span>${d.tasks.filter(t=>t.status==='queued').length} tugas menunggu · ${d.bots.length} anggota tim</span><small>Aktivitas langsung dari server</small>`;
     if(typeof loadProjects==='function')await loadProjects();
@@ -176,6 +176,6 @@ $('#directApiForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/se
 // Suspend polling while the page is hidden; refresh the active panel on return.
 document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(officeTimer);clearTimeout(aiTimer);clearTimeout(oauthTimer)}else{if(S.view==='office')loadOffice().catch(sayError);if(S.view==='ai')loadAI().catch(sayError);if(oauthFlow?.device)oauthTimer=setTimeout(pollOAuth,(oauthFlow.interval||5)*1000)}});
 
-$('#officeOverview').addEventListener('toggle',()=>{if($('#officeOverview').open&&officeSnapshot)renderOfficeScene(officeSnapshot)});
+
 
 $('#openOfficeLog').onclick=()=>showOfficeLog($('#officeLogBot').value);

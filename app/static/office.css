@@ -25,3 +25,9 @@ html[data-motion=off] .office-room *,html[data-motion=off] .office-room *::befor
 @keyframes bubble-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes bubble-voice{0%,100%{transform:scaleY(.6);opacity:.5}50%{transform:scaleY(1.6);opacity:1}}
 @media(prefers-reduced-motion:reduce){.character-bubble,.character-bubble>span,.character-bubble i{animation:none!important}}
+
+/* Visible office uses a calm floor and compact furniture, with no new assets. */
+.office-overview .office-floor{background:repeating-linear-gradient(0deg,transparent,transparent 43px,#79917e0b 44px,#79917e0b 45px),repeating-linear-gradient(90deg,transparent,transparent 83px,#79917e0b 84px,#79917e0b 85px);background-color:#f1f3e9}
+.office-overview .office-team-room{box-shadow:0 3px 0 #677b6620,inset 0 0 0 1px #83937d20;border-color:#fff9!important}
+.office-overview .office-meeting{background:#e5ece8;border-color:#c6d2cb;box-shadow:none}
+.office-overview .office-lounge{background:#e3ebd9}

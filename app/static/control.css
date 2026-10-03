@@ -119,9 +119,24 @@ html[data-paused=true] *,html[data-paused=true] *::before,html[data-paused=true]
 #officeLogEntries{max-height:65vh;overflow:auto;overflow-anchor:none}
 .task-result,.log-event pre,.project-card pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .integration-list,.social-setup{padding:0;border:0;background:none}
-.page{max-width:1000px}.lead{font-size:14px;line-height:1.5}.section-kicker{font-size:10px}
+.page{width:100%;max-width:none;min-width:0}.lead{font-size:14px;line-height:1.5}.section-kicker{font-size:10px}
 .group.compact-section{padding:0 14px}.group.compact-section>label{margin:12px 0}
 @media(max-width:600px){.page{padding:16px 12px}.office-hero{flex-wrap:wrap}.office-hero h1{font-size:26px}.compact-section{padding:0 10px}.row{flex-wrap:wrap}.row>.grow{min-width:0}select,input,textarea{max-width:100%;min-width:0}.project-card{padding:12px}.route-grid{grid-template-columns:1fr}.account-grid{grid-template-columns:1fr}.btn{max-width:100%;overflow-wrap:anywhere}.office-stats{font-size:12px}.project-stage-list{max-height:360px;overflow:auto}}
 .workspace-hero{padding:18px;gap:16px;margin:10px 0 16px;border-radius:12px;grid-template-columns:1.3fr 1fr}.workspace-hero h2{font-size:28px;margin:0 0 8px}.workspace-hero p{margin:0 0 12px;font-size:13px}.workspace-summary{padding:14px;gap:6px;border-radius:10px}.workspace-summary b{font-size:18px}.project-section{padding:16px;border-radius:12px}.engine-cards{display:flex;flex-wrap:wrap;gap:8px}.engine-cards .btn{min-height:0;padding:10px 14px;display:inline-flex;flex-direction:row;gap:8px;border-radius:10px;flex:0 1 auto}.engine-cards .btn strong{font-size:13px}.engine-cards .btn small,.engine-cards .engine-badge{display:none}.engine-cards .engine-icon{width:18px;height:18px;margin:0}.engine-actions{padding:14px;margin:12px 0}.connect-steps{display:none}
 @media(max-width:600px){.workspace-hero{grid-template-columns:1fr;padding:14px;gap:10px}.workspace-summary{padding:10px}.workspace-hero h2{font-size:24px}.project-section{padding:12px}.engine-cards .btn{flex:1 1 40%;justify-content:center}.group-b{padding:12px 0}.group-d{padding:8px 0}}
 #officeLogBot{width:auto;flex:1;max-width:220px;font-size:12px;padding:7px 28px 7px 10px}.office-activity-heading h3{display:none}
+
+/* Fill the main pane; keep essential workspace content visible. */
+.page{width:100%;max-width:none;box-sizing:border-box;align-self:stretch}
+.page-in{width:100%;max-width:1160px!important;min-width:0}
+.office-overview{margin:16px 0 24px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--panel);min-width:0}
+.office-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.office-section-heading h3{margin:0;font-size:17px}.office-section-heading .hint{margin:0;font-size:11px}
+.office-overview .office-wall{display:none}.office-overview .office-hint{margin:0 0 12px;font-size:12px}
+.workspace-hero{border:0;background:none;padding:0;grid-template-columns:minmax(0,1fr) minmax(240px,.7fr)}
+.office-overview .office-room{border-radius:14px;border-color:#d7ddcf;background:#f1f3e9!important}
+.office-floor{background:repeating-linear-gradient(0deg,transparent,transparent 43px,#79917e0b 44px,#79917e0b 45px),repeating-linear-gradient(90deg,transparent,transparent 83px,#79917e0b 84px,#79917e0b 85px)}
+.office-team-room{box-shadow:0 3px 0 #677b6620;border-color:#fff9!important;border-radius:14px!important}
+.office-meeting{background:#e5ece8;border-color:#c6d2cb;box-shadow:none}.office-lounge{background:#e3ebd9}
+.office-window i{border-color:#b5c7bf;background:linear-gradient(140deg,#cee5e8,#f4f8f2)}
+@media(max-width:600px){.office-overview{padding:10px;border-radius:14px;margin-top:12px}.workspace-hero{grid-template-columns:1fr}.office-section-heading{margin-bottom:10px}.page-in{max-width:none!important}.office-overview .office-hint{font-size:11px}}

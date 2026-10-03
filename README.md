@@ -1,6 +1,6 @@
-# Agen Mini 0.5.2
+# Agen Mini 0.5.3
 
-Tampilan ringkas: empat menu utama, proyek dengan detail yang bisa dibuka, dan konfigurasi lanjutan terlipat. Polling mempertahankan pilihan provider/model yang belum disimpan, detail log, dan posisi bacaan. Pemilihan sumber AI tetap tersedia saat model lokal sedang diunduh.
+Halaman mengisi panel utama. Kantor tim selalu terlihat di Workspace, dengan proyek/form baru, aktivitas, dan pemakaian token yang langsung terbuka. Empat menu utama tetap dipertahankan; hanya detail panjang dan pengaturan lanjutan yang terlipat. Polling mempertahankan pilihan provider/model yang belum disimpan, detail log, dan posisi bacaan. Pemilihan sumber AI tetap tersedia saat model lokal sedang diunduh.
 
 Hapus layanan saja sambil menyimpan data: `sudo agen uninstall --yes`. Hapus seluruh Agen Mini termasuk data, sandi, model dan konfigurasi provider: `sudo agen uninstall --all --yes`. Periksa rencana tanpa menghapus: `sudo agen uninstall --all --dry-run`. Docker, aplikasi lain, dan login akun host tidak dihapus.
 

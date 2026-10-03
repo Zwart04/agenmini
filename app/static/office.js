@@ -7,7 +7,7 @@ const teamNames={coordination:'Koordinasi',creative:'Kreatif',engineering:'Engin
 const teamColors={coordination:'#eee2cf',creative:'#eee0e4',engineering:'#dbe8e5',research:'#e1e6d8'};
 function officeBotTeam(b){return b.team||(['orchestrator','strategi'].includes(b.id)?'coordination':['desainer','copywriter'].includes(b.id)?'creative':['teknisi','reviewer'].includes(b.id)?'engineering':'research')}
 function officePlacement(d,width){
- const compact=width<600,gap=14,roomWidth=compact?(width-42)/2:(width*.63-42)/2,cols=roomWidth>=210?2:1;
+ const compact=width<600,gap=14,roomWidth=compact?(width-42)/2:(width*.63-42)/2,cols=roomWidth>=290?3:roomWidth>=210?2:1;
  const keys=Object.keys(teamNames),groups=keys.map(key=>d.bots.filter(b=>officeBotTeam(b)===key));
  const roomHeights=groups.map(g=>70+Math.max(1,Math.ceil(g.length/cols))*116),rows=[Math.max(roomHeights[0],roomHeights[1]),Math.max(roomHeights[2],roomHeights[3])];
  const rooms=keys.map((key,i)=>({key,title:teamNames[key],color:teamColors[key],left:14+(i%2)*(roomWidth+gap),top:48+(i>=2?rows[0]+gap:0),width:roomWidth,height:rows[Math.floor(i/2)]}));
