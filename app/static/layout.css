@@ -109,3 +109,22 @@
  #skillList > .r > .grow { flex-basis: 100%; }
  #skillList > .r > .row { width: 100%; }
 }
+/* Action controls stay recognisable, including secondary and icon buttons. */
+.btn, .btn.ghost { border: 1px solid var(--line); background: var(--soft); color: var(--text); }
+.btn.pri { border-color: var(--inv); background: var(--inv); color: var(--on-inv); }
+.btn.danger { color: var(--bad); }
+.btn:hover, .btn.ghost:hover { border-color: var(--muted); background: var(--soft-2); }
+.btn.pri:hover { background: var(--inv); }
+.btn:disabled { cursor: default; }
+.ib { border: 1px solid var(--line); border-radius: 9px; background: var(--soft); }
+.btn:focus-visible, .ib:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+/* Keep content inside rounded cards, even at the first and last rows. */
+.card, .account-card, .route-card, .project-card, .setup-note { padding: 16px; }
+.group:not(.compact-section) > .rows > .r { padding: 16px 18px; }
+.group:not(.compact-section) > .rows > .r:first-child { padding-top: 18px; }
+.group:not(.compact-section) > .rows > .r:last-child { padding-bottom: 18px; }
+.group:not(.compact-section) > .rows:empty { padding: 0; }
+.stat, .usage-cards > div { padding: 16px; }
+.card > :first-child, .project-card > :first-child { margin-top: 0; }
+.card > :last-child, .project-card > :last-child { margin-bottom: 0; }
+@media (min-width: 681px) { .btn.sm { min-height: 36px; } }
