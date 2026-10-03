@@ -69,7 +69,7 @@ async function loadAI(){
   try{
     const d=await api('/api/router');
     $('#routerStatus').textContent='Provider terhubung · '+d.models.length+' model chat. '+(d.model_note||'');
-    $('#routerConnections').innerHTML=d.connections.map(c=>`<div class="r"><div class="grow"><b>${esc(c.name||c.provider)}</b><div class="sub">${esc(c.email||c.provider)} · ${esc(c.testStatus||'terhubung')}</div></div><button class="btn sm" data-remove-provider="${esc(c.id)}">Hapus</button></div>`).join('')||empty('Belum ada provider. Tambahkan API key atau login OAuth di bawah.');
+    $('#routerConnections').innerHTML=d.connections.map(c=>`<div class="r"><div class="grow"><b>${esc(c.name||c.provider)}</b><div class="sub">${esc(c.email||c.provider)} · ${esc(c.testStatus||'terhubung')}</div>${c.lastError?`<details><summary>Lihat kendala provider</summary><p class="hint">${esc(c.lastError)}</p></details>`:''}</div><button class="btn sm" data-remove-provider="${esc(c.id)}">Hapus</button></div>`).join('')||empty('Belum ada provider. Tambahkan API key atau login OAuth di bawah.');
     $$('[data-remove-provider]').forEach(x=>x.onclick=async()=>{if(confirm('Hapus koneksi provider ini?')){try{await api('/api/router/provider/'+encodeURIComponent(x.dataset.removeProvider),{method:'DELETE'});loadAI()}catch(e){sayError(e)}}});
     $('#routerModel').innerHTML=d.models.map(m=>`<option value="${esc(m.id)}" ${m.id===d.active_model?'selected':''}>${esc(m.name)} · ${esc(m.id)}</option>`).join('');
     $('#oauthProvider').innerHTML=d.device_providers.concat(d.code_providers).map(p=>`<option>${esc(p)}</option>`).join('');

@@ -28,7 +28,7 @@ async def discover(force=False):
                 else:
                     models=state.get('models',[])
                     connected=bool(state.get('connections'))
-                    usable=[m for m in models if m.get('id') and (backend=='router' or m.get('status')=='ready')]
+                    usable=[m for m in models if m.get('id') and m.get('ready') is not False and (backend=='router' or m.get('status')=='ready')]
                     if connected and usable:
                         # Prefer explicit models; synthetic strategies are not proof of a live provider.
                         for m in usable[:100]:rows.append({'backend':backend,'model':m['id'],'ready':True,'kind':'api'})

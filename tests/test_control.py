@@ -285,3 +285,17 @@ async def test_project_approval_preview_and_decision(monkeypatch,allow,outcome,e
         if pid:db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,))
         if aid:db.run('DELETE FROM approvals WHERE id=?',(aid,))
         await c.close()
+
+@pytest.mark.asyncio
+async def test_router_quota_is_shown_without_exposing_token_or_hiding_catalog(monkeypatch):
+    async def upstream(method,path,body=None):
+        if path=='/api/providers':return {'connections':[{'id':'quota','provider':'antigravity','isActive':True,'testStatus':'active','accessToken':'PRIVATE_FIXTURE','lastError':'QUOTA_EXHAUSTED PRIVATE_FIXTURE'}]}
+        if path=='/api/models':return {'models':[{'id':'ag/real-model','provider':'antigravity'}]}
+        return {'combos':[]}
+    monkeypatch.setattr(router,'request',upstream)
+    old=db.setting('compatible_key');db.set_setting('compatible_key','TEST_KEY')
+    try:
+        result=await router.state()
+        assert result['connections'][0]['available'] is False and result['models'][0]['ready'] is False
+        assert 'Kuota' in result['connections'][0]['testStatus'] and 'PRIVATE_FIXTURE' not in json.dumps(result)
+    finally:db.set_setting('compatible_key',old)

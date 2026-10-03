@@ -2,6 +2,7 @@
 import asyncio
 import os
 import time
+import re
 import aiohttp
 import jwt
 from pathlib import Path
@@ -61,16 +62,26 @@ async def state():
     providers, models, combos = await asyncio.gather(request('GET', '/api/providers'),
                         request('GET', '/api/models'), request('GET', '/api/combos'))
     # Only expose safe fields; upstream fields can change between releases.
-    connections = [{k: c.get(k) for k in ('id', 'provider', 'name', 'email', 'isActive', 'testStatus')}
-                   for c in providers.get('connections', [])]
-    connected = {provider_id(c['provider']) for c in connections if c.get('isActive') is not False}
+    connections=[]
+    for c in providers.get('connections',[]):
+        row={k:c.get(k) for k in ('id','provider','name','email','isActive','testStatus','expiresAt')}
+        error=str(c.get('lastError') or '')[:500]
+        for key,value in c.items():
+            if re.search('token|secret|key',key,re.I) and isinstance(value,str) and value:error=error.replace(value,'[rahasia]')
+        quota=bool(re.search('quota|resource_exhausted|rate.?limit',error,re.I))
+        auth=bool(re.search('invalid_grant|unauthorized|invalid.?token',error,re.I))
+        row.update({'lastError':error,'available':c.get('isActive') not in (False,0) and not quota and not auth})
+        if quota:row['testStatus']='Kuota provider habis'
+        elif auth:row['testStatus']='Perlu login ulang'
+        connections.append(row)
+    connected = {provider_id(c['provider']) for c in connections if c.get('isActive') not in (False,0)}
     catalogue=models.get('models', models.get('data',[]))
     available=[]
     for m in catalogue:
         mid=m.get('routedModel') or m.get('fullModel') or m.get('id')
         provider=provider_id(m.get('provider') or m.get('owned_by') or (mid or '').split('/')[0])
         if mid and provider in connected and not any(word in mid.lower() for word in ('image','tts','embedding','audio','veo','video')):
-            available.append({'id':mid,'name':m.get('name') or m.get('model') or mid})
+            available.append({'id':mid,'name':m.get('name') or m.get('model') or mid,'ready':any(c['available'] for c in connections if provider_id(c['provider'])==provider)})
     available += [{'id': c['name'], 'name': c['name'] + ' (fallback)'} for c in (combos if isinstance(combos,list) else combos.get('combos', []))]
     return {'connections': connections, 'models': available, 'active_model': db.setting('model'),
             'device_providers': DEVICE_PROVIDERS, 'code_providers': CODE_PROVIDERS,

@@ -189,3 +189,21 @@ def test_milestone_retry_keeps_first_snapshot_and_still_requires_tests(tmp_path)
         problems,changed=project_jobs.acceptance_problems(stage,{'meta':{}},retry,project_jobs.snapshot(tmp_path))
         assert changed==['app.py'] and len(problems)==1 and 'exit code 0' in problems[0]
     finally:db.run('DELETE FROM project_stage_snapshots WHERE project_id=?',(pid,))
+
+
+def test_approval_receipt_reused_only_until_source_changes(tmp_path,monkeypatch):
+    project_jobs.init();pid=999986
+    monkeypatch.setattr(tools,'_workpath',lambda p:tmp_path)
+    db.run('INSERT INTO project_jobs(id,brief,folder,status,cursor,approval_id) VALUES(?,?,?,?,?,?)',(pid,'proof','fixture','waiting',0,888886))
+    (tmp_path/'app.py').write_text('real_source=1')
+    receipt={'text':'[kode keluar 0]\nPASS HTTP','meta':{'tools':['run_project_command'],'trace':[{'alat':'run_project_command','arg':'python tests/test_http.py','hasil':'[kode keluar 0]\nPASS HTTP'}]}}
+    try:
+        project_jobs.approval_completed(888886,True,receipt)
+        assert project_jobs.receipt_for_stage(pid,0,tmp_path)==receipt
+        stage={'task':'Buat backend','acceptance':'test HTTP'}
+        assert not project_jobs.acceptance_problems(stage,receipt,{},project_jobs.snapshot(tmp_path))[0]
+        (tmp_path/'app.py').write_text('changed_source=2')
+        assert project_jobs.receipt_for_stage(pid,0,tmp_path) is None
+        assert project_jobs.receipt_for_stage(pid,1,tmp_path) is None
+    finally:
+        for table in ('project_jobs','project_events','project_stage_receipts'):db.run('DELETE FROM '+table+' WHERE '+('id' if table=='project_jobs' else 'project_id')+'=?',(pid,))

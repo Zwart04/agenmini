@@ -8,6 +8,7 @@ from . import db,config,llm,tools,office
 
 
 def init():
+    db.run('CREATE TABLE IF NOT EXISTS project_stage_receipts(project_id INTEGER,cursor INTEGER,response TEXT,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run('CREATE TABLE IF NOT EXISTS project_stage_snapshots(project_id INTEGER,cursor INTEGER,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run("CREATE TABLE IF NOT EXISTS project_jobs(id INTEGER PRIMARY KEY,brief TEXT,repository TEXT,folder TEXT,status TEXT,plan TEXT DEFAULT '{}',cursor INTEGER DEFAULT 0,channel TEXT,ext_id TEXT,engine TEXT,model TEXT,result TEXT DEFAULT '',approval_id INTEGER DEFAULT 0,created_at REAL,updated_at REAL)")
     db.run('CREATE TABLE IF NOT EXISTS project_events(id INTEGER PRIMARY KEY,project_id INTEGER,phase TEXT,text TEXT,created_at REAL)')
@@ -84,10 +85,13 @@ def rows():
 def approval_completed(approval_id,allowed,response):
     """Called for web, Telegram and office decisions, using the actual tool result."""
     init()
-    jobs=db.q("SELECT id FROM project_jobs WHERE status='waiting' AND approval_id=?",(approval_id,))
+    jobs=db.q("SELECT id,cursor,folder FROM project_jobs WHERE status='waiting' AND approval_id=?",(approval_id,))
     failed=office.outcome(response)=='failed' or bool(re.match(r'\[kode keluar (?!0\])',response.get('text','')))
     state='paused' if not allowed else 'waiting' if response.get('approval') else 'failed' if failed else 'queued'
     for job in jobs:
+        if allowed and not failed and response.get('meta',{}).get('trace'):
+            root=tools._workpath(job['folder']);files=snapshot(root)
+            db.run('INSERT OR REPLACE INTO project_stage_receipts VALUES(?,?,?,?)',(job['id'],job['cursor'],json.dumps(response,ensure_ascii=False),json.dumps(files)))
         db.run('UPDATE project_jobs SET status=?,approval_id=?,result=?,updated_at=? WHERE id=?',
                (state,response.get('approval',0),response.get('text','')[:2000],time.time(),job['id']))
         event(job['id'],'approval',('Diizinkan' if allowed else 'Ditolak')+': '+response.get('text','')[:2000])
@@ -113,6 +117,12 @@ def stage_baseline(pid,cursor,root):
     before=snapshot(root)
     db.run('INSERT INTO project_stage_snapshots VALUES(?,?,?)',(pid,cursor,json.dumps(before)))
     return before
+
+
+def receipt_for_stage(pid,cursor,root):
+    row=db.one('SELECT response,files FROM project_stage_receipts WHERE project_id=? AND cursor=?',(pid,cursor))
+    if not row or json.loads(row['files'])!=snapshot(root):return None
+    return json.loads(row['response'])
 
 
 def acceptance_problems(milestone,response,before,after):
@@ -212,7 +222,14 @@ async def step():
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
             ctx.stage_goal=milestone['task']+' '+milestone['acceptance']
             before=stage_baseline(pid,cursor,root)
-            response=await office.execute(ctx,milestone['bot'],text);event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
+            receipt=receipt_for_stage(pid,cursor,root)
+            if receipt and not acceptance_problems(milestone,receipt,before,snapshot(root))[0]:
+                response=receipt
+                event(pid,'recovery','Hasil tindakan yang diizinkan dipakai untuk tahap ini: hash source masih sama dan kriteria bukti uji terpenuhi. Tidak menjalankan ulang tindakan.')
+            else:
+                if receipt:text+='\nTindakan yang diizinkan sudah dijalankan, jangan mengulang tanpa alasan. Bukti: '+json.dumps(receipt,ensure_ascii=False)[:3500]
+                response=await office.execute(ctx,milestone['bot'],text)
+            event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)
             if not response.get('approval') and (office.outcome(response)=='failed' or problems):
                 correction=text+'\nHasil sebelumnya: '+response.get('text','')[:1500]+'\nPemeriksaan nyata menemukan: '+' '.join(problems)+'\nKerjakan yang belum dilakukan; bukan memberi saran. Jalankan tes dari folder proyek memakai run_project_command. Jangan membaca berkas opsional yang tidak ada.'

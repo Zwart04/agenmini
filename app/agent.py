@@ -701,7 +701,7 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
         result = f"Error: {e}"
     result = str(result)
     office.log(bot['id'],'result',a['tool']+': '+result[:600])
-    project_jobs.approval_completed(approval_id,True,{'text':result})
+    project_jobs.approval_completed(approval_id,True,{'text':result,'meta':{'tools':[a['tool']],'trace':[{'alat':a['tool'],'arg':json.dumps(args),'hasil':result}]}})
     if result.startswith(('Error:','Wrong arguments')) or re.search(r'\[kode keluar (?!0\])',result):
         return await turn._reply('Tindakan yang diizinkan gagal.','Tugas belum berhasil.\n'+result[:1500],{},time.time())
     # A completed approval is a receipt, not another instruction to execute tasks.
