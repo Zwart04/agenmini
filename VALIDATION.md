@@ -130,3 +130,11 @@ A stored Orchestrator response to “lanjutkan dan laporkan ke telegram” faile
 A continuation locates the previous project in the same conversation/channel/owner instead of treating it as a new generic specialist task. Failed/paused nonprotected jobs can be queued from the saved checkpoint; protected repositories remain paused.
 
 Regression includes malformed/truncated JSON, invalid specialist IDs, SSE truncation through a real local HTTP endpoint, bounded retry, no partial success, and preventing cross-owner/protected-project continuation. Historical messages and user project files are preserved.
+
+## 0.4.0 — conversation, review, original design and project capability
+
+Production history showed a greeting delegated to Asisten and then Reviewer, where review wording triggered unrelated forced tools/search guards. A paused protected project and a separate failed TypeScript project were different failure modes: the latter exhausted read steps and assigned a compilation milestone to Asisten without run_project_command. Simple conversation now uses the direct model path; continuation retains project context. Reviewer tools are scoped to actual files/build evidence and its review mode avoids unrelated intent/search nudges. Coordinator retries specialist work once and can report its own evidence review with the peer-review limitation stated.
+
+Website generation preserves model-authored HTML/CSS on both local/API modes, uses no fixed layout fallback, permits creative composition and does not require an unsolicited form, fixed section count or palette. Invalid/incomplete code is repaired once; failed drafts are not silently replaced by a template.
+
+Project stages receive the actual inventory/manifests and a bounded 18-step budget. Workers are selected by required edit/build tools without expanding parent permissions. Compilation acceptance requires a real successful command. Existing files/checkpoints and protected repositories are preserved.

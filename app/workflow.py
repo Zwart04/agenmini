@@ -50,6 +50,9 @@ async def run(ctx,text,on_event):
     async def delegate(target,task):
         await on_event('status','Menugaskan '+(db.bot(target) or {}).get('name',target)+'…')
         r=await office.execute(ctx,target,task,on_event)
+        if office.outcome(r)=='failed' and target!='reviewer' and getattr(ctx,'delegations',0)<4:
+            await on_event('status','Memperbaiki tugas '+target+' dari hasil pemeriksaan…')
+            r=await office.execute(ctx,target,task+'\nAttempt recovery from the existing files and tool evidence. Do not repeat failed calls unchanged. Fix the concrete issue, then validate again. Previous result: '+r.get('text','')[:1200],on_event)
         trace.append({'alat':'delegate_task','arg':json.dumps({'bot':target,'task':task[:500]},ensure_ascii=False),'hasil':r.get('text','')[:600]})
         return r
     if is_site:
@@ -88,7 +91,10 @@ async def run(ctx,text,on_event):
     review=await delegate('reviewer','Periksa hasil tugas ini, gunakan read_file/inspect_website jika ada HTML. Jangan membuat proyek baru. '
                          'Laporkan masalah konkret dan batas yang belum diuji. Jangan mengaku menjalankan browser/backend.\nPermintaan: '+text[:1500]+
                          '\nHasil spesialis: '+result.get('text','')[:2000]+'\nBerkas/pemeriksaan nyata: '+json.dumps(facts,ensure_ascii=False))
-    if office.outcome(review)!='done':return finalize({'text':'Tugas belum berhasil: pemeriksaan reviewer gagal. '+review.get('text','')},ctx,trace,started)
+    if office.outcome(review)!='done':
+        # The coordinator can finish its own evidence review when an optional peer failed.
+        trace.append({'alat':'review_recovery','hasil':'Reviewer tidak selesai; orchestrator meninjau hasil alat dan berkas yang benar-benar tersedia.'})
+        review={'text':'Reviewer belum selesai. Orchestrator memeriksa bukti spesialis dan validasi berkas yang tercatat; review tambahan belum terverifikasi.'}
     await on_event('status','Orchestrator memeriksa hasil akhir…');office.phase('Memeriksa hasil akhir','thinking')
     final=await llm.chat([{'role':'system','content':'Kamu orchestrator. Tinjau hasil spesialis dan reviewer berdasarkan bukti alat. '
                          'Jawab singkat dalam bahasa Indonesia: hasil, lampiran, pemeriksaan nyata, kekurangan. Jangan mengklaim review browser/backend atau integrasi yang belum diuji. '
@@ -107,4 +113,4 @@ async def run(ctx,text,on_event):
 
 def finalize(result,ctx,trace,started):
     if result.get('approval'):return {'text':result['text'],'approval':result['approval']}
-    return {'text':result.get('text','Error: tidak ada hasil'),'meta':{'trace':trace,'files':[], 'seconds':round(time.time()-started,1),'tools':['delegate_task']}}
+    return {'text':'Pekerjaan ini belum selesai setelah percobaan pemulihan. Hasil dan kendala tersimpan di log aktivitas; saya tidak menandainya berhasil. '+(result.get('text','')[:500] if not result.get('text','').startswith(('Error:','Galat:')) else ''),'meta':{'status':'failed','technical_error':result.get('text',''),'trace':trace,'files':[], 'seconds':round(time.time()-started,1),'tools':['delegate_task']}}

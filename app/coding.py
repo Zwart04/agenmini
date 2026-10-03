@@ -80,35 +80,34 @@ async def generate_compact(brief, model=None, on_token=None, prio=0):
     return extract_html(compact_page(data)),result.get('stats',{})
 
 async def generate(brief, model=None, on_token=None, prio=0):
-    brief=brief.split('\n\nArahan copywriter')[0]
-    if llm.active_backend() == 'local':
-        return await generate_compact(brief,model,on_token,prio)
-    prompt = ('You are a senior frontend designer and engineer. Create one complete, distinctive, polished HTML '
-              'website matching the brief, in Indonesian unless requested otherwise. Output raw <!doctype html> '
-              'through </html> only. Build a visually rich frontend with thoughtful art direction, strong typography, '
-              'real whitespace, coherent custom SVG/CSS illustration or detailed product preview, 6-8 useful sections '
-              'when appropriate, responsive navigation and meaningful JavaScript interactions. Avoid generic three-card '
-              'templates, purple gradients, emoji icons, fake counters/logos/testimonials, invented prices and filler. '
-              'Use inline CSS/JS and system fonts; no remote scripts/fonts/images. A product demo must honestly label '
-              'sample/offline behavior. Implement the interactions you present: tabs, copy, filters, forms, FAQ, navigation. '
-              'All links must have real destinations. Never pretend AI/payment/login is connected without a backend. '
-              'Target 12-25 KB of useful HTML/CSS/JS, maximum 6000 tokens. Finish all tags. Include title, viewport, '
-              'main, footer, keyboard focus, accessible labels, reduced motion and mobile layouts down to 320px. '
-              'Review your own code before output: no clipping, missing anchors, placeholder text or inert primary buttons.')
-    result = await llm.chat([{'role': 'system', 'content': prompt}, {'role': 'user', 'content': brief[:6500]}],
-                            tools=None, model=model, max_tokens=6000, temperature=0.4, on_token=on_token, prio=prio)
+    local=llm.active_backend()=='local'
+    budget=3200 if local else 8000
+    prompt=('You are an inventive frontend designer and engineer. Design a complete original website for this specific brief. '
+            'Choose your own art direction, palette, typography, composition, sections and interaction design. '
+            'Explore a visual concept that fits the product instead of repeating a fixed landing-page scaffold. '
+            'Output one complete raw HTML document with inline CSS/JavaScript. SVG, CSS artwork and canvas are welcome. '
+            'Use meaningful product copy in the requested language. Complete all tags/scripts. '
+            'Fit desktop and mobile down to 320px, provide accessible controls, readable contrast and reduced motion. '
+            'Implement the controls you display; do not invent testimonials, prices, connected AI/payments/WhatsApp or credentials. '
+            'External assets are optional and must degrade gracefully. Clearly distinguish an offline demo from a connected backend. '
+            'Keep the document complete within the output budget; you choose the level of detail and layout.')
+    if local:prompt+=' This CPU model has a small context: prefer concise original CSS/SVG and focused interactions, not a framework.'
+    messages=[{'role':'system','content':prompt},{'role':'user','content':brief[:6500]}]
     from .projects import inspect_html
-    html=extract_html(result['content']);check=inspect_html(html)
-    if check['buttons']<2 or not re.search(r'<form\b',html,re.I):check['errors'].append('Implementasikan demo produk offline dengan form, tombol, tab dan hasil yang berubah; labeli sebagai demo, bukan AI terhubung.');check['ok']=False
-    invented=[url for url in re.findall(r'https?://[^\s\"<>]+',html) if any(key in url for key in ('sellerstudio','seller-studio')) and url not in brief]
-    if invented:check['errors'].append('Hapus tautan akun/domain produk yang tidak diberikan pemilik: '+', '.join(invented));check['ok']=False
-    if not check['ok']:
-        repaired=await llm.chat([{'role':'system','content':prompt+' Repair the existing document. Preserve its design, fix the reported problems. All anchors must target real sections; use buttons for implemented actions, never href="#". Output the COMPLETE HTML.'},
-                                {'role':'user','content':brief[:2500]+'\nActual validation errors: '+json.dumps(check['errors'])+'\nExisting HTML:\n'+html}],tools=None,model=model,max_tokens=6000,temperature=.2,on_token=on_token,prio=prio)
-        html=extract_html(repaired['content']);result=repaired;check=inspect_html(html)
-        if not check['ok'] or check['buttons']<2 or not re.search(r'<form\b',html,re.I):
-            # A tested interactive foundation is preferable to shipping dead controls.
-            html,stats=await generate_compact(brief,model,on_token,prio)
-            stats['layout']='Fondasi desain interaktif teruji; copy dari model API setelah HTML awal gagal validasi.'
-            return html,stats
-    return html,result.get('stats',{})
+    last_problem=''
+    for attempt in range(2):
+        result=await llm.chat(messages,tools=None,model=model,max_tokens=budget,temperature=.65 if not attempt else .3,on_token=on_token,prio=prio)
+        raw=result.get('content','')
+        try:
+            if result.get('stats',{}).get('finish_reason')=='length':raise ValueError('Dokumen terpotong pada batas keluaran.')
+            html=extract_html(raw);check=inspect_html(html)
+            if not check['ok']:raise ValueError(' '.join(check['errors']))
+            from .projects import inspect_inline_js
+            errors=await inspect_inline_js(html)
+            if errors:raise ValueError('JavaScript belum valid: '+' '.join(errors))
+            return html,result.get('stats',{})
+        except ValueError as exc:
+            last_problem=str(exc)
+            messages=[{'role':'system','content':prompt+' Repair the existing draft while preserving its visual concept. Output a COMPLETE document, not JSON or a patch. Simplify incidental detail if needed to finish.'},
+                      {'role':'user','content':brief[:3000]+'\nValidation: '+last_problem[:1000]+'\nDraft:\n'+raw[:14000]}]
+    raise ValueError('Halaman belum siap setelah pembuatan dan perbaikan otomatis. '+last_problem[:400])

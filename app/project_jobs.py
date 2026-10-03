@@ -86,10 +86,25 @@ def acceptance_problems(milestone,response,before,after):
     task=milestone['task'];criteria=task+' '+milestone['acceptance'];problems=[]
     if re.search(r'\b(buat|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
-    if re.search(r'\b(uji|test|assert|build)',criteria,re.I):
+    if re.search(r'uji|test|assert|build|kompil|compile',criteria,re.I):
         commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and t.get('hasil','').startswith('[kode keluar 0]')]
         if not commands:problems.append('Build/test yang diminta belum memiliki perintah nyata dengan exit code 0.')
     return problems,changed
+
+
+def capable_worker(milestone,parent_tools):
+    required=[]
+    if re.search(r'\b(buat|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor|struktur|structure)',milestone['task'],re.I):
+        required.append({'write_file','edit_project_file'})
+    if re.search(r'uji|test|assert|build|kompil|compile',milestone['task']+' '+milestone['acceptance'],re.I):
+        required.append({'run_project_command'})
+    original=db.bot(milestone['bot'])
+    candidates=[original]+[db.bot('teknisi'),db.bot('desainer'),db.bot('reviewer')]
+    for bot in candidates:
+        if not bot or not bot.get('active'):continue
+        available=set(bot['tools']) & set(parent_tools)
+        if all(available & group for group in required):return bot['id']
+    raise ValueError('Belum ada bot dengan izin alat yang diperlukan untuk tahap ini. Periksa alat bot di Workspace.')
 
 
 async def step():
@@ -147,11 +162,19 @@ async def step():
             db.run('UPDATE project_jobs SET plan=? WHERE id=?',(json.dumps(plan,ensure_ascii=False),pid));event(pid,'plan',json.dumps(plan,ensure_ascii=False))
         cursor=job['cursor'];milestones=plan['milestones']
         if cursor<len(milestones):
-            milestone=milestones[cursor];office.phase(f'Tahap {cursor+1}/{len(milestones)}: '+milestone['bot'],'delegating')
-            text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. List folder dahulu. Baca AGENTS.md/README hanya jika ada, lalu source relevan. '
+            milestone=milestones[cursor]
+            selected=capable_worker(milestone,ctx.bot['tools'])
+            if selected!=milestone['bot']:
+                event(pid,'capability','Tahap dialihkan dari '+milestone['bot']+' ke '+selected+' karena kebutuhan alat build/edit.')
+                milestone['bot']=selected
+                db.run('UPDATE project_jobs SET plan=? WHERE id=?',(json.dumps(plan,ensure_ascii=False),pid))
+            office.phase(f'Tahap {cursor+1}/{len(milestones)}: '+milestone['bot'],'delegating')
+            text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
                   'Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
+            inventory=await inspect(job['folder'])
+            text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
             before=snapshot(root)
             response=await office.execute(ctx,milestone['bot'],text);event(pid,'milestone',json.dumps({'step':cursor+1,'response':response},ensure_ascii=False))
             after=snapshot(root);problems,changed=acceptance_problems(milestone,response,before,after)

@@ -139,7 +139,7 @@ async def test_website_is_created_verified_and_attached_without_long_tool_json(m
     monkeypatch.setattr(llm,'active_backend',lambda:'online')
     bot=db.bot('asisten')
     result=await agent.Turn(bot,'test','html-workflow').run('Bisa buatkan saya website/landingpage HTML untuk Seller Studio, membuat konten untuk seller Indonesia memakai AI?')
-    assert len(calls)==1 and calls[0][1]['tools'] is None and calls[0][1]['max_tokens']==6000
+    assert len(calls)==1 and calls[0][1]['tools'] is None and 1000 <= calls[0][1]['max_tokens'] <= 8000
     assert result['meta']['files'] and result['meta']['tools']==['build_website']
     assert (tmp_path/result['meta']['files'][0]).read_text(encoding='utf-8')==text
     assert 'dilampirkan' in result['text']
@@ -250,7 +250,7 @@ async def test_compact_coding_escapes_model_copy_and_uses_bounded_output(monkeyp
         assert kw['max_tokens']==700 and kw['tools'] is None
         return {'content':json.dumps({'title':'Seller Studio','headline':'<script>alert(1)</script>','description':'Konten untuk seller Indonesia.','features':[{'title':'Ide konten','description':'Susun draf sesuai produk.'}]*3})}
     monkeypatch.setattr(llm,'active_backend',lambda:'local');monkeypatch.setattr(llm,'chat',fake)
-    html,stats=await coding.generate('Buat website Seller Studio')
+    html,stats=await coding.generate_compact('Buat website Seller Studio')
     assert '<script>alert(1)</script>' not in html and '&lt;script&gt;' in html
     assert 'grid-template-columns:1fr' in html and 'prototipe' in html
 

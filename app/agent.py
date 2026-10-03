@@ -263,7 +263,7 @@ def context_block(bot: dict, text: str) -> tuple[str, list[int]]:
     hints = task_hints(text, bot.get("tools", []))
     if hints:
         parts.append("Petunjuk:\n" + "\n".join(f"- {h}" for h in hints))
-    skills = memory.search_skills(bot, text)
+    skills = [] if is_light(text,bot.get('tools',[])) else memory.search_skills(bot, text)
     for s in skills:
         parts.append(f"Skill tersimpan \"{s['name']}\" (dipakai bila: {s['when_to_use']}):\n{s['steps']}")
         db.run("UPDATE skills SET uses=uses+1 WHERE id=?", (s["id"],))
@@ -395,13 +395,16 @@ class Turn:
         ctx = tools.Ctx(bot=bot, chat=chat, channel=self.channel, ext_id=self.ext_id, skills_used=skill_ids,
                         user_text=text if save_user else "")
         if getattr(self,'project_folder',None):ctx.project_folder=self.project_folder
+        if getattr(self,'review_only',False):
+            msgs[0]['content']+='\nReview only the supplied work and actual files. Do not perform web research or unrelated tasks. If no files require tools, a reasoned textual review is sufficient.'
         from . import coding, office
-        if bot['id']=='orchestrator' and 'delegate_task' in bot.get('tools',[]) and not getattr(self,'delegated',False) and not extra_msgs:
+        if bot['id']=='orchestrator' and 'delegate_task' in bot.get('tools',[]) and not getattr(self,'delegated',False) and not extra_msgs and (not is_light(text,bot.get('tools',[])) or re.search(r'^\s*lanjut',text,re.I)):
             from . import workflow
             try:
                 result=await workflow.run(ctx,text,self.on_event)
             except (llm.LLMError,ValueError,OSError) as exc:
-                result={'text':'Tugas belum berhasil: '+str(exc),'meta':{'files':[],'status':'failed'}}
+                office.log(bot['id'],'result','Pemulihan belum selesai: '+str(exc)[:500])
+                result={'text':'Pekerjaan ini belum selesai setelah pemulihan otomatis. Detail kendala tersimpan di aktivitas; hasil belum saya tandai berhasil.','meta':{'files':[],'status':'failed','technical_error':str(exc)}}
             mid=db.add_message(chat['id'],'assistant',result['text'],result.get('meta',{}) | ({'approval':result['approval']} if result.get('approval') else {}))
             result['message_id']=mid
             await self.on_event('done',result)
@@ -477,9 +480,9 @@ class Turn:
                         answer='Tugas belum berhasil: batas langkah tercapai. Lanjutkan dari checkpoint; tindakan berikutnya belum dijalankan.'
                         break
                     answer = res["content"].strip()
-                    if (last or nudged) and needs_nudge(answer, used, names, text):
+                    if (last or nudged) and not getattr(self,'review_only',False) and needs_nudge(answer, used, names, text):
                         answer = "Saya belum berhasil menjalankan alat yang diperlukan, jadi hasilnya belum bisa saya pastikan."
-                    nudge = None if (last or nudged) else needs_nudge(answer, used, names, text)
+                    nudge = None if (last or nudged or getattr(self,'review_only',False)) else needs_nudge(answer, used, names, text)
                     if nudge:
                         nudged = True
                         msgs += [{"role": "assistant", "content": answer}, {"role": "user", "content": nudge}]
@@ -583,7 +586,7 @@ class Turn:
 
         if failures and not successes:
             answer = "Tugas belum berhasil, jadi saya belum bisa memastikan hasilnya.\n\n" + "\n".join(failures[:3])
-        answer = grounded_current_answer(text, answer, evidence, used)
+        if not getattr(self,'review_only',False):answer = grounded_current_answer(text, answer, evidence, used)
         if not answer:
             answer = "Maaf, saya belum menemukan jawabannya."
         meta = {"tools": used, "skills": skill_ids, "seconds": round(time.time() - t0, 1), "stats": stats,

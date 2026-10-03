@@ -176,6 +176,8 @@ async def execute(ctx,target,text,on_event=None):
     bot={**bot,'backend':target_backend,'model':bot.get('model') or (ctx.bot.get('model') if target_backend==parent_backend else '') or '', 'tools':[name for name in bot['tools'] if name in ctx.bot['tools'] and name not in ('delegate_task',)]}
     if getattr(ctx,'project_folder',None):
         bot['tools']=[name for name in bot['tools'] if name not in ('build_project','build_website','start_project','clone_repository','run_python','run_shell')]
+    if target=='reviewer':
+        bot['tools']=[name for name in bot['tools'] if name in ('read_file','list_files','inspect_website','inspect_project','preview_project','run_project_command')]
     if 'tidak perlu pencarian web' in text.lower():
         bot['tools']=[name for name in bot['tools'] if name not in ('web_search','read_webpage','browser')]
     tid=enqueue(ctx.bot['id'],target,text,owner_task=True)
@@ -186,9 +188,9 @@ async def execute(ctx,target,text,on_event=None):
     try:
         async def event(kind,data):
             if on_event and kind=='status':await on_event('status',bot['name']+': '+str(data))
-        turn=agent.Turn(bot,ctx.channel,ctx.ext_id,event,prio=llm.PRIO_TASK);turn.bot=bot;turn.delegated=True
+        turn=agent.Turn(bot,ctx.channel,ctx.ext_id,event,prio=llm.PRIO_TASK);turn.bot=bot;turn.delegated=True;turn.review_only=target=='reviewer'
         if getattr(ctx,'project_folder',None):
-            turn.max_steps=10;turn.project_folder=ctx.project_folder
+            turn.max_steps=18;turn.project_folder=ctx.project_folder
         turn.display_task=text
         async with asyncio.timeout(900):response=await turn.run(text)
         status=outcome(response)
