@@ -80,6 +80,27 @@ def rows():
     return result
 
 
+def approval_completed(approval_id,allowed,response):
+    """Called for web, Telegram and office decisions, using the actual tool result."""
+    init()
+    jobs=db.q("SELECT id FROM project_jobs WHERE status='waiting' AND approval_id=?",(approval_id,))
+    failed=office.outcome(response)=='failed' or bool(re.match(r'\[kode keluar (?!0\])',response.get('text','')))
+    state='paused' if not allowed else 'waiting' if response.get('approval') else 'failed' if failed else 'queued'
+    for job in jobs:
+        db.run('UPDATE project_jobs SET status=?,approval_id=?,result=?,updated_at=? WHERE id=?',
+               (state,response.get('approval',0),response.get('text','')[:2000],time.time(),job['id']))
+        event(job['id'],'approval',('Diizinkan' if allowed else 'Ditolak')+': '+response.get('text','')[:2000])
+    return state
+
+
+def recover_consumed_approvals():
+    """Legacy decisions had no checkpoint callback. Recheck the milestone, never advance it."""
+    for row in db.q("SELECT p.id,a.status FROM project_jobs p JOIN approvals a ON a.id=p.approval_id WHERE p.status='waiting' AND a.status IN ('diizinkan','ditolak')"):
+        state='queued' if row['status']=='diizinkan' else 'paused'
+        db.run('UPDATE project_jobs SET status=?,approval_id=0 WHERE id=?',(state,row['id']))
+        event(row['id'],'recovery','Keputusan izin lama disinkronkan. Tahap dijalankan ulang dari berkas sekarang dan harus memiliki bukti uji; cursor tidak dinaikkan.')
+
+
 def snapshot(root):
     import hashlib
     return {str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p.stat().st_size<200000 and not any(part in ('.git','node_modules','.venv','__pycache__','dist','build') for part in p.relative_to(root).parts)}
@@ -177,7 +198,7 @@ async def step():
             text=('Kerjakan satu tahap proyek di folder '+job['folder']+'. Gunakan inventaris kode yang sudah disediakan; baca hanya source yang perlu diubah. Jangan mengulang pembacaan berkas yang sama tanpa perubahan. '
                   'Untuk kode panjang gunakan edit_project_file agar tidak terpotong dalam JSON alat. Edit melalui write_file untuk berkas pendek. Gunakan run_project_command untuk build/test pada folder proyek. Gunakan preview_project untuk frontend tersimpan dan periksa interaksi/galat; WebGL/layout butuh Chromium opsional. '
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
-                  'Jalankan tes secara serial; untuk Jest gunakan --runInBand. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
+                  'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Jalankan tes secara serial; untuk Jest gunakan --runInBand. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
             inventory=await inspect(job['folder'])
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
             ctx.stage_goal=milestone['task']+' '+milestone['acceptance']

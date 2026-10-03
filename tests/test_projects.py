@@ -156,3 +156,22 @@ async def test_auto_runtime_reports_actual_candidates(monkeypatch,tmp_path):
         response=await control.engine_runtime(None)
         assert json.loads(response.text)['ready'] is True
     finally:db.set_setting('llm_backend',original)
+
+@pytest.mark.parametrize('allowed,result,state',[(True,'[kode keluar 0]\nVerified','queued'),(True,'[kode keluar 1]\nFailed','failed'),(False,'Denied','paused')])
+def test_shared_approval_callback_keeps_checkpoint(allowed,result,state):
+    project_jobs.init();pid=db.run('INSERT INTO project_jobs(brief,status,cursor,approval_id) VALUES(?,?,?,?)',('callback','waiting',2,999999))
+    try:
+        project_jobs.approval_completed(999999,allowed,{'text':result})
+        row=db.one('SELECT status,cursor,approval_id FROM project_jobs WHERE id=?',(pid,))
+        assert row=={'status':state,'cursor':2,'approval_id':0}
+    finally:
+        db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,))
+
+
+def test_old_allowed_approval_recovers_without_advancing():
+    project_jobs.init();aid=db.run('INSERT INTO approvals(status) VALUES(?)',('diizinkan',));pid=db.run('INSERT INTO project_jobs(brief,status,cursor,approval_id) VALUES(?,?,?,?)',('legacy','waiting',3,aid))
+    try:
+        project_jobs.recover_consumed_approvals()
+        assert db.one('SELECT status,cursor,approval_id FROM project_jobs WHERE id=?',(pid,))=={'status':'queued','cursor':3,'approval_id':0}
+    finally:
+        db.run('DELETE FROM project_jobs WHERE id=?',(pid,));db.run('DELETE FROM project_events WHERE project_id=?',(pid,));db.run('DELETE FROM approvals WHERE id=?',(aid,))

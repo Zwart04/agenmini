@@ -567,10 +567,11 @@ async def project_approval(request):
         if not approval or approval['status']!='menunggu':raise ValueError('Izin ini sudah ditindaklanjuti.')
         ok=data.get('ok') is True
         response=await agent.resolve_approval(job['approval_id'],ok)
-        state='paused' if not ok else 'waiting' if response.get('approval') else 'failed' if office.outcome(response)=='failed' else 'queued'
-        db.run('UPDATE project_jobs SET status=?,approval_id=?,result=?,updated_at=? WHERE id=?',
-               (state,response.get('approval',0),response.get('text','')[:2000],time.time(),pid))
-        project_jobs.event(pid,'approval',('Diizinkan' if ok else 'Ditolak')+': '+response.get('text','')[:2000])
+        current=db.one('SELECT status,approval_id FROM project_jobs WHERE id=?',(pid,))
+        if current['status']=='waiting' and current['approval_id']==job['approval_id']:
+            project_jobs.approval_completed(job['approval_id'],ok,response)
+            current=db.one('SELECT status FROM project_jobs WHERE id=?',(pid,))
+        state=current['status']
         return web.json_response({'ok':True,'status':state,'text':response.get('text','')})
 
 @routes.post('/api/projects/{id}')

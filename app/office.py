@@ -146,6 +146,7 @@ async def loop():
     db.run("UPDATE office_tasks SET status='queued' WHERE status='working'")
     from . import project_jobs
     project_jobs.init()
+    project_jobs.recover_consumed_approvals()
     db.run("UPDATE project_jobs SET status='queued' WHERE status IN ('working','planning')")
     while True:
         row = db.one("SELECT * FROM office_tasks WHERE status='queued' ORDER BY id LIMIT 1")

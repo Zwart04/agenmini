@@ -678,7 +678,9 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
     validation = tools.validate_arguments(a["tool"], args)
     if validation:
         return {"text": f"Argumen tidak valid: {validation}"}
+    from . import project_jobs
     if not ok:
+        project_jobs.approval_completed(approval_id,False,{"text":"Izin ditolak; proyek dijeda."})
         db.add_message(chat["id"], "user", f"(Pemilik MENOLAK: {t.label})")
         return await turn.run(f"Saya menolak {t.label} itu. Jangan lakukan. Tawarkan cara lain kalau ada.", save_user=False)
     await turn.on_event("status", tool_label(a["tool"], args) + "…")
@@ -688,11 +690,15 @@ async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:
     office.log(bot["id"],"tool",t.label)
     try:
         result = await asyncio.wait_for(t.fn(ctx, **args), 900 if a['tool'] in ('delegate_task','build_project') else 360 if a['tool']=='build_website' else 150)
-        if getattr(ctx,'pending_approval',None):return {'text':str(result),'approval':ctx.pending_approval}
+        if getattr(ctx,'pending_approval',None):
+            response={'text':str(result),'approval':ctx.pending_approval}
+            project_jobs.approval_completed(approval_id,True,response)
+            return response
     except Exception as e:
         result = f"Error: {e}"
     result = str(result)
     office.log(bot['id'],'result',a['tool']+': '+result[:600])
+    project_jobs.approval_completed(approval_id,True,{'text':result})
     if result.startswith(('Error:','Wrong arguments')) or re.search(r'\[kode keluar (?!0\])',result):
         return await turn._reply('Tindakan yang diizinkan gagal.','Tugas belum berhasil.\n'+result[:1500],{},time.time())
     if a["tool"].startswith("mcp_"):
