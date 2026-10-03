@@ -445,6 +445,8 @@ async def change_mode(request):
         raise ValueError('Mode tidak dikenal.')
     if office.presence:
         raise ValueError('Tunggu tugas aktif selesai sebelum mengganti mode.')
+    import os
+    if os.name=='nt' and mode in ('local','router','freellmapi','ollama'):raise ValueError('Pada Windows pilih API langsung, isi URL /v1 gateway/model yang sudah berjalan dan API key. Pemasangan lokal/9router/FreeLLMAPI otomatis tersedia pada VPS Linux atau WSL/Docker.')
     if mode == 'auto':
         if db.setting('llm_backend') in ('router','compatible'):db.set_setting('auto_9router','1')
         runtime_status.request('reconcile')
@@ -664,7 +666,7 @@ async def social_configure(request):
 @routes.get('/api/setup')
 async def setup_status(request):
     from . import social_connections,integrations
-    return web.json_response({'complete':db.setting('setup_complete')=='1','social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend')})
+    return web.json_response({'complete':db.setting('setup_complete')=='1','social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
 
 @routes.post('/api/setup')
 async def setup_done(request):

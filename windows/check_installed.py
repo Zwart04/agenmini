@@ -18,6 +18,8 @@ try:
         req=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json'})
         with client.open(req,timeout=60) as response:return json.load(response)
     password=(data/'initial-password.txt').read_text().strip();assert request('/api/login',{'password':password})['ok']
+    assert request('/api/mode',{'mode':'online'})['ok']
+    assert not (data/'runtime-request').exists()
     assert request('/api/office')['bots'];assert request('/api/social')['connections'];assert 'learning' in request('/api/office/learning')
     script="""import asyncio,json\nfrom app import tools,config\nasync def go():\n a=await tools._run_sandboxed(['python3','-I','-c','print(125*8)'],timeout=10)\n assert a.strip()=='[kode keluar 0]\\n1000',a\n b=await tools._run_sandboxed(['node','-e','console.log(40+2)'],timeout=10)\n assert b.strip()=='[kode keluar 0]\\n42',b\n c=await tools._run_sandboxed(['python3','-I','-c','import time;time.sleep(10)'],timeout=1)\n assert 'dihentikan' in c,c\n print('PASS installed Python, Node, and timeout Job Object')\nasyncio.run(go())\n"""
     toolenv=env.copy();toolenv['DATA_DIR']=str(data);toolenv['PATH']=str(install/'bin')+';'+str(install/'runtime')+';'+env['PATH']

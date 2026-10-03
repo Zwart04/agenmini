@@ -42,6 +42,9 @@ async def state():
 
 
 def request(mode, model=None):
+    if os.name == 'nt':
+        if mode in ('api','reconcile'):return
+        raise ValueError('Pemasangan mesin lokal/gateway dikelola oleh supervisor Linux. Pada Windows gunakan API langsung untuk gateway/model yang sudah berjalan, atau pemasangan VPS melalui WSL/Docker.')
     if (config.DATA_DIR / 'runtime-request').exists() or (config.DATA_DIR / 'runtime-processing').exists():
         raise ValueError('Persiapan mode sedang berjalan. Tunggu selesai sebelum mengganti atau mengunduh ulang.')
     if model:
