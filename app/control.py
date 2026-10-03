@@ -633,6 +633,9 @@ async def project_action(request):
     project_jobs.init();pid=int(request.match_info['id']);job=db.one('SELECT * FROM project_jobs WHERE id=?',(pid,))
     if not job:raise ValueError('Proyek tidak ditemukan.')
     data=await request.json();action=data.get('action')
+    if 'autonomous' in data:
+        if not isinstance(data['autonomous'],bool):raise ValueError('autonomous harus boolean.')
+        db.run('UPDATE project_jobs SET autonomous=? WHERE id=?',(int(data['autonomous']),pid))
     if action=='pause':state='paused'
     elif action=='resume':
         if job['approval_id'] and (db.one('SELECT status FROM approvals WHERE id=?',(job['approval_id'],)) or {}).get('status')=='menunggu':raise ValueError('Izinkan atau tolak tindakan proyek terlebih dahulu.')

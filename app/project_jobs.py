@@ -11,6 +11,9 @@ def init():
     db.run('CREATE TABLE IF NOT EXISTS project_stage_receipts(project_id INTEGER,cursor INTEGER,response TEXT,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run('CREATE TABLE IF NOT EXISTS project_stage_snapshots(project_id INTEGER,cursor INTEGER,files TEXT,PRIMARY KEY(project_id,cursor))')
     db.run("CREATE TABLE IF NOT EXISTS project_jobs(id INTEGER PRIMARY KEY,brief TEXT,repository TEXT,folder TEXT,status TEXT,plan TEXT DEFAULT '{}',cursor INTEGER DEFAULT 0,channel TEXT,ext_id TEXT,engine TEXT,model TEXT,result TEXT DEFAULT '',approval_id INTEGER DEFAULT 0,created_at REAL,updated_at REAL)")
+    columns={r['name'] for r in db.q('PRAGMA table_info(project_jobs)')}
+    for name,definition in [('autonomous','INTEGER DEFAULT 0'),('retry_count','INTEGER DEFAULT 0'),('next_run','REAL DEFAULT 0')]:
+        if name not in columns:db.run('ALTER TABLE project_jobs ADD COLUMN '+name+' '+definition)
     db.run('CREATE TABLE IF NOT EXISTS project_events(id INTEGER PRIMARY KEY,project_id INTEGER,phase TEXT,text TEXT,created_at REAL)')
 
 
@@ -130,7 +133,7 @@ def acceptance_problems(milestone,response,before,after):
     task=milestone['task'];criteria=task+' '+milestone['acceptance'];problems=[]
     if re.search(r'\b(buat|pembuatan|create|implement|inisialisasi|pengembangan|ubah|tambah|perbaiki|fix|update|edit|refactor)',task,re.I) and not changed:
         problems.append('Tahap meminta implementasi, tetapi belum ada perubahan berkas di folder proyek.')
-    if re.search(r'uji|test|assert|build|kompil|compile|\bAPI\b|\bHTTP\b|cookie|otentikasi|autentikasi|isolasi data|checkout|stok|backend|frontend',criteria,re.I):
+    if re.search(r'\btes\b|uji|test|assert|build|kompil|compile|\bAPI\b|\bHTTP\b|cookie|otentikasi|autentikasi|isolasi data|checkout|stok|backend|frontend',criteria,re.I):
         commands=[t for t in response.get('meta',{}).get('trace',[]) if t.get('alat')=='run_project_command' and not t.get('cached') and t.get('hasil','').startswith('[kode keluar 0]')]
         def verifies(t):
             arg=t.get('arg','')
@@ -149,7 +152,7 @@ def capable_worker(milestone,parent_tools):
     required=[]
     if re.search(r'\b(buat|pembuatan|pengembangan|inisialisasi|create|implement|ubah|tambah|perbaiki|fix|update|edit|refactor|struktur|structure)',milestone['task'],re.I):
         required.append({'write_file','edit_project_file'})
-    if re.search(r'uji|test|assert|build|kompil|compile',milestone['task']+' '+milestone['acceptance'],re.I):
+    if re.search(r'\btes\b|uji|test|assert|build|kompil|compile|\bAPI\b|\bHTTP\b|cookie|autentikasi|backend|frontend|checkout',milestone['task']+' '+milestone['acceptance'],re.I):
         required.append({'run_project_command'})
     original=db.bot(milestone['bot'])
     candidates=[original]+[db.bot('teknisi'),db.bot('desainer'),db.bot('reviewer')]
@@ -160,8 +163,21 @@ def capable_worker(milestone,parent_tools):
     raise ValueError('Belum ada bot dengan izin alat yang diperlukan untuk tahap ini. Periksa alat bot di Workspace.')
 
 
+def fail_checkpoint(job,reason):
+    """Recover boundedly from the current source; never advance or fake success."""
+    retry=int(job.get('retry_count') or 0)+1
+    recover=bool(job.get('autonomous')) and retry<=4
+    state='queued' if recover else 'failed'
+    next_run=time.time()+min(120,15*retry) if recover else 0
+    db.run('UPDATE project_jobs SET status=?,result=?,retry_count=?,next_run=?,updated_at=? WHERE id=?',
+           (state,reason[:2000],retry,next_run,time.time(),job['id']))
+    event(job['id'],'recovery' if recover else 'failed',
+          ('Perbaikan otomatis '+str(retry)+'/4 dari checkpoint yang sama: ' if recover else '')+reason[:2000])
+    return state
+
+
 async def step():
-    init();job=db.one("SELECT * FROM project_jobs WHERE status='queued' ORDER BY id LIMIT 1")
+    init();job=db.one("SELECT * FROM project_jobs WHERE status='queued' AND COALESCE(next_run,0)<=? ORDER BY updated_at,id LIMIT 1",(time.time(),))
     if not job:return False
     if repository_protected(job['brief'],job['repository']):
         reason='Dijeda: repo tujuan ada dalam daftar jangan disentuh. Repo sumber dan salinan lokal dipertahankan. Pilih repo lain untuk implementasi.'
@@ -173,6 +189,7 @@ async def step():
     try:
         ctx=tools.Ctx({**db.bot('orchestrator'),'backend':job['engine'],'model':job['model']},db.chat_for('orchestrator',job['channel'],job['ext_id']),job['channel'],job['ext_id'],user_text=job['brief'])
         ctx.project_folder=job['folder']
+        ctx.project_autonomous=bool(job.get('autonomous'))
         root=tools._workpath(job['folder'])
         if not root.exists():
             if job['repository']:
@@ -227,6 +244,8 @@ async def step():
                   'Jangan menggunakan build_project yang membuat folder baru. Jangan mengulang proyek dari nol. '
                   'Periksa import/dependensi yang sudah terpasang sebelum memasang ulang; jangan meminta izin instalasi yang tidak diperlukan. Untuk uji server, jangan menjalankan server foreground lalu menunggu timeout. Buat smoke test HTTP localhost (misalnya aiohttp TestClient/TestServer atau harness subprocess) yang memulai server, memeriksa respons, menutup server dan keluar 0. Timeout bukan bukti server sehat. Jalankan tes secara serial; hanya untuk runner Jest gunakan --runInBand; pytest dan unittest tidak menerima flag Jest. Jangan memasang runner lain jika tes proyek sudah berjalan dengan runner yang ada. Pilih test runner ringan bila transpiler menghabiskan RAM. Jangan mengklaim uji berhasil tanpa exit code.\nTujuan proyek: '+job['brief'][:4000]+'\nTahap: '+milestone['task']+'\nKriteria: '+milestone['acceptance'])
             inventory=await inspect(job['folder'])
+            if job.get('retry_count'):
+                text+='\nCheckpoint sebelumnya belum lulus: '+job['result'][:2000]+'. Perbaiki sebabnya dengan alat nyata; jangan mengulang klaim atau hanya menuliskan tool tag.'
             text+='\nInventaris aktual: '+json.dumps(inventory,ensure_ascii=False)[:6000]
             ctx.stage_goal=milestone['task']+' '+milestone['acceptance']
             before=stage_baseline(pid,cursor,root)
@@ -247,13 +266,16 @@ async def step():
             if problems and office.outcome(response)=='done':raise ValueError(' '.join(problems))
             state=office.outcome(response)
             if state!='done':
-                db.run('UPDATE project_jobs SET status=?,result=?,approval_id=?,updated_at=? WHERE id=?',('waiting' if response.get('approval') else 'failed',response.get('text',''),response.get('approval',0),time.time(),pid));return True
+                if response.get('approval'):
+                    db.run("UPDATE project_jobs SET status='waiting',result=?,approval_id=?,updated_at=? WHERE id=?",(response.get('text',''),response['approval'],time.time(),pid))
+                else:fail_checkpoint(job,response.get('text',''))
+                return True
             # No silent "done" for a coding milestone that never executed any allowed tool.
             used=response.get('meta',{}).get('tools',[])
             if 'build_project' in used or 'build_website' in used:raise ValueError('Tahap proyek membuat folder baru; tidak dianggap mengubah proyek yang sedang dikerjakan.')
             if milestone['bot'] in ('teknisi','desainer') and not used:
                 raise ValueError('Tahap coding belum memakai alat nyata; hasil disimpan untuk diperiksa, bukan dianggap berhasil.')
-            cursor+=1;db.run('UPDATE project_jobs SET cursor=?,result=? WHERE id=?',(cursor,response.get('text','')[:10000],pid))
+            cursor+=1;db.run('UPDATE project_jobs SET cursor=?,result=?,retry_count=0,next_run=0 WHERE id=?',(cursor,response.get('text','')[:10000],pid))
         if cursor>=len(milestones):
             checks=await inspect(job['folder'])
             if not checks['files']:raise ValueError('Folder proyek kosong; tidak membuat ZIP kosong sebagai hasil selesai.')
@@ -277,7 +299,7 @@ async def step():
             current=db.one('SELECT status FROM project_jobs WHERE id=?',(pid,))
             if current['status']=='working':db.run("UPDATE project_jobs SET status='queued' WHERE id=?",(pid,))
     except Exception as exc:
-        event(pid,'failed',str(exc));db.run("UPDATE project_jobs SET status='failed',result=? WHERE id=?",(str(exc)[:2000],pid));response={'text':'Error: '+str(exc)}
+        fail_checkpoint(job,str(exc));response={'text':'Error: '+str(exc)}
     finally:
         db.run('UPDATE project_jobs SET updated_at=? WHERE id=?',(time.time(),pid));llm.backend_context.reset(backend);office.finish(token,response)
     return True

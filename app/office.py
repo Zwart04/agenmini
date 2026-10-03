@@ -208,6 +208,7 @@ async def execute(ctx,target,text,on_event=None):
         turn=agent.Turn(bot,ctx.channel,ctx.ext_id,event,prio=llm.PRIO_TASK);turn.bot=bot;turn.delegated=True;turn.review_only=target=='reviewer'
         if getattr(ctx,'project_folder',None):
             turn.max_steps=18;turn.project_folder=ctx.project_folder
+            turn.project_autonomous=bool(getattr(ctx,"project_autonomous",False))
         turn.intent_text=getattr(ctx,'stage_goal',None)
         turn.display_task=text
         async with asyncio.timeout(900):response=await turn.run(text)

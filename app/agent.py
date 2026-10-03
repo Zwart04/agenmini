@@ -410,7 +410,9 @@ class Turn:
 
         ctx = tools.Ctx(bot=bot, chat=chat, channel=self.channel, ext_id=self.ext_id, skills_used=skill_ids,
                         user_text=text if save_user else "")
-        if getattr(self,'project_folder',None):ctx.project_folder=self.project_folder
+        if getattr(self,'project_folder',None):
+            ctx.project_folder=self.project_folder
+            if getattr(self,'project_autonomous',False):msgs[0]['content']+='\nOwner authorized this assigned project to completion. Execute available project tools without repeated permission questions. Use actual passing tests; do not broaden to other projects, account operations, posting or deployment.'
         if getattr(self,'review_only',False):
             msgs[0]['content']+='\nReview only the supplied work and actual files. Do not perform web research or unrelated tasks. If no files require tools, a reasoned textual review is sufficient.'
         from . import coding, office
@@ -501,6 +503,10 @@ class Turn:
                         failures.append('Error: batas langkah tercapai sebelum panggilan alat berikutnya dijalankan.')
                         answer='Tugas belum berhasil: batas langkah tercapai. Lanjutkan dari checkpoint; tindakan berikutnya belum dijalankan.'
                         break
+                    if re.search(r'<(?:tool|tool_call|function_call)>',res['content']):
+                        failures.append('Error: panggilan alat teks belum dieksekusi atau alat tidak tersedia.')
+                        answer='Tugas belum berhasil: panggilan alat belum dijalankan. Gunakan alat yang tersedia.'
+                        break
                     answer = res["content"].strip()
                     if (last or nudged) and not getattr(self,'review_only',False) and needs_nudge(answer, used, names, getattr(self,'intent_text',None) or text):
                         answer = "Saya belum berhasil menjalankan alat yang diperlukan, jadi hasilnya belum bisa saya pastikan."
@@ -548,7 +554,8 @@ class Turn:
                     elif not t or name not in bot["tools"]:
                         result = f"Tool '{name}' is not available."
                     else:
-                        reason = t.danger(args) if t.danger and db.setting("full_access") != "1" else None
+                        project_authorized = bool(getattr(self, 'project_autonomous', False) and getattr(self, 'project_folder', None) and name in ('run_project_command', 'edit_project_file', 'write_file'))
+                        reason = t.danger(args) if t.danger and db.setting("full_access") != "1" and not project_authorized else None
                         if reason:
                             aid = db.run("INSERT INTO approvals(chat_id,bot_id,tool,args,reason,created_at) VALUES(?,?,?,?,?,?)",
                                          (chat["id"], bot["id"], name, json.dumps(args, ensure_ascii=False), reason, time.time()))
