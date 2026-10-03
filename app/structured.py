@@ -4,14 +4,14 @@ import re
 import jsonschema
 from . import llm
 
-async def request(messages, *, label, max_tokens, schema=None, fmt='json', on_event=None):
+async def request(messages, *, label, max_tokens, schema=None, fmt='json', on_event=None, model=None, prio=0):
     last_reason='format tidak valid'
     for attempt in range(2):
         prompt=list(messages)
         if attempt:
             if on_event:await on_event('status','Mengulang '+label+': keluaran model belum lengkap/valid…')
             prompt.append({'role':'user','content':'Previous response was not a complete valid JSON object. Return ONE compact complete object matching the requested schema. Short strings, no markdown or commentary. Do not omit required keys. Do not repeat a partial response.'})
-        result=await llm.chat(prompt,max_tokens=max_tokens if not attempt else min(max_tokens*2,3600),fmt=fmt,temperature=.2)
+        result=await llm.chat(prompt,max_tokens=max_tokens if not attempt else min(max_tokens*2,3600),fmt=fmt,temperature=.2,model=model,prio=prio)
         content=result.get('content') or ''
         reason=result.get('stats',{}).get('finish_reason')
         try:

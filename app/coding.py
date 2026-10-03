@@ -86,6 +86,24 @@ async def generate_compact(brief, model=None, on_token=None, prio=0):
     if not data['features']:data['features']=[{'title':'Draf konten','description':'Mulai dari ide Anda dan tinjau hasilnya sebelum digunakan.'}]
     return extract_html(compact_page(data)),result.get('stats',{})
 
+async def repair_html(html,brief,problems,model=None,prio=0):
+    """Repair short exact edits; never ask a model to continue a truncated document."""
+    from . import structured,projects
+    patch={'type':'object','properties':{'find':{'type':'string','minLength':1,'maxLength':2000},'replacement':{'type':'string','maxLength':5000}},'required':['find','replacement'],'additionalProperties':False}
+    schema={'type':'object','properties':{'edits':{'type':'array','items':patch,'minItems':1,'maxItems':8}},'required':['edits'],'additionalProperties':False}
+    data,result=await structured.request([
+        {'role':'system','content':'Repair this existing original HTML with short exact find/replacement edits in JSON {edits:[{find,replacement}]}. Preserve its visual design. Fix every reported error. Controls must work, section links must exist. No signup/backend/AI integration claims for an offline demo. Do not invent testimonials or outcome figures. Each find must occur literally in the supplied HTML. Return edits, not a complete document or continuation.'},
+        {'role':'user','content':'Brief: '+brief[:1600]+'\nErrors: '+str(problems)[:1400]+'\nHTML:\n'+html[:32000]}],label='Perbaikan HTML',schema=schema,model=model,max_tokens=1800,prio=prio)
+    for edit in data['edits']:
+        if edit['find'] not in html:raise ValueError('Perbaikan merujuk teks yang tidak ada; berkas awal dipertahankan.')
+        html=html.replace(edit['find'],edit['replacement'])
+    html=extract_html(html);check=projects.inspect_html(html)
+    if not check['ok']:raise ValueError(' '.join(check['errors']))
+    errors=await projects.inspect_inline_js(html)
+    if errors:raise ValueError('JavaScript belum valid: '+' '.join(errors))
+    return html,result.get('stats',{})
+
+
 async def generate(brief, model=None, on_token=None, prio=0):
     local=llm.active_backend()=='local'
     budget=3200 if local else 8000
@@ -109,7 +127,9 @@ async def generate(brief, model=None, on_token=None, prio=0):
         try:
             if result.get('stats',{}).get('finish_reason')=='length':raise ValueError('Dokumen terpotong pada batas keluaran.')
             html=extract_html(raw);check=inspect_html(html)
-            if not check['ok']:raise ValueError(' '.join(check['errors']))
+            if not check['ok']:
+                try:return await repair_html(html,brief,check['errors'],model,prio)
+                except ValueError as repair_error:raise ValueError(str(repair_error))
             from .projects import inspect_inline_js
             errors=await inspect_inline_js(html)
             if errors:raise ValueError('JavaScript belum valid: '+' '.join(errors))
@@ -120,6 +140,6 @@ async def generate(brief, model=None, on_token=None, prio=0):
             if llm.active_backend()=='auto' and routing.get('backend'):
                 from . import auto_router
                 auto_router.failed({'backend':routing['backend'],'model':routing.get('selected_model','')},seconds=600)
-            messages=[{'role':'system','content':prompt+' Repair the existing draft while preserving its visual concept. Output a COMPLETE document, not JSON or a patch. Simplify incidental detail if needed to finish.'},
-                      {'role':'user','content':brief[:3000]+'\nValidation: '+last_problem[:1000]+'\nDraft:\n'+raw[:14000]}]
+            messages=[{'role':'system','content':prompt+' Regenerate a COMPLETE document from the brief. Start with <!doctype html>; do not continue a partial document. Keep your design original and complete.'},
+                      {'role':'user','content':brief[:3000]+'\nPrevious validation: '+last_problem[:1000]}]
     raise ValueError('Halaman belum siap setelah pembuatan dan perbaikan otomatis. '+last_problem[:400])

@@ -108,3 +108,16 @@ def test_server_timeout_recovery_requires_runtime_probe():
 def test_test_suite_creation_is_assigned_to_an_editor_not_readonly_reviewer():
     from app import project_jobs
     assert project_jobs.capable_worker({'bot':'reviewer','task':'Pembuatan suite pengujian integrasi dan dokumentasi','acceptance':'Seluruh tes lulus'},db.bot('orchestrator')['tools'])=='teknisi'
+
+@pytest.mark.asyncio
+async def test_html_repairs_exact_links_and_preserves_art(monkeypatch):
+    from app import structured
+    html='<!doctype html><html><head><title>Original</title><meta name="viewport" content="width=device-width"></head><body><svg id="art"></svg><a href="#missing">Coba</a><section id="demo">Offline</section></body></html>'
+    async def request(*a,**kw):return {'edits':[{'find':'href="#missing"','replacement':'href="#demo"'}]},{'stats':{'served_model':'repair-model'}}
+    async def check(*a):return []
+    monkeypatch.setattr(structured,'request',request);monkeypatch.setattr(projects,'inspect_inline_js',check)
+    result,stats=await coding.repair_html(html,'offline demo',['Missing link'])
+    assert '<svg id="art">' in result and 'href="#demo"' in result and stats['served_model']=='repair-model'
+    async def wrong(*a,**kw):return {'edits':[{'find':'does not exist','replacement':'unsafe'}]},{}
+    monkeypatch.setattr(structured,'request',wrong)
+    with pytest.raises(ValueError,match='tidak ada'):await coding.repair_html(html,'brief',['Missing link'])
