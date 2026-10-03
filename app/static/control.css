@@ -140,3 +140,5 @@ html[data-paused=true] *,html[data-paused=true] *::before,html[data-paused=true]
 .office-meeting{background:#e5ece8;border-color:#c6d2cb;box-shadow:none}.office-lounge{background:#e3ebd9}
 .office-window i{border-color:#b5c7bf;background:linear-gradient(140deg,#cee5e8,#f4f8f2)}
 @media(max-width:600px){.office-overview{padding:10px;border-radius:14px;margin-top:12px}.workspace-hero{grid-template-columns:1fr}.office-section-heading{margin-bottom:10px}.page-in{max-width:none!important}.office-overview .office-hint{font-size:11px}}
+/* A borderless scene must not clip its caption with the previous rounded card. */
+.office-overview .office-scene{margin:0;border-radius:0;overflow:visible}
