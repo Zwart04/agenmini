@@ -56,7 +56,7 @@ async def run(ctx,text,on_event):
         trace.append({'alat':'delegate_task','arg':json.dumps({'bot':target,'task':task[:500]},ensure_ascii=False),'hasil':r.get('text','')[:600]})
         return r
     if is_site:
-        copy=await delegate('copywriter','Susun brief copy ringkas untuk proyek berikut: '+text+'\nGunakan brief saja, tidak perlu pencarian web. Hanya judul, headline, pesan utama dan label fitur. Jangan membuat HTML atau menambah fakta/harga/testimoni rekaan.')
+        copy=await delegate('copywriter','Susun brief copy ringkas untuk proyek berikut: '+text+'\nGunakan brief saja, tidak perlu pencarian web. Tulis maksimal 90 kata dalam empat baris: judul, headline, pesan utama, label fitur. Hanya fitur yang diminta. Jangan menambah video/gambar AI jika tidak diminta, klaim waktu/hasil, harga, testimoni atau integrasi. Ini brief untuk desain, bukan isi template HTML.')
         if office.outcome(copy)!='done':return finalize(copy,ctx,trace,started)
         task=text+'\n\nArahan copywriter (draf; periksa relevansi):\n'+copy['text'][:2300]
         result=await delegate('desainer',task)

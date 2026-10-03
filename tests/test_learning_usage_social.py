@@ -80,3 +80,20 @@ async def test_social_connection_test_never_posts(monkeypatch,tmp_path):
     assert (await social_connections.verify('threads'))['ok'];assert seen==[('me','GET')]
     with pytest.raises(ValueError):await social_connections.publish('threads','should never be posted')
     assert seen==[('me','GET')]
+
+@pytest.mark.asyncio
+async def test_connection_and_usage_apis_require_login_and_validate_prices(monkeypatch,tmp_path):
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient,TestServer
+    from app import control,web as pages
+    app=web.Application(middlewares=[control.errors,pages.auth_mw]);app.add_routes(control.routes)
+    async with TestClient(TestServer(app)) as c:
+        for path in ('/api/social','/api/setup','/api/office/learning','/oauth/callback'):
+            assert (await c.get(path)).status==401
+        headers={'Cookie':'agen_sesi='+pages.make_token()}
+        response=await c.post('/api/office/usage',headers=headers,json={'model':'test','backend':'online','input':'NaN','output':1})
+        assert response.status==400
+        response=await c.post('/api/office/learning',headers=headers,json={'enabled':True,'minutes':1,'daily_budget':60000})
+        assert response.status==400
+        response=await c.post('/api/social/youtube',headers=headers,json={'action':'finish','callback':'https://example.com/oauth/callback?state=none&code=none'})
+        assert response.status==400 and 'kedaluwarsa' in (await response.json())['error']

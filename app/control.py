@@ -686,3 +686,14 @@ async def download_vps_backup(request):
     path=config.DATA_DIR/'backup/vps-migration.tar.gz'
     if not path.is_file():raise ValueError('Backup migrasi belum dibuat. Pada host jalankan python3 /opt/agenmini/make_vps_backup.py. Arsip berisi kredensial privat; simpan dengan aman.')
     return web.FileResponse(path,headers={'Content-Disposition':'attachment; filename="agenmini-migrasi-vps.tar.gz"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
+
+@routes.get('/oauth/callback')
+async def social_callback(request):
+    from . import social_connections
+    from html import escape
+    state=request.query.get('state','')
+    db.run('CREATE TABLE IF NOT EXISTS social_oauth(state TEXT PRIMARY KEY,provider TEXT,expires_at REAL,verifier TEXT)')
+    flow=db.one('SELECT provider FROM social_oauth WHERE state=?',(state,))
+    if not flow:raise ValueError('Login sudah selesai atau kedaluwarsa. Mulai login lagi di Koneksi.')
+    result=await social_connections.finish(flow['provider'],str(request.url))
+    return web.Response(text='<html lang="id"><meta name="viewport" content="width=device-width"><title>Koneksi Agen Mini</title><body style="font-family:system-ui;margin:40px;max-width:600px"><h1>Akun tersambung</h1><p>Akses baca terverifikasi: '+escape(result['account'])+'</p><a href="/">Kembali ke Agen Mini</a></body></html>',content_type='text/html')

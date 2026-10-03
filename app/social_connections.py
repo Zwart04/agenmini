@@ -30,7 +30,7 @@ def status():
     result=[]
     for key,info in PROVIDERS.items():
         row=account(key);verified=row.get('verified_at',0)
-        result.append({'id':key,'name':info['name'],'docs':info['docs'],'configured':bool(row.get('client_id')),'credential_found':bool(row.get('access_token')),'ready':bool(verified and row.get('access_token')),'account':row.get('account',''),'checked_at':verified,'write_requested':bool(row.get('write_requested')),'note':row.get('error','') or ('Akses baca telah diuji.' if verified else 'Hubungkan aplikasi developer/OAuth, lalu uji akses baca.')})
+        result.append({'id':key,'name':info['name'],'docs':info['docs'],'client_id':row.get('client_id',''),'redirect_uri':row.get('redirect_uri',''),'configured':bool(row.get('client_id')),'credential_found':bool(row.get('access_token')),'ready':bool(verified and row.get('access_token')),'account':row.get('account',''),'checked_at':verified,'write_requested':bool(row.get('write_requested')),'note':row.get('error','') or ('Akses baca telah diuji.' if verified else 'Hubungkan aplikasi developer/OAuth, lalu uji akses baca.')})
     return result
 
 async def request(provider,path,params=None,method='GET',data=None):

@@ -11,7 +11,10 @@ def snapshot():
     audit_file=config.WORK_DIR/'audit-github/status.json'
     audit=json.loads(audit_file.read_text()) if audit_file.exists() else {}
     rows=audit.get('repositories',[])
-    state={'jobs':jobs,'audit':{'status':audit.get('status'),'count':len(rows),'needs_review':sum(bool(r.get('needs_review')) for r in rows)}}
+    from . import office_learning
+    office_learning.init()
+    discussion=db.one("SELECT id,topic,result,created_at FROM office_discussions WHERE status='draft' ORDER BY id DESC LIMIT 1")
+    state={'discussion':discussion,'jobs':jobs,'audit':{'status':audit.get('status'),'count':len(rows),'needs_review':sum(bool(r.get('needs_review')) for r in rows)}}
     fingerprint=hashlib.sha256(json.dumps(state,sort_keys=True).encode()).hexdigest()
     active=any(j['status'] in ('queued','working','planning') for j in jobs) or audit.get('status')=='working'
     labels={'queued':'antrean','working':'dikerjakan','planning':'menyusun rencana','paused':'dijeda','failed':'gagal; perlu perbaikan','waiting':'menunggu izin','review':'siap ditinjau','done':'selesai'}
@@ -23,6 +26,7 @@ def snapshot():
         plan=json.loads(j['plan'] or '{}');total=len(plan.get('milestones',[]))
         lines.append(f"Proyek #{j['id']}: {labels.get(j['status'],j['status'])} · {j['cursor']}/{total} tahap selesai.")
     if any(j['status']=='paused' for j in jobs):lines.append('Proyek yang dijeda tidak dilanjutkan otomatis. Periksa alasan jeda di Workspace; repo dan salinan lokal dipertahankan.')
+    if discussion:lines.append('Saran tim (draft, belum diterapkan): '+discussion['result'][:400])
     lines.append('Detail: Workspace → Proyek dan Berkas → audit-github/status.json. Laporan berkala setiap 10 menit saat pekerjaan aktif; perubahan status dan hasil akhir juga dilaporkan. /laporan off untuk berhenti.')
     return '\n\n'.join(lines),fingerprint,active
 

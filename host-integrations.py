@@ -23,7 +23,8 @@ def discover(home,directory,force=False):
     if not force and report.exists() and time.time()-report.stat().st_mtime<300:return
     secrets={};rows=[]
     gh_token=os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN','');source='environment' if gh_token else ''
-    ghfile=home/'.config/gh/hosts.yml'
+    ghdir=Path(os.environ['GH_CONFIG_DIR']) if os.environ.get('GH_CONFIG_DIR') else Path(os.environ['XDG_CONFIG_HOME'])/'gh' if os.environ.get('XDG_CONFIG_HOME') else Path(os.environ['APPDATA'])/'GitHub CLI' if os.name=='nt' and os.environ.get('APPDATA') else home/'.config/gh'
+    ghfile=ghdir/'hosts.yml'
     if not gh_token and ghfile.is_file():
         # Only github.com host, not another enterprise host or arbitrary YAML tags.
         part=re.search(r'^github\.com:\s*\n((?:[ \t].*\n?)*)',ghfile.read_text(),re.M)
@@ -31,7 +32,7 @@ def discover(home,directory,force=False):
         if match:gh_token=match.group(1);source='gh auth login'
     if not gh_token and shutil.which('gh'):
         try:
-            found=subprocess.run(['gh','auth','token','--hostname','github.com'],capture_output=True,text=True,timeout=8,env={**os.environ,'GH_CONFIG_DIR':str(home/'.config/gh')})
+            found=subprocess.run(['gh','auth','token','--hostname','github.com'],capture_output=True,text=True,timeout=8,env={**os.environ,'GH_CONFIG_DIR':str(ghdir)})
             if found.returncode==0:gh_token=found.stdout.strip();source='gh auth login (keyring)'
         except (OSError,subprocess.TimeoutExpired):pass
     status,data=check('https://api.github.com/user',gh_token) if gh_token else (0,{})

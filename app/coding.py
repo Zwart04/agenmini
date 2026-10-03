@@ -95,6 +95,7 @@ async def generate(brief, model=None, on_token=None, prio=0):
             'Output one complete raw HTML document with inline CSS/JavaScript. SVG, CSS artwork and canvas are welcome. '
             'Use meaningful product copy in the requested language. Complete all tags/scripts. '
             'Fit desktop and mobile down to 320px, provide accessible controls, readable contrast and reduced motion. '
+            'Never use href="#" or missing fragment targets. Use buttons for actions and existing element IDs for navigation. '
             'Implement the controls you display; do not invent testimonials, prices, connected AI/payments/WhatsApp or credentials. '
             'External assets are optional and must degrade gracefully. Clearly distinguish an offline demo from a connected backend. '
             'Keep the document complete within the output budget; you choose the level of detail and layout.')
