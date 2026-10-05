@@ -802,8 +802,12 @@ async def setup_done(request):
     from . import profiles
     data=await request.json()
     if not isinstance(data,dict):raise ValueError('Setup harus objek JSON.')
+    from . import harnesses
+    selected=data.get('harness', 'none' if data.get('profile')=='blank' else 'assisted')
+    harnesses.entry(selected)
     if db.setting('setup_profile')=='pending':
         profiles.choose(data.get('profile'),data.get('full_access') is True)
+        harnesses.select(selected,install_requested=True)
         if data.get('profile') == 'template':
             from .main import activate_builtin_mcp
             errors = await activate_builtin_mcp()
@@ -874,3 +878,21 @@ async def social_callback(request):
     if not flow:raise ValueError('Login sudah selesai atau kedaluwarsa. Mulai login lagi di Koneksi.')
     result=await social_connections.finish(flow['provider'],str(request.url))
     return web.Response(text='<html lang="id"><meta name="viewport" content="width=device-width"><title>Koneksi Agen Mini</title><body style="font-family:system-ui;margin:40px;max-width:600px"><h1>Akun tersambung</h1><p>Akses baca terverifikasi: '+escape(result['account'])+'</p><a href="/">Kembali ke Agen Mini</a></body></html>',content_type='text/html')
+
+
+@routes.get('/api/harnesses')
+async def harness_catalogue(request):
+    from . import harnesses
+    return web.json_response(harnesses.catalogue())
+
+@routes.post('/api/harnesses')
+async def harness_action(request):
+    from . import harnesses
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Konfigurasi harus objek JSON.')
+    hid=data.get('id');harnesses.entry(hid)
+    action=data.get('action','select')
+    if action=='configure':return web.json_response(harnesses.configure(hid,data))
+    if action=='cancel':return web.json_response(harnesses.cancel(hid))
+    if action not in ('select','install'):raise ValueError('Tindakan harness tidak valid.')
+    return web.json_response(harnesses.select(hid,action=='install' or data.get('install') is True))

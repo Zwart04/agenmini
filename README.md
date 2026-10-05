@@ -7,27 +7,39 @@
 
 Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
 
-**Versi stabil: 0.7.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+**Versi stabil: 0.8.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
 
 ## Tampilan baru
 
 ![Workspace desktop dengan paket tim bawaan](docs/screenshots/workspace-desktop.jpg)
 
-<details><summary>Preview navigasi dan tampilan mobile</summary>
+### Preview aplikasi
 
 ![Preview navigasi aplikasi](docs/screenshots/preview.gif)
 
-[Video preview MP4](docs/screenshots/preview.mp4) · [Chat desktop](docs/screenshots/chat-desktop.jpg)
+[Tonton / unduh video MP4](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Unduh GIF](docs/screenshots/preview.gif)
 
-[Chat mobile](docs/screenshots/chat-mobile.jpg) · [Workspace mobile](docs/screenshots/workspace-mobile.jpg) · [Dialog perbaikan](docs/screenshots/repair-dialog.jpg)
+### Chat dan pengaturan
 
-![Instruksi transparan pada mobile](docs/screenshots/harness-mobile.jpg)
+![Chat desktop](docs/screenshots/chat-desktop.jpg)
+
+| Chat mobile | Workspace mobile | Editor harness |
+| --- | --- | --- |
+| ![Chat mobile](docs/screenshots/chat-mobile.jpg) | ![Workspace mobile](docs/screenshots/workspace-mobile.jpg) | ![Editor harness](docs/screenshots/harness-mobile.jpg) |
+
+[Lihat dialog perbaikan aplikasi](docs/screenshots/repair-dialog.jpg) · [Pemilih model custom](docs/screenshots/model-dropdown.jpg)
 
 Preview direkam dari aplikasi lokal dengan data demo terpisah; status model yang belum terhubung tetap terlihat. Bukan demonstrasi model menjawab atau bot bekerja.
 
-</details>
-
 Empat menu utama dengan tab yang jelas. Workspace memisahkan kantor, proyek, aktivitas, tim, jadwal serta ide/biaya; desktop menampilkan studio, mobile memakai susunan karakter ringkas. Tema terang/gelap, navigasi keyboard, draft formulir dan indikator aktivitas tetap tersedia tanpa framework atau font eksternal.
+
+## Pilih pemasangan
+
+- **Windows:** unduh installer `.exe` pada [release terbaru](https://github.com/Zwart04/agenmini/releases/latest), jalankan wizard, lalu buka Agen Mini dari Start.
+- **VPS Debian/Ubuntu:** gunakan pemasang pada langkah di bawah; Docker belum perlu terpasang sebelumnya.
+- **Source:** unduh `agenmini-source.zip` untuk mengembangkan aplikasi. ZIP source tidak berisi akun, database atau model pengguna.
+
+Update dengan pemasang versi baru; **jangan hapus folder data atau model lama**. Buat backup privat dari Pengaturan sebelum update.
 
 ## Pasang di VPS Debian / Ubuntu
 
@@ -47,7 +59,7 @@ Mode API lebih ringan; 2 GB RAM disarankan. Untuk model lokal kecil, mulai dari 
 
 ## Pasang di Windows
 
-Unduh `agenmini-setup-0.7.0-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
+Unduh `agenmini-setup-0.8.0-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
 
 Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model lokal, 9router dan FreeLLMAPI memerlukan lingkungan Linux/WSL/Docker. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
 
@@ -72,9 +84,9 @@ Bagian utama tetap terlihat. Daftar aktivitas, skill dan ingatan memakai halaman
 
 ## Harness, skill, ingatan & self-improve
 
-Setup Kosong berisi satu agen, harness minimal, nol skill/ingatan/MCP bawaan dan self-improve mati. Paket bawaan menambahkan tim dan panduan; tidak mengarang fakta tentang pemilik. Pilihan bertahan setelah restart/update. Update instalasi lama mempertahankan data dan konfigurasi; wizard tidak meresetnya.
+Setup Kosong berisi satu agen, tanpa prompt harness bawaan, nol skill/ingatan/MCP bawaan dan self-improve mati. Paket bawaan menambahkan tim dan panduan; tidak mengarang fakta tentang pemilik. Pilihan bertahan setelah restart/update. Update instalasi lama mempertahankan data dan konfigurasi; wizard tidak meresetnya.
 
-Pengaturan Umum menyediakan harness Minimal/Terbantu dan belajar Mati/Tinjau/Setelah Sesuai. Akses penuh merupakan pilihan terpisah; batas folder, alat, kredensial dan kuota model tetap berlaku. Untuk model kecil, `find_tools` membuka definisi alat seperlunya dalam izin bot.
+Setup awal dan Pengaturan Umum menyediakan pilihan **Kosong**, **Agen Mini**, serta runtime asli **Hermes, OpenCode, Claude Code, DeepSeek Harness, oh-my-pi, Pi, Aider, mini-SWE-agent dan Gemini CLI**. Runtime asli diunduh hanya saat dipilih, memakai CLI upstream dan konfigurasi provider/model sendiri; tidak ada semua repo yang di-clone pada pemasangan awal. Lihat [cara pemasangan, versi dan batas integrasi harness](docs/HARNESSES.md). Pilihan belajar Agen Mini tetap Mati/Tinjau/Setelah Sesuai. Akses penuh merupakan pilihan terpisah; batas folder, alat, kredensial dan kuota model tetap berlaku. Untuk model kecil, `find_tools` membuka definisi alat seperlunya dalam izin bot.
 
 Skill hasil belajar berasal dari bukti alat, bukan sapaan, respons gagal atau penilaian sukses oleh model sendiri. Tinjau bukti/langkah pada tab Skill sebelum mengaktifkan. Revisi tersimpan dan bisa dipulihkan. Koreksi menarik kandidat dan menonaktifkan skill hasil belajar yang belum diedit pemilik. Ingatan pribadi harus berlandaskan ucapan pengguna.
 

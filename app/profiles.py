@@ -15,7 +15,7 @@ def seed_enabled():
 
 
 def assisted():
-    return db.setting('harness_mode') != 'minimal'
+    return db.setting('harness_mode') == 'assisted'
 
 
 def quarantine_legacy():
@@ -58,7 +58,7 @@ def choose(profile, full_access=False):
 
 def status():
     return {'profile': db.setting('setup_profile') or 'template',
-            'harness': 'assisted' if assisted() else 'minimal',
+            'harness': db.setting('harness_mode') or 'assisted',
             'learning': db.setting('self_improve') or 'review',
             'full_access': db.setting('full_access') == '1',
             'skills': db.one('SELECT count(*) n FROM skills')['n'],

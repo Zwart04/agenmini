@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for workflow in test.yml windows.yml; do
+          for workflow in test.yml windows.yml harnesses.yml; do
             run_id=$(gh run list --workflow "$workflow" --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId')
             test -n "$run_id" && test "$run_id" != null
             gh run watch "$run_id" --exit-status

@@ -156,7 +156,7 @@ async def test_setup_and_training_apis_require_auth_and_explicit_choices(isolate
             r=await c.post('/api/setup',headers=headers,json=body);assert r.status==400
         assert db.setting('setup_profile')=='pending'
         r=await c.post('/api/setup',headers=headers,json={'profile':'blank','full_access':False});assert r.status==200
-        assert db.setting('harness_mode')=='minimal'
+        assert db.setting('harness_mode')=='none'
         r=await c.post('/api/training/export',headers=headers,json={});assert r.status==400
         r=await c.post('/api/training/export',headers=headers,json={'include_private_conversations':True})
         assert r.status==200 and await r.text()=='' and r.headers['Cache-Control']=='no-store'

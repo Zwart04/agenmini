@@ -145,3 +145,5 @@ aside{border-right:1px solid var(--line);background:var(--side)}
 .record-detail>header{flex-shrink:0}
 .record-detail .record-detail-body{min-height:0;max-height:none;overflow:auto}
 @media(max-width:680px){.chat-model-bar .model-apply-label{display:none}.chat-model-bar .model-apply-icon{display:block}.chat-model-bar #chatModelApply{width:40px;padding:8px}.chat-model-bar .inp{padding-right:24px}.chat-model-bar .i{width:16px;height:16px}}
+
+.harness-runtime{display:grid;gap:14px;margin-top:16px;min-width:0}.harness-runtime .runtime-box{margin:0;padding:16px}.harness-runtime details{border-top:1px solid var(--line);padding-top:12px}.harness-runtime summary{cursor:pointer;font-weight:500;font-size:13px}.harness-runtime details[open] summary{margin-bottom:16px}.harness-runtime .hint{overflow-wrap:anywhere}.harness-runtime .field{margin-bottom:12px}.harness-runtime .row{flex-wrap:wrap}

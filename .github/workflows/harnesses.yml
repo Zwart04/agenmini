@@ -1,0 +1,45 @@
+name: Original harness runtimes
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        harness: [hermes, opencode, claude, dsh, omp, pi, aider, mini, gemini]
+        include:
+          - os: windows-latest
+            harness: hermes
+          - os: windows-latest
+            harness: opencode
+          - os: windows-latest
+            harness: claude
+          - os: windows-latest
+            harness: pi
+          - os: windows-latest
+            harness: dsh
+          - os: windows-latest
+            harness: omp
+          - os: windows-latest
+            harness: aider
+          - os: windows-latest
+            harness: mini
+          - os: windows-latest
+            harness: gemini
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - run: python -m pip install -r requirements.lock
+      - name: Install selected original runtime and verify its real CLI
+        run: python tests/check_harness_install.py ${{ matrix.harness }}
+        env:
+          PYTHONUTF8: '1'

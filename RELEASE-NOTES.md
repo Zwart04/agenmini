@@ -1,14 +1,9 @@
-# Agen Mini 0.7.0
+# Agen Mini 0.8.0
 
-Setup baru dapat memilih Kosong atau Paket bawaan. Kosong tetap berisi satu agen tanpa skill, ingatan, MCP dan tim bawaan sesudah restart/update; harness minimal dan pembelajaran mati. Akses penuh dipilih secara terpisah. Data instalasi lama dipertahankan.
+Pemilih harness pada setup awal dan Pengaturan: Kosong tanpa prompt bawaan, Agen Mini, atau sembilan runtime CLI asli. Hermes, OpenCode, Claude Code, DeepSeek Harness, oh-my-pi, Pi, Aider, mini-SWE-agent dan Gemini CLI dipasang hanya ketika dipilih. API key/model dan direktori setiap runtime terpisah; login akun host tidak diwariskan. CLI dipakai untuk chat teks web/Telegram, dengan galat asli, status menunggu, pembatalan pemasangan, batas resource dan tanpa fallback tersembunyi.
 
-- Kandidat prosedur terhubung ke bukti alat, dapat ditinjau/diedit sebelum diaktifkan, serta punya riwayat revisi dan rollback. Sapaan, galat, cache dan koreksi tidak dianggap keberhasilan.
-- Refleksi model tidak mengaktifkan skill sendiri. Penilaian ulang tidak menambah skor palsu; koreksi menarik bukti lama tanpa menimpa edit manual.
-- Telegram menawarkan simpan prosedur hanya saat ada bukti, ditambah /belajar untuk melihat kandidat percakapan sendiri. Jawaban tugas tetap berasal dari model dan hasil alat.
-- Daftar alat lokal disingkat, dengan find_tools untuk membuka definisi sesuai tugas tanpa memperluas izin. Eksekusi kode Windows memperbaiki kutip shell dan batas RAM grafik.
-- Koneksi menjadi Otomatis, Model lokal dan AI terhubung. API langsung/gateway OAuth berada di satu pintu; koneksi lama dipertahankan, layanan tambahan tetap opsional.
-- Ekspor privat jawaban yang dinilai Sesuai, validator/deduplikasi/split dataset dan panduan training LoRA/QLoRA tersedia. Tidak melatih bobot di VPS atau menjanjikan kualitas frontier.
+Runtime eksternal mempunyai alat/izin sendiri dan memerlukan persetujuan akses penuh yang eksplisit. Jembatan native tidak mengalihkan lampiran, konsultasi antarbot atau proyek bertahap. Kembali ke Agen Mini untuk integrasi alat, MCP dan learning aplikasi. Rincian batas integrasi dan versi pin ada pada docs/HARNESSES.md. Tidak ada klaim prompt profil sebagai runtime asli atau model kecil setara frontier.
 
-Pemeriksaan dilakukan pada preview terisolasi, uji kontrak Telegram tanpa pengiriman langsung, eksekusi berkas/kode nyata dan CI Linux/Windows sebelum publication. Model/provider, OAuth, akun Telegram dan VPS pengguna belum diuji langsung; seluruh klaim dibatasi sesuai VALIDATION.md.
+README menampilkan GIF, tautan MP4 dan galeri screenshot yang terlihat, langkah pemasangan Windows/VPS/source serta petunjuk update tanpa menghapus data. About GitHub menjelaskan fungsi aplikasi dan mengarahkan ke release. UI memakai dropdown/toast/desain yang sama di desktop/mobile.
 
-Dropdown, saran model, konfirmasi, input singkat dan notifikasi memakai komponen custom sesuai tema, dengan keyboard/Escape/fokus. Tidak memakai alert/confirm/prompt browser atau library UI tambahan.
+Pengujian keamanan, error JSON, mode Kosong, izin, isolasi environment, timeout dan pemasangan CLI upstream nyata tersedia di GitHub Actions Linux/Windows. Pengujian pemasangan tidak membuktikan login/provider berbayar atau kualitas model. Tidak ada perubahan pada VPS pengguna atau repositori akun lain.

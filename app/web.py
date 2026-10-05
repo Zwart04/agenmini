@@ -561,8 +561,11 @@ async def set_settings(request):
         return web.json_response({'error': 'Ganti mesin melalui menu AI agar layanan VPS ikut disesuaikan.'}, status=400)
     if 'full_access' in data and str(data['full_access']) not in ('0', '1'):
         return web.json_response({'error': 'Mode akses harus 0 atau 1.'}, status=400)
-    for key, choices in {'harness_mode':('minimal','assisted'),'self_improve':('off','review','confirmed')}.items():
+    for key, choices in {'harness_mode':tuple(x['id'] for x in __import__('app.harnesses',fromlist=['CATALOG']).CATALOG)+('minimal',),'self_improve':('off','review','confirmed')}.items():
         if key in data and data[key] not in choices:return web.json_response({'error':'Pilihan '+key+' tidak valid.'},status=400)
+    if 'harness_mode' in data:
+        from . import harnesses
+        harnesses.select(data['harness_mode'],install_requested=True)
     activating_full_access = str(data.get('full_access', '')) == '1' and db.setting('full_access') != '1'
     for k in PUBLIC_SETTINGS:
         if k in data:
