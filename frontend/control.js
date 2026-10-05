@@ -29,8 +29,8 @@ function renderTaskHistory(rows){
  $$('[data-task-read]').forEach(b=>b.onclick=()=>{const t=rows.find(t=>t.id===Number(b.dataset.taskRead));showDetail('Aktivitas tim','<h4>Tugas</h4><pre class="detail-text">'+esc(t.text)+'</pre>'+(t.result?'<h4>Hasil</h4><pre class="detail-text">'+esc(t.result)+'</pre>':'')+(t.approval?`<section class="approval-preview"><h4>Tinjau izin</h4><p>${esc(t.approval.reason)}</p><pre class="detail-text">${esc(t.approval.args)}</pre><div class="row"><button class="btn pri" data-office-approve="${t.id}">Izinkan</button><button class="btn" data-office-deny="${t.id}">Tolak</button></div></section>`:''));
  $$('[data-office-approve],[data-office-deny]').forEach(a=>a.onclick=async()=>{a.disabled=true;try{await api('/api/office/approval/'+t.id,{method:'POST',body:{ok:!!a.dataset.officeApprove}});$('#recordDetail').close();officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e);a.disabled=false}});
  });
- $$('[data-task-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus aktivitas ini?'))return;try{await api('/api/office/tasks/'+b.dataset.taskDelete,{method:'DELETE'});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
- $$('[data-task-edit]').forEach(b=>b.onclick=async()=>{const t=rows.find(t=>t.id===Number(b.dataset.taskEdit)),text=prompt('Ubah tugas yang belum dijalankan:',t.text);if(text===null)return;try{await api('/api/office/tasks/'+t.id,{method:'PATCH',body:{text}});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
+ $$('[data-task-delete]').forEach(b=>b.onclick=async()=>{if(!await uiConfirm('Hapus aktivitas ini?'))return;try{await api('/api/office/tasks/'+b.dataset.taskDelete,{method:'DELETE'});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
+ $$('[data-task-edit]').forEach(b=>b.onclick=async()=>{const t=rows.find(t=>t.id===Number(b.dataset.taskEdit)),text=await uiPrompt('Ubah tugas yang belum dijalankan:',t.text);if(text===null)return;try{await api('/api/office/tasks/'+t.id,{method:'PATCH',body:{text}});officeTasksFingerprint='';await loadOffice()}catch(e){sayError(e)}});
 }
 
 async function loadOffice(){
@@ -92,7 +92,7 @@ async function loadAI(){
     const d=await api('/api/router');if(generation!==aiGeneration)return;
     $('#routerStatus').textContent='Provider terhubung · '+d.models.length+' model chat. '+(d.model_note||'');
     $('#routerConnections').innerHTML=d.connections.map(c=>`<div class="r"><div class="grow"><b>${esc(c.name||c.provider)}</b><div class="sub">${esc(c.email||c.provider)} · ${esc(c.testStatus||'terhubung')}</div>${c.lastError?`<section data-section><h4>Lihat kendala provider</h4><p class="hint">${esc(c.lastError)}</p></section>`:''}</div><button class="btn sm" data-remove-provider="${esc(c.id)}">Hapus</button></div>`).join('')||empty('Belum ada provider. Tambahkan API key atau login OAuth di bawah.');
-    $$('[data-remove-provider]').forEach(x=>x.onclick=async()=>{if(confirm('Hapus koneksi provider ini?')){try{await api('/api/router/provider/'+encodeURIComponent(x.dataset.removeProvider),{method:'DELETE'});loadAI()}catch(e){sayError(e)}}});
+    $$('[data-remove-provider]').forEach(x=>x.onclick=async()=>{if(await uiConfirm('Hapus koneksi provider ini?')){try{await api('/api/router/provider/'+encodeURIComponent(x.dataset.removeProvider),{method:'DELETE'});loadAI()}catch(e){sayError(e)}}});
  syncOptions($('#routerModel'),d.models.map(m=>({value:m.id,label:(m.name||m.id)+' · '+m.id})),d.active_model);
  syncOptions($('#oauthProvider'),d.device_providers.concat(d.code_providers).map(p=>({value:p,label:p})),'');
  syncOptions($('#apiProvider'),d.api_providers.map(p=>({value:p,label:p})),'');
@@ -178,7 +178,7 @@ async function loadFree(generation=aiGeneration){try{
  syncOptions($('#freeProvider'),d.providers.map(p=>({value:p.id,label:p.name+(p.keyless?' (tanpa key jika didukung)':'')})),'');
  syncOptions($('#freeModel'),d.models.map(m=>({value:m.id,label:(m.name||m.id)+' · '+m.id+' '+(m.status||'')})),d.active_model);
  $('#freeConnections').innerHTML=d.connections.map(c=>`<div class="r"><span class="grow">${esc(c.label||c.platform)} · ${esc(c.status||'belum diuji')}</span><button class="btn sm" data-free-delete="${c.id}">Hapus</button></div>`).join('')||empty('Tambahkan provider terlebih dahulu.');
- $$('[data-free-delete]').forEach(b=>b.onclick=async()=>{if(confirm('Hapus koneksi ini?')){try{await api('/api/freellmapi/provider/'+b.dataset.freeDelete,{method:'DELETE'});loadFree()}catch(e){sayError(e)}}});
+ $$('[data-free-delete]').forEach(b=>b.onclick=async()=>{if(await uiConfirm('Hapus koneksi ini?')){try{await api('/api/freellmapi/provider/'+b.dataset.freeDelete,{method:'DELETE'});loadFree()}catch(e){sayError(e)}}});
  }catch(e){$('#freeStatus').textContent=e.message}}
 $('#freeProviderForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/freellmapi/provider',{method:'POST',body:{platform:$('#freeProvider').value,key:$('#freeKey').value}});$('#freeKey').value='';toast('Provider ditambahkan');loadFree()}catch(e){sayError(e)}};
 $('#useFreeModel').onclick=async()=>{try{await api('/api/freellmapi/model',{method:'POST',body:{model:$('#freeModel').value}});clearDraft($('#freeModel'));toast('Model aktif disimpan');loadAI()}catch(e){sayError(e)}};
@@ -200,7 +200,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeo
 
 $('#openOfficeLog').onclick=()=>showOfficeLog($('#officeLogBot').value);
 
-$('#clearAllOfficeHistory').onclick=async()=>{if(!confirm('Bersihkan semua aktivitas tersimpan dan log kantor? Tugas yang sedang berjalan tetap berjalan; source dan percakapan web/Telegram tetap ada.'))return;try{const d=await api('/api/office/history?scope=all',{method:'DELETE'});officeTasksFingerprint='';officeLearningFingerprint='';officeSpeech.clear();openedOfficeLog=null;logGeneration++;$('#officeLog').classList.add('hidden');toast(d.cleared+' aktivitas dibersihkan'+(d.working?' · '+d.working+' tugas masih berjalan':''));await loadOffice()}catch(e){sayError(e)}};
+$('#clearAllOfficeHistory').onclick=async()=>{if(!await uiConfirm('Bersihkan semua aktivitas tersimpan dan log kantor? Tugas yang sedang berjalan tetap berjalan; source dan percakapan web/Telegram tetap ada.'))return;try{const d=await api('/api/office/history?scope=all',{method:'DELETE'});officeTasksFingerprint='';officeLearningFingerprint='';officeSpeech.clear();openedOfficeLog=null;logGeneration++;$('#officeLog').classList.add('hidden');toast(d.cleared+' aktivitas dibersihkan'+(d.working?' · '+d.working+' tugas masih berjalan':''));await loadOffice()}catch(e){sayError(e)}};
 
 // Paginate records without removing stored data or hiding feature sections.
 function recordPager(container,page,total,onChange){

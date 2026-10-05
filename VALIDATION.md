@@ -13,3 +13,9 @@
 Fixture model menguji kontrak dan penanganan hasil alat, bukan kecerdasan model. Tidak ada bobot baru dilatih, benchmark frontier atau jaminan bebas halusinasi. Training SFT jawaban tidak membuktikan tool-calling. Panduan training mencantumkan sumber primer dan proses evaluasi terpisah.
 
 Belum menguji live VPS pengguna, pesan Telegram nyata atau OAuth/API akun pengguna. Data/model/kredensial lama tidak dihapus atau dipublikasikan. Gateway lama dipertahankan untuk kompatibilitas; layanan opsional tidak dijalankan jika tidak dibutuhkan.
+
+## Komponen custom
+
+26 tes proyek/profil/frontend lulus setelah memperbaiki perlombaan pembelajaran latar belakang dengan tugas baru. Seluruh pembelajaran background melewati pekerjaan aktif; status panggilan model gagal tidak ditulis sebagai selesai.
+
+Dropdown custom dan popup konfirmasi/input diuji di browser: keyboard End/Enter/Escape, nilai form asli, nol select native terlihat, input ingatan tersimpan di data preview dan batal ekspor tidak mengunduh apa pun. Komponen memakai tema/desain dan tidak menambah runtime dependency. Uji statis memastikan tidak ada alert/confirm/prompt browser pada script produksi.

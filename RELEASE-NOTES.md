@@ -10,3 +10,5 @@ Setup baru dapat memilih Kosong atau Paket bawaan. Kosong tetap berisi satu agen
 - Ekspor privat jawaban yang dinilai Sesuai, validator/deduplikasi/split dataset dan panduan training LoRA/QLoRA tersedia. Tidak melatih bobot di VPS atau menjanjikan kualitas frontier.
 
 Pemeriksaan dilakukan pada preview terisolasi, uji kontrak Telegram tanpa pengiriman langsung, eksekusi berkas/kode nyata dan CI Linux/Windows sebelum publication. Model/provider, OAuth, akun Telegram dan VPS pengguna belum diuji langsung; seluruh klaim dibatasi sesuai VALIDATION.md.
+
+Dropdown, saran model, konfirmasi, input singkat dan notifikasi memakai komponen custom sesuai tema, dengan keyboard/Escape/fokus. Tidak memakai alert/confirm/prompt browser atau library UI tambahan.

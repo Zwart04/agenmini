@@ -496,7 +496,7 @@ class Turn:
             if llm.active_backend() == "ollama" and (model or db.setting("model")) != "online" and not await llm.is_loaded(model or db.setting("model")):
                 # model sedang tidak di RAM (mis. baru dipakai "mata"): memuat dari disk butuh waktu
                 await self.on_event("status", "Menyiapkan otak AI (memuat model, bisa sampai 1 menit)…")
-            if schemas and extra_msgs is None and is_light(text, names):
+            if schemas and extra_msgs is None and not getattr(self, 'project_folder', None) and is_light(text, bot.get('tools', [])):
                 # jalur cepat: tanpa daftar alat, jawaban pendek; naik ke jalur lengkap kalau ternyata butuh alat
                 await self.on_event("status", "Menjawab…")
                 res = await llm.chat(msgs, tools=None, model=model, on_token=lambda p: self.on_event("token", p),
@@ -681,6 +681,9 @@ class Turn:
             # belajar & meringkas memakai CPU: tunggu sampai pemilik berhenti chat sebentar
             if not await llm.wait_idle(60):
                 return
+            from . import office
+            if office.presence:
+                return  # A new task may have started while waiting; never compete with it.
             if db.setting("self_improve") == "off":return
             from . import learning
             candidate=learning.stage(mid)

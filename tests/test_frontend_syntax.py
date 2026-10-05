@@ -31,7 +31,8 @@ def test_frontend_asset_paths_and_load_order():
     parser=Assets();html=(root/'index.html').read_text();parser.feed(html)
     assert '<style>' not in html and '<script>' not in html
     assert parser.paths[:5]==['theme.css','base.css','control.css','office.css','layout.css']
-    assert parser.paths[5]=='app.js' and parser.paths[-1]=='navigation.js'
+    assert 'design-controls.css' in parser.paths
+    assert next(name for name in parser.paths if name.endswith('.js'))=='app.js' and parser.paths[-1]=='navigation.js'
     assert all((root/name).is_file() for name in parser.paths)
 
 def test_learning_and_setup_controls_belong_to_their_visible_panels():
@@ -51,3 +52,10 @@ def test_learning_and_setup_controls_belong_to_their_visible_panels():
     for name,setting in (('harnessMode','harness_mode'),('selfImprove','self_improve')):
         attrs,parents=p.nodes[name];assert 'setForm' in parents and attrs['name']==setting
     assert 'v-ai' in p.nodes['setupGuide'][1]
+
+def test_browser_prompts_are_replaced_by_custom_design_controls():
+    root=Path(__file__).resolve().parents[1]/'frontend'
+    for p in root.glob('*.js'):
+        assert not re.search(r'(?<![\w])(?:confirm|prompt|alert)\s*\(',p.read_text(encoding='utf-8-sig')),p.name
+    html=(root/'index.html').read_text()
+    assert 'design-controls.js' in html and 'design-controls.css' in html

@@ -58,6 +58,7 @@ async function api(path, opt = {}) {
   if (r.status === 401) { showLogin(); throw new Error('belum masuk') }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || ('galat ' + r.status));
+  setTimeout(()=>window.refreshDesignControls?.(),0);
   return d;
 }
 async function stream(path, body, onEv) {
@@ -71,7 +72,7 @@ async function stream(path, body, onEv) {
       if (line.trim()) { try { onEv(JSON.parse(line)) } catch (e) {} } }
   }
 }
-function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.append(d); setTimeout(() => d.remove(), 2600) }
+function toast(t) { const d=document.createElement('div');d.className='toast';d.setAttribute('role','status');d.setAttribute('aria-live','polite');const text=document.createElement('span');text.textContent=t;const close=document.createElement('button');close.className='toast-close';close.type='button';close.textContent='×';close.setAttribute('aria-label','Tutup notifikasi');close.onclick=()=>d.remove();d.append(text,close);document.querySelectorAll('.toast').forEach(n=>n.remove());document.body.append(d);if(d.showPopover){d.setAttribute('popover','manual');d.showPopover()}setTimeout(()=>d.remove(),6000) }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 function md(src) {
   const blocks = []; let s = String(src || '').replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, c) => { blocks.push(c); return `\u0000${blocks.length - 1}\u0000` });
@@ -336,8 +337,8 @@ async function openHist() {
   }
   $('#histList').innerHTML = html || '<p class="muted small">Belum ada riwayat.</p>';
   $$('#histList .hist-item').forEach(x => x.onclick = e => { if (e.target.closest('[data-ren],[data-del],a')) return; $('#histModal').classList.add('hidden'); S.bot=S.bots.find(b=>b.id===x.dataset.bot);refreshBots();loadChat(+x.dataset.id) });
-  $$('#histList [data-ren]').forEach(x => x.onclick = async () => { const t = prompt('Judul baru:'); if (t) { await api('/api/chats/' + x.dataset.ren, {method: 'POST', body: {title: t}}); openHist() } });
-  $$('#histList [data-del]').forEach(x => x.onclick = async () => { if (confirm('Hapus percakapan ini selamanya?')) { await api('/api/chats/' + x.dataset.del, {method: 'DELETE'}); openHist(); if (S.viewChat == x.dataset.del) loadChat() } });
+  $$('#histList [data-ren]').forEach(x => x.onclick = async () => { const t = await uiPrompt('Judul baru:'); if (t) { await api('/api/chats/' + x.dataset.ren, {method: 'POST', body: {title: t}}); openHist() } });
+  $$('#histList [data-del]').forEach(x => x.onclick = async () => { if (await uiConfirm('Hapus percakapan ini selamanya?')) { await api('/api/chats/' + x.dataset.del, {method: 'DELETE'}); openHist(); if (S.viewChat == x.dataset.del) loadChat() } });
   $('#histModal').classList.remove('hidden');
 }
 $('#histBtn').onclick = openHist; $('#histBtn2').onclick = openHist;
@@ -379,7 +380,7 @@ $('#botForm').onsubmit = async e => {
   try { await api('/api/bots', {method: 'POST', body}); $('#botModal').classList.add('hidden'); toast('Bot disimpan'); loadBots() } catch (err) { toast(err.message) }
 };
 $('#botDel').onclick = async () => {
-  const id = $('#botForm').elements.id.value; if (!confirm('Hapus bot ini? Jadwalnya ikut dimatikan.')) return;
+  const id = $('#botForm').elements.id.value; if (!await uiConfirm('Hapus bot ini? Jadwalnya ikut dimatikan.')) return;
   try { await api('/api/bots/' + id, {method: 'DELETE'}); $('#botModal').classList.add('hidden'); S.bot = null; loadBots() } catch (err) { toast(err.message) }
 };
 
@@ -395,7 +396,7 @@ async function loadMem() {
   $$('#memList [data-del]').forEach(x => x.onclick = async () => { await api('/api/memories/' + x.dataset.del, {method: 'DELETE'}); loadMem() });
 }
 let memT; $('#memQ').oninput = () => { memoryPage=0;clearTimeout(memT); memT = setTimeout(loadMem, 300) };
-$('#memAdd').onclick = async () => { const t = prompt('Apa yang perlu diingat agen?'); if (!t) return; await api('/api/memories', {method: 'POST', body: {text: t, kind: 'profil'}}); loadMem() };
+$('#memAdd').onclick = async () => { const t = await uiPrompt('Apa yang perlu diingat agen?'); if (!t) return; await api('/api/memories', {method: 'POST', body: {text: t, kind: 'profil'}}); loadMem() };
 
 /* ---------- skill ---------- */
 async function loadSkills() {
@@ -408,7 +409,7 @@ async function loadSkills() {
   $$('#skillList [data-edit-skill]').forEach(x => x.onclick = () => skillEditor(d.skills.find(s => s.id === Number(x.dataset.editSkill))));
   $$('#skillList [data-skill-versions]').forEach(b=>b.onclick=async()=>{try{const d=await api('/api/skills/'+b.dataset.skillVersions+'/versions');showDetail('Riwayat skill',d.versions.map(v=>'<article><small>'+esc(new Date(v.created_at*1000).toLocaleString())+'</small><pre class="detail-text">'+esc(v.steps)+'</pre><button class="btn sm" data-restore-version="'+v.id+'">Pulihkan versi</button></article>').join('')||'<p class="hint">Belum pernah direvisi.</p>');$$('[data-restore-version]').forEach(x=>x.onclick=async()=>{await api('/api/skills/'+b.dataset.skillVersions+'/restore',{method:'POST',body:{version:Number(x.dataset.restoreVersion)}});$('#recordDetail').close();await loadSkills()})}catch(e){sayError(e)}});
   $$('#skillList [data-tog]').forEach(x => x.onclick = async () => { await api('/api/skills/' + x.dataset.tog, {method: 'POST', body: {active: x.dataset.a === '1'}}); loadSkills() });
-  $$('#skillList [data-del]').forEach(x => x.onclick = async () => { if (confirm('Hapus skill ini?')) { await api('/api/skills/' + x.dataset.del, {method: 'DELETE'}); loadSkills() } });
+  $$('#skillList [data-del]').forEach(x => x.onclick = async () => { if (await uiConfirm('Hapus skill ini?')) { await api('/api/skills/' + x.dataset.del, {method: 'DELETE'}); loadSkills() } });
 }
 
 /* ---------- jadwal ---------- */
@@ -430,7 +431,7 @@ async function loadModels() {
   $('#benchPick').closest('.group').classList.toggle('hidden',s.backend!=='ollama');
   $('#modelList').innerHTML = s.installed.map(m => `<div class="r" style="align-items:center"><div class="grow"><b style="font-weight:500">${esc(prettyModel(m.name))}</b><div class="sub">${m.size_gb} GB</div></div>${m.name === s.model ? `<span class="tag on">aktif</span>` : `<button class="btn sm" data-use="${esc(m.name)}">Pakai</button><button class="ib" data-rm="${esc(m.name)}" aria-label="Hapus">${ic('trash', 's')}</button>`}</div>`).join('') || empty('Ollama belum punya model atau tidak terhubung.');
   $$('[data-use]').forEach(x => x.onclick = async () => { await api('/api/settings', {method: 'POST', body: {model: x.dataset.use}}); toast('Model diganti'); loadModels(); sideStatus() });
-  $$('[data-rm]').forEach(x => x.onclick = async () => { if (confirm('Hapus model ' + x.dataset.rm + ' dari disk?')) { await api('/api/models/delete', {method: 'POST', body: {name: x.dataset.rm}}); loadModels() } });
+  $$('[data-rm]').forEach(x => x.onclick = async () => { if (await uiConfirm('Hapus model ' + x.dataset.rm + ' dari disk?')) { await api('/api/models/delete', {method: 'POST', body: {name: x.dataset.rm}}); loadModels() } });
   $('#benchPick').innerHTML = s.installed.map(m => `<label><input type="checkbox" value="${esc(m.name)}" ${m.size_gb < 2.3 ? 'checked' : ''}>${esc(prettyModel(m.name))}</label>`).join('');
   loadBench();
 }
@@ -443,7 +444,7 @@ let benchTimer;
 async function loadBench() {
   const d = await api('/api/bench');
   $('#benchRows').innerHTML = d.results.map(r => `<tr><td>${esc(prettyModel(r.model))}</td><td><b>${r.score}</b><span class="muted">/${r.total}</span></td><td>${r.avg_seconds}</td><td>${r.tok_per_sec}</td><td>${r.ram_mb ? r.ram_mb + ' MB' : ''}</td><td class="muted">${ago(r.created_at)}</td><td><button class="btn sm ghost" data-det="${r.id}">Detail</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Belum ada hasil uji.</td></tr>';
-  $$('[data-det]').forEach(x => x.onclick = () => { const r = d.results.find(y => y.id == x.dataset.det); const det = JSON.parse(r.detail); alert(det.map(t => `${t.ok ? 'Lolos' : 'Gagal'}: ${t.id.replace(/-/g, ' ')} (${t.seconds} dtk), ${t.desc}\n   alat: ${t.calls.join(', ') || 'tidak ada'}\n   jawaban: ${t.answer.slice(0, 140)}`).join('\n\n')) });
+  $$('[data-det]').forEach(x => x.onclick = () => { const r = d.results.find(y => y.id == x.dataset.det); const det = JSON.parse(r.detail); showDetail('Hasil adu model', '<pre class=detail-text>' + esc(det.map(t => `${t.ok ? 'Lolos' : 'Gagal'}: ${t.id.replace(/-/g, ' ')} (${t.seconds} dtk), ${t.desc}\n   alat: ${t.calls.join(', ') || 'tidak ada'}\n   jawaban: ${t.answer.slice(0, 140)}`).join('\n\n')) + '</pre>') });
   const run = d.running || {}; const log = $('#benchLog');
   if (run.running || (run.log && run.log.length)) { log.classList.remove('hidden'); log.textContent = (run.log || []).join('\n') + (run.running ? `\n… ${run.model} tugas ${run.i}/${run.n}` : ''); log.scrollTop = log.scrollHeight }
   $('#benchBtn').disabled = !!run.running;
