@@ -27,13 +27,15 @@ async function loadChatModels(backend,keep=false){
  try{
   let d=await api('/api/chat-models/'+encodeURIComponent(bot)+(backend===undefined?'':'?backend='+encodeURIComponent(backend)));
   if(S.bot?.id!==bot)return;
-  if(!keep)$('#chatBackend').value=d.backend;
+  $('#chatBackend').disabled=!!d.runtime;$('#chatBackend').dataset.native=d.runtime?'1':'';
+  if(d.runtime){if(!Array.from($('#chatBackend').options).some(o=>o.value==='runtime'))$('#chatBackend').add(new Option(d.runtime.name+' · CLI asli','runtime'))}else{Array.from($('#chatBackend').options).filter(o=>o.value==='runtime').forEach(o=>o.remove())}
+  if(!keep||d.runtime)$('#chatBackend').value=d.backend;
   $('#chatModel').innerHTML=d.models.length?d.models.map(m=>`<option value="${esc(m.id)}" ${m.id===d.model?'selected':''} ${m.fits===false?'disabled':''}>${esc(m.name||m.id)}${m.fits===false?' · RAM kurang':''}</option>`).join(''):'<option value="">'+(backend||d.backend?'Belum ada model tersedia':'Model mengikuti bot')+'</option>';
-  $('#chatModelInfo').textContent=d.backend?'Pilihan tersimpan untuk percakapan ini.':'Bawaan bot: '+d.default_backend+' · '+d.default_model;
+  $('#chatModelInfo').textContent=d.runtime?d.runtime.name+' asli · klik Terapkan untuk mengubah ID model.':d.backend?'Pilihan tersimpan untuk percakapan ini.':'Bawaan bot: '+d.default_backend+' · '+d.default_model;
  }catch(e){$('#chatModelInfo').textContent=e.message;$('#chatModel').innerHTML='<option value="">Hubungkan provider di Koneksi</option>'}
 }
 $('#chatBackend').onchange=e=>loadChatModels(e.target.value,true);
-$('#chatModelApply').onclick=async()=>{try{const d=await api('/api/chat-models/'+encodeURIComponent(S.bot.id),{method:'POST',body:{backend:$('#chatBackend').value,model:$('#chatModel').value}});toast(d.message);await loadChatModels()}catch(e){sayError(e)}};
+$('#chatModelApply').onclick=async()=>{try{let model=$('#chatModel').value;if($('#chatBackend').value==='runtime'){model=await uiPrompt('ID model runtime untuk percakapan ini:',model);if(!model)return}const d=await api('/api/chat-models/'+encodeURIComponent(S.bot.id),{method:'POST',body:{backend:$('#chatBackend').value,model}});toast(d.message);await loadChatModels()}catch(e){sayError(e)}};
 $('#modelImportForm').onsubmit=async e=>{e.preventDefault();$('#importInfo').innerHTML='<span class="runtime-spinner"></span> Memeriksa metadata dan hash sumber…';try{
  const d=await api('/api/local-models/inspect',{method:'POST',body:{source:$('#importSource').value,name:$('#importName').value}});importRows=d.models;
  $('#importFile').innerHTML=importRows.map(m=>`<option value="${esc(m.id)}">${esc(m.original_file)} · ${m.download_gb} GB · RAM ≥ ${m.min_ram_gb} GB</option>`).join('');$('#importFileRow').classList.remove('hidden');$('#importSave').classList.remove('hidden');$('#importInfo').textContent='Pilih berkas, tambahkan, lalu klik Pilih & unduh di kartu model. Belum ada bobot yang diunduh.';

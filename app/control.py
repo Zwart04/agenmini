@@ -147,6 +147,10 @@ async def chat_model_choices(request):
     bot = db.bot(request.match_info['bot'])
     if not bot: raise ValueError('Bot tidak ditemukan.')
     chat = db.chat_for(bot['id'], 'web', 'web')
+    from . import harnesses
+    if harnesses.external():
+        hid=db.setting('harness_mode');model=harnesses.chat_model(hid,chat);row=harnesses.entry(hid)
+        return web.json_response({'runtime':{'id':hid,'name':row['name']},'models':[{'id':model,'name':model or 'Isi ID model runtime'}],'backend':'runtime','model':model,'default_backend':row['name'],'default_model':model})
     backend = request.query.get('backend', chat.get('backend') or '')
     return web.json_response({'models': await chat_models.choices(backend), 'backend': chat.get('backend') or '',
                              'model': (db.setting('local_model_id') if chat.get('backend') == 'local' else chat.get('model')) or '', 'default_backend': bot.get('backend') or db.setting('llm_backend'),
@@ -160,6 +164,8 @@ async def chat_model_select(request):
     if not bot: raise ValueError('Bot tidak ditemukan.')
     data = await request.json()
     chat = db.chat_for(bot['id'], 'web', 'web')
+    from . import harnesses
+    if harnesses.external():return web.json_response(harnesses.select_chat_model(db.setting('harness_mode'),chat,data.get('model','')))
     return web.json_response(await chat_models.select(chat, str(data.get('backend', '')), str(data.get('model', ''))))
 
 

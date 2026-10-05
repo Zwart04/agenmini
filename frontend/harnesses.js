@@ -18,13 +18,13 @@ async function harnessAction(action,id){try{await api('/api/harnesses',{method:'
 async function loadHarnesses(){
  if(document.hidden)return;
  harnessCatalog=await api('/api/harnesses');
- for(const select of [harnessMode,setupHarness]){const old=select.value;for(const row of harnessCatalog.items){if(!Array.from(select.options).some(o=>o.value===row.id))select.add(new Option(row.name+' · runtime asli',row.id))}select.value=old;if(window.refreshDesignControls)refreshDesignControls(select)}
+ for(const select of [harnessMode,setupHarness]){const old=select.value;for(const row of harnessCatalog.items){if(!Array.from(select.options).some(o=>o.value===row.id))select.add(new Option(row.name+' · runtime asli',row.id))}select.value=old;if(window.refreshDesignControls)refreshDesignControls()}
  harnessHints();clearTimeout(harnessPoll);harnessPoll=null;
  if(harnessCatalog.items.some(x=>['queued','installing'].includes(x.runtime.phase)))harnessPoll=setTimeout(()=>loadHarnesses().catch(sayError),4000);
 }
 harnessMode.addEventListener('change',()=>{harnessFingerprint='';harnessHints()});setupHarness.addEventListener('change',harnessHints);
-document.getElementById('setupProfile').addEventListener('change',()=>{setupHarness.value=document.getElementById('setupProfile').value==='blank'?'none':'assisted';harnessHints();if(window.refreshDesignControls)refreshDesignControls(setupHarness)});
+document.getElementById('setupProfile').addEventListener('change',()=>{setupHarness.value=document.getElementById('setupProfile').value==='blank'?'none':'assisted';harnessHints();if(window.refreshDesignControls)refreshDesignControls()});
 const originalLoadAI=loadAI;loadAI=async function(){await originalLoadAI();await loadHarnesses()};
-const originalLoadSettings=loadSettings;loadSettings=async function(){await loadHarnesses();await originalLoadSettings();harnessHints();if(window.refreshDesignControls)refreshDesignControls(harnessMode)};
+const originalLoadSettings=loadSettings;loadSettings=async function(){await loadHarnesses();await originalLoadSettings();harnessHints();if(window.refreshDesignControls)refreshDesignControls()};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(harnessPoll);harnessPoll=null}else if(harnessCatalog)loadHarnesses().catch(sayError)});
 loadHarnesses().catch(()=>{});

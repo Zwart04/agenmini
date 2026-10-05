@@ -195,7 +195,7 @@ async function loadChat(chatId) {
   $('#input').placeholder = tg ? 'Percakapan Telegram hanya bisa dilihat di sini' : 'Tulis pesan';
   if (tg) bar.innerHTML = `${ic('history', 's')}<span class="grow">Percakapan dari Telegram.</span><button class="btn pri sm" id="copyHere">Lanjutkan di sini</button><button class="btn sm" id="backNow">Kembali</button>`;
   else if (c.archived) bar.innerHTML = `${ic('history', 's')}<span class="grow">Percakapan lama: ${esc(c.title || '')}</span><button class="btn pri sm" id="contNow">Lanjutkan</button><button class="btn sm" id="backNow">Kembali</button>`;
-  $('#chatBackend').disabled=old;$('#chatModel').disabled=old;$('#chatModelApply').disabled=old;
+  $('#chatBackend').disabled=old||$('#chatBackend').dataset.native==='1';$('#chatModel').disabled=old;$('#chatModelApply').disabled=old;
   if (tg)$('#copyHere').onclick=async()=>{await api('/api/chats/'+c.id+'/salin',{method:'POST',body:{}});loadChat()};
   if (old) {
     $('#backNow').onclick = () => loadChat();
@@ -281,7 +281,7 @@ async function runStream(path, body) {
       scrollEnd();
     });
   } catch (e) { addMsg({role: 'assistant', content: 'Koneksi terputus: ' + e.message + '. Jawaban tetap disimpan, muat ulang halaman.'}) }
-  clearInterval(clock); st.remove(); S.busy = false; $('#chatBackend').disabled=false;$('#chatModel').disabled=false;$('#chatModelApply').disabled=false; $('#sendBtn').disabled = false; $('#input').focus();
+  clearInterval(clock); st.remove(); S.busy = false; $('#chatBackend').disabled=$('#chatBackend').dataset.native==='1';$('#chatModel').disabled=false;$('#chatModelApply').disabled=false; $('#sendBtn').disabled = false; $('#input').focus();
 }
 async function send() {
   const t = $('#input').value.trim(); const imgs = S.attach.slice();

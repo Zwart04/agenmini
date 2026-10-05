@@ -23,7 +23,7 @@ def test_catalog_is_lazy_and_rejects_custom_install_source(isolated):
 
 
 def test_none_has_no_default_prompt_or_automatic_memory(isolated,monkeypatch):
-    harnesses.select('none');bot=db.bot('asisten');chat=db.chat_for(bot['id'],'web','1')
+    harnesses.select('none');db.set_setting('custom_harness','stored instructions');bot=db.bot('asisten');chat=db.chat_for(bot['id'],'web','1')
     monkeypatch.setattr(agent,'context_block',lambda *_:pytest.fail('none must not inject context'))
     msgs,skills=agent.build_messages(bot,chat,'hello')
     assert not any(m['role']=='system' for m in msgs) and skills==[]
@@ -92,3 +92,31 @@ async def test_subprocess_timeout_terminates_group(tmp_path,monkeypatch):
     if os.name!='nt' and os.geteuid()==0:
         monkeypatch.setattr(config,'KERJA_UID',0);monkeypatch.setattr(config,'KERJA_GID',0)
     with pytest.raises(TimeoutError):await harnesses.process([sys.executable,'-c','import time;time.sleep(10)'],tmp_path,{'PATH':os.environ.get('PATH',''),'SYSTEMROOT':os.environ.get('SYSTEMROOT','')},timeout=.2)
+
+
+def test_corrupt_manifest_is_failed_not_a_dashboard_exception(isolated):
+    base=harnesses.owned(harnesses.location('pi'));(base/'ready.json').write_text('{broken')
+    assert harnesses.status('pi')['phase']=='failed'
+    assert len(harnesses.catalogue()['items'])>=10
+
+
+def test_runtime_model_is_scoped_to_conversation_and_engine(isolated):
+    harnesses.configure('pi',{'model':'base-model','env':{}})
+    a=db.chat_for('asisten','web','one');b=db.chat_for('asisten','tg','two')
+    harnesses.select_chat_model('pi',a,'openai/custom')
+    assert harnesses.chat_model('pi',a)=='openai/custom' and harnesses.chat_model('pi',b)=='base-model'
+    assert harnesses.chat_model('claude',a)==''
+    with pytest.raises(ValueError):harnesses.select_chat_model('pi',a,'model; shell')
+
+
+@pytest.mark.asyncio
+async def test_native_telegram_model_command_stores_actual_preference(isolated,monkeypatch):
+    from app.telegram import TgBot
+    harnesses.select('pi');tg=TgBot('ci-token');sent=[]
+    async def send(chat,text,*args,**kwargs):sent.append(text)
+    monkeypatch.setattr(tg,'send',send)
+    assert await tg.command('123','/model openai/test-model') is True
+    bot=tg.bot_for_chat('123');chat=db.chat_for(bot['id'],'tg','123')
+    assert harnesses.chat_model('pi',chat)=='openai/test-model'
+    assert await tg.command('123','/model') is True
+    assert 'openai/test-model' in sent[-1] and 'Pi' in sent[-1]

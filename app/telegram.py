@@ -465,6 +465,15 @@ class TgBot:
             await self.send(chat_id, "**Semua bot**\n" + "\n".join(lines) + "\n\nPilih bot untuk diajak bicara di sini:", rows)
             return True
         if cmd == '/model':
+            from . import harnesses
+            if harnesses.external():
+                chat=db.chat_for(bot['id'],'tg',str(chat_id));hid=db.setting('harness_mode')
+                if len(parts)>1:
+                    try:
+                        result=harnesses.select_chat_model(hid,chat,parts[1]);await self.send(chat_id,result['message'])
+                    except ValueError as exc:await self.send(chat_id,str(exc))
+                else:await self.send(chat_id,harnesses.entry(hid)['name']+' asli · model: '+(harnesses.chat_model(hid,chat) or 'belum diisi')+'\nGanti dengan /model ID_MODEL. API key/provider di Pengaturan → Harness.')
+                return True
             from . import chat_models
             chat = db.chat_for(bot['id'], 'tg', chat_id)
             try:

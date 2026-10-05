@@ -71,11 +71,19 @@ def status(hid):
     if not row.get('kind'):return {'phase':'builtin','message':'Tersedia tanpa pemasangan tambahan.'}
     state=json.loads(db.setting('runtime_status_'+hid) or '{}')
     marker=location(hid)/'ready.json'
-    if marker.is_file():
-        manifest=json.loads(marker.read_text(encoding='utf-8'))
-        if manifest.get('version') == row['version'] and manifest.get('package') == row['package'] and runtime_path(hid).is_dir():
-            state={'phase':'installed','message':'Runtime asli terpasang. Provider belum tentu terhubung.'}
-    elif state.get('phase') in ('queued','installing') and not (_tasks.get(hid) and not _tasks[hid].done()):
+    installing=bool(_tasks.get(hid) and not _tasks[hid].done())
+    if marker.is_file() and not installing:
+        try:
+            manifest=json.loads(marker.read_text(encoding='utf-8'))
+            valid=manifest.get('version')==row['version'] and manifest.get('package')==row['package'] and runtime_path(hid).is_dir()
+            if valid:valid=all(Path(arg).is_file() for arg in cli(hid) if not arg.startswith('--'))
+            if valid and row['kind']=='npm':
+                actual=json.loads((runtime_path(hid)/'node_modules'/row['package']/'package.json').read_text(encoding='utf-8'))
+                valid=actual.get('version')==row['version']
+            if valid and hid=='hermes':valid=(runtime_path(hid)/'source/.git/HEAD').read_text().strip()=='7157422022ff06f3e632d1dd394ee1253b17ad37'
+            state={'phase':'installed','message':'Runtime asli terpasang. Provider belum tentu terhubung.'} if valid else {'phase':'failed','message':'Berkas runtime hilang atau versi berubah. Pasang ulang sebelum menjalankan chat.'}
+        except (ValueError,OSError,KeyError,TypeError):state={'phase':'failed','message':'Manifest runtime rusak. Pasang ulang; data percakapan tetap ada.'}
+    elif state.get('phase') in ('queued','installing') and not installing:
         state={'phase':'interrupted','message':'Pemasangan terhenti. Pilih Pasang ulang untuk mencoba lagi.'}
     cfg=settings(hid)
     return {**({'phase':'absent','message':'Belum diunduh.'}),**state,'model':cfg.get('model',''),'provider':cfg.get('provider',row.get('provider','')),'env':{k:('••••' if 'KEY' in k else v) for k,v in cfg.get('env',{}).items()},'credential_saved':any(v for k,v in cfg.get('env',{}).items() if 'KEY' in k)}
@@ -87,6 +95,7 @@ def catalogue():
 
 def configure(hid, data):
     row=entry(hid)
+    if _run_lock.locked():raise ValueError('Tunggu tugas runtime selesai sebelum mengubah kredensial.')
     if not row.get('kind'):raise ValueError('Harness bawaan tidak memerlukan konfigurasi CLI.')
     old=settings(hid);env=dict(old.get('env',{}))
     incoming=data.get('env',{})
@@ -100,6 +109,18 @@ def configure(hid, data):
         if not isinstance(value,str) or len(value)>200 or not re.fullmatch(r'[A-Za-z0-9_./:@+\-]*',value):raise ValueError('ID model/provider tidak valid.')
         cfg[key]=value
     db.set_setting('runtime_config_'+hid,json.dumps(cfg));return status(hid)
+
+
+def chat_model(hid, chat):
+    return db.setting('runtime_model:'+hid+':'+str(chat['id'])) or settings(hid).get('model','')
+
+
+def select_chat_model(hid, chat, model):
+    entry(hid)
+    if not isinstance(model,str) or not re.fullmatch(r'[A-Za-z0-9_./:@+\-]{1,200}',model):raise ValueError('ID model runtime tidak valid.')
+    if _run_lock.locked():raise ValueError('Tunggu tugas runtime selesai sebelum mengganti model.')
+    db.set_setting('runtime_model:'+hid+':'+str(chat['id']),model)
+    return {'message':'Model runtime disimpan untuk percakapan ini.','model':model}
 
 
 def environment(base, hid, credentials=False, dependencies=None):
@@ -207,7 +228,7 @@ def cli(hid, base=None):
     with executable.open('rb') as handle:magic=handle.read(64)
     if magic.startswith((b'\x7fELF',b'MZ')):return [str(executable)]
     runner=base/'node_modules'/'bun/bin/bun.exe' if hid=='omp' else base/'node_modules'/('node/bin/node.exe' if os.name=='nt' else 'node/bin/node')
-    return [str(runner),str(executable)]
+    return [str(runner)]+(['--smol'] if hid=='omp' else [])+[str(executable)]
 
 
 async def install(hid):
@@ -263,12 +284,14 @@ async def install(hid):
                 npm_cli=Path(npm).parent/'node_modules/npm/bin/npm-cli.js'
                 launcher=[shutil.which('node'),str(npm_cli)] if os.name=='nt' else [npm]
                 await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','node@24.21.0'])
-                if hid=='omp':await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','bun@1.3.14'])
+                if hid=='omp':await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','bun@1.4.2'])
                 await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org',row['package']+'@'+row['version']])
-            code,out,err=await process(cli(hid,stage)+['--help'],stage,env,90)
+            code,out,err=await process(cli(hid,stage)+['--help'],stage,env,90,memory_mb=768 if hid=='omp' else 512)
             if code or not (out or err).strip():raise ValueError('Runtime tidak lulus pemeriksaan CLI: '+(err or out)[-2000:])
             # Keep the validated slot in place: Python/Windows launchers contain absolute paths.
-            (base/'ready.json').write_text(json.dumps({'version':row['version'],'package':row['package'],'slot':stage.relative_to(base).as_posix()}),encoding='utf-8')
+            manifest=base/'ready.json.pending'
+            manifest.write_text(json.dumps({'version':row['version'],'package':row['package'],'slot':stage.relative_to(base).as_posix()}),encoding='utf-8')
+            os.replace(manifest,base/'ready.json')
             success=True
             write_state(hid,'installed','Runtime asli terpasang; isi model/provider dan kunci sendiri.')
         except asyncio.CancelledError:
@@ -330,11 +353,12 @@ def answer(hid, output):
     return output.strip()
 
 
-async def run(hid, prompt, on_event, actor=None):
+async def run(hid, prompt, on_event, actor=None, model=None):
     row=entry(hid)
     if status(hid)['phase']!='installed':raise ValueError('Runtime belum terpasang. Buka Pengaturan → Harness.')
     if db.setting('full_access')!='1':raise ValueError('Runtime asli mempunyai alat sendiri. Aktifkan akses penuh secara sadar pada Pengaturan sebelum menjalankannya; izin alat Agen Mini tidak berlaku pada CLI eksternal.')
     cfg=settings(hid)
+    if model:cfg={**cfg,'model':model}
     if not cfg.get('model') and hid!='dsh':raise ValueError('Isi ID model runtime di Pengaturan → Harness.')
     if not any(v for k,v in cfg.get('env',{}).items() if 'KEY' in k):raise ValueError('Simpan API key runtime di Pengaturan → Harness. Login host tidak diwariskan.')
     if _run_lock.locked() or any(not task.done() for task in _tasks.values()):raise ValueError('Runtime sedang mengerjakan atau memasang tugas lain. Coba setelah selesai.')
@@ -362,7 +386,7 @@ async def run(hid, prompt, on_event, actor=None):
                 if actor:
                     from . import office
                     office.log(actor,'tool','Runtime '+row['name']+': '+name)
-        code,out,err=await process(cli(hid)+args,work,env,300,pulse,on_line=event)
+        code,out,err=await process(cli(hid)+args,work,env,300,pulse,memory_mb=768 if hid=='omp' else 512,on_line=event)
         if code:raise ValueError(redact(err or out,hid)[-1800:] or 'Runtime keluar dengan kode '+str(code))
         if hid=='mini':
             data=json.loads(trace.read_text(encoding='utf-8')) if trace.is_file() else {}

@@ -23,6 +23,8 @@ async def choices(backend):
 
 
 async def select(chat, backend, model=''):
+    from . import harnesses
+    if harnesses.external():raise ValueError('Runtime asli aktif. Ganti ID model melalui chat atau /model ID_MODEL; provider dan kunci di Pengaturan Harness.')
     if backend not in BACKENDS: raise ValueError('Mode AI tidak dikenal.')
     if office.presence or llm.gate.busy: raise ValueError('Tunggu tugas aktif selesai sebelum mengganti model.')
     if backend:

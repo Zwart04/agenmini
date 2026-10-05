@@ -2,6 +2,7 @@
 
 [![Linux tests](https://github.com/Zwart04/agenmini/actions/workflows/test.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/test.yml)
 [![Windows installer](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml)
+[![Original harness runtimes](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml)
 
 [Unduh aplikasi](https://github.com/Zwart04/agenmini/releases/latest) · [Instalasi Windows](CARA-PASANG-WINDOWS.txt) · [Instalasi Linux](CARA-PASANG-VPS.txt) · [Batas pengujian](VALIDATION.md)
 
@@ -28,6 +29,14 @@ Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini mem
 | ![Chat mobile](docs/screenshots/chat-mobile.jpg) | ![Workspace mobile](docs/screenshots/workspace-mobile.jpg) | ![Editor harness](docs/screenshots/harness-mobile.jpg) |
 
 [Lihat dialog perbaikan aplikasi](docs/screenshots/repair-dialog.jpg) · [Pemilih model custom](docs/screenshots/model-dropdown.jpg)
+
+### Harness asli, dipasang saat dipilih
+
+![Pemilih runtime asli pada desktop](docs/screenshots/runtime-desktop.jpg)
+
+<img src="docs/screenshots/runtime-mobile.jpg" alt="Pilihan Hermes asli dan penjelasannya pada mobile" width="300">
+
+Pilih pada setup awal atau **Pengaturan → Umum → Harness**. Kosong dan Agen Mini tersedia langsung; sembilan CLI asli diunduh seperlunya. Isi API key dan model runtime sebelum chat. [Pilihan, kebutuhan dan batas integrasi](docs/HARNESSES.md).
 
 Preview direkam dari aplikasi lokal dengan data demo terpisah; status model yang belum terhubung tetap terlihat. Bukan demonstrasi model menjawab atau bot bekerja.
 

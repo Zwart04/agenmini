@@ -63,6 +63,7 @@ def default_system_prompt(bot: dict) -> str:
 
 
 def system_prompt(bot: dict) -> str:
+    if db.setting('harness_mode') == 'none':return ''
     prompt = default_system_prompt(bot)
     custom = db.setting('custom_harness') or ''
     if custom:
@@ -384,7 +385,7 @@ class Turn:
                 history=db.history(chat['id'],limit=8)
                 transcript='\n\n'.join(h['role']+': '+h['content'][:4000] for h in history)
                 prompt=(('Previous conversation:\n'+transcript+'\n\n') if transcript else '')+text
-                response=await harnesses.run(db.setting('harness_mode'),prompt,self.on_event,actor=bot['id'])
+                response=await harnesses.run(db.setting('harness_mode'),prompt,self.on_event,actor=bot['id'],model=harnesses.chat_model(db.setting('harness_mode'),chat))
                 return await self._reply(text,response['text'],{},t0,mode='runtime:'+db.setting('harness_mode'),files=response['files'],used=response['tools'])
             except (ValueError, OSError, TimeoutError) as exc:
                 return await self._reply(text,'Galat runtime: '+str(exc),{},t0,mode='runtime_failed')

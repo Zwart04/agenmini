@@ -21,7 +21,7 @@ async def check(hid):
             cwd=harnesses.owned(harnesses.location(hid)/'workspace')
             env=harnesses.environment(harnesses.location(hid),hid)
             args={'opencode':['run','--help'],'hermes':['chat','--help'],'dsh':['--profile','headless','--help']}.get(hid,['--help'])
-            code,out,err=await harnesses.process(harnesses.cli(hid)+args,cwd,env,90)
+            code,out,err=await harnesses.process(harnesses.cli(hid)+args,cwd,env,90,memory_mb=768 if hid=='omp' else 512)
             assert code==0,(out+err)[-3000:]
             expected={'pi':['--print','--mode','--model'],'omp':['--print','--mode','--model'],'opencode':['--format','--model'],'hermes':['--query','--model'],'claude':['--output-format','--bare'],'dsh':['--json'],'aider':['--message','--model'],'mini':['--exit-immediately','--model'],'gemini':['--output-format','--model']}
             plain=out+err

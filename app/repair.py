@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from . import config, db, llm
 
 ROOT = Path(__file__).resolve().parents[1]
-PROTECTED = {'app/repair.py', 'app/customization.py', 'app/control.py', 'app/config.py', 'app/db.py', 'app/guardrails.py', 'app/native_apps.py'}
+PROTECTED = {'app/harnesses.py', 'app/harness_stdio.py', 'app/repair.py', 'app/customization.py', 'app/control.py', 'app/config.py', 'app/db.py', 'app/guardrails.py', 'app/native_apps.py'}
 tasks = {}
 lock = asyncio.Lock()
 
