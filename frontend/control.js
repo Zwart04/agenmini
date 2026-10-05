@@ -133,7 +133,7 @@ $('#updateCheck').onclick=async()=>{try{await api('/api/update',{method:'POST',b
 $('#updateInstall').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{install:true}});toast('Update diminta. VPS akan membuat backup dan memasang release terbaru.')}catch(e){sayError(e)}};
 
 
-async function showOfficeLog(bot,refresh=false){
+async function showOfficeLog(bot,refresh=false){if(!refresh&&typeof selectPageTab==='function')selectPageTab('office','activity');
  if(!refresh){openedOfficeLog=bot;logGeneration++;}
  const generation=logGeneration;
  try{const d=await api('/api/office/log/'+encodeURIComponent(bot));

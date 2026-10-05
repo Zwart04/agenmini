@@ -1,22 +1,18 @@
-# Validasi Agen Mini 0.5.6
+# Validasi Agen Mini 0.6.0
 
-Pemeriksaan ini membedakan regresi kode, integrasi layanan dan kualitas keluaran model.
+## Perubahan
 
-## Pemeriksaan
+Redesign frontend dari HEAD terbaru e2a2f9f (versi 0.5.6). Tidak mengubah implementasi model, provider, sandbox, data atau izin pengguna.
 
-- Regresi Linux: 213 tes pada runtime Python aplikasi, memakai database terpisah. Cakupan meliputi autentikasi, alat, argumen terstruktur, checkpoint, izin, CRUD, arsip proyek dan preservasi berkas.
-- Chromium nyata: empat menu di viewport 1440, 1280, 320, 390 dan 430 piksel. Pemeriksaan overflow horizontal, JavaScript, bagian fitur yang terlihat, scroll, dialog rincian dan pagination. Pemeriksaan dilakukan pada antarmuka kandidat serta pemasangan setelah update.
-- Pilihan provider/model, draft formulir dan log tidak ditimpa polling. Kantor memakai status server/SSE; diskusi tidak membuat progres tugas palsu.
-- ZIP frontend/source/pemasangan: CRC, SHA256, versi dan daftar berkas diperiksa. Source berasal dari berkas Git terlacak, tanpa data instalasi, database, log privat, kredensial atau bobot model.
-- Pipeline release mensyaratkan CI Linux dan pemasangan/update/uninstall Windows pada commit yang sama. Aset publik kemudian diunduh ulang dan checksum diverifikasi.
-- Pemasang/supervisor diuji dalam lingkungan sekali pakai untuk preservasi konfigurasi/data, pergantian skrip atomik, penundaan saat sibuk dan penolakan checksum tidak valid. Perintah paket/Docker pada tes pemasang tertentu menggunakan mock.
+## Pemeriksaan lokal
+
+- 30 tes frontend syntax/asset paths, office layout, control API dan workspace records lulus di Windows Python 3.12. Tes office menggunakan stdin untuk Node supaya tidak melampaui batas command line Windows.
+- Layout memeriksa batas layar dan benturan label/status untuk 2, 10, 30 agen pada 252/284/330/358/398/720/936/1104px, termasuk seluruh agen menunggu atau rapat.
+- Browser dengan backend preview terisolasi: 14 tab pada 320/390/430/1024/1280/1440px (84 pemeriksaan), tepat satu panel terlihat dan tidak ada overflow halaman.
+- Tema terang/gelap, chat, kantor, akun layanan, MCP, settings, draft proyek lintas tab, keyboard ArrowRight, drawer serta dialog ditinjau. Tidak ada error JavaScript pada console.
+- Animasi diuji di browser: Aktif menghasilkan transform karakter yang berubah; Ikuti perangkat/Mati berhenti pada perangkat dengan reduced-motion.
+- CSS memakai font sistem/aset lokal dan animasi yang sudah ada; tidak menambah runtime frontend, layanan, request per karakter atau dependency produksi.
 
 ## Batas
 
-Browser dan regresi tidak membuktikan semua proyek kompleks dapat selesai. Mutu HTML, game, aplikasi dan riset bergantung model serta spesifikasi tugas. Model kecil tetap berpotensi salah; skill dan pemeriksaan alat bukan jaminan bebas halusinasi.
-
-Pengujian tidak melakukan email, posting sosial, perubahan iklan, pembayaran atau trading. Integrasi layanan tersebut memerlukan kredensial, izin dan pemeriksaan tersendiri. Koneksi yang terkonfigurasi belum membuktikan semua model memiliki kuota.
-
-Tes pemasang sekali pakai bukan bukti instalasi pada semua penyedia VPS kosong. GPU, semua varian GGUF, OAuth seluruh provider, serta pemulihan bencana pada setiap sistem tidak diuji. Windows native memakai API; layanan lokal yang dikelola memerlukan Linux/WSL/Docker.
-
-Bukti operasional dan log akun instalasi tidak disertakan di repo publik. Untuk kondisi instalasi sendiri, gunakan Diagnostik, uji koneksi, log server dan hasil tahap proyek.
+Preview tidak menjalankan model, pekerjaan bot atau layanan provider pengguna. Status model yang tidak tersambung tetap ditampilkan apa adanya. Tidak mengklaim deployment atau validasi OAuth/Telegram/VPS pengguna. Workflow Linux dan Windows memeriksa commit sebelum publication release; ZIP diverifikasi dengan CRC dan SHA256 oleh build_release.py.

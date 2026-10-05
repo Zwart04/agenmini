@@ -119,7 +119,7 @@ $('#loginForm').onsubmit = async e => {
 };
 
 /* ---------- navigasi ---------- */
-const pageSections={bots:'office',jobs:'office',mcp:'ai',skills:'settings',memory:'settings',updates:'settings',models:'settings'};
+const pageSections={bots:'office',jobs:'office',projects:'office',activity:'office',insights:'office',integrations:'ai',mcp:'ai',skills:'settings',memory:'settings',updates:'settings',models:'settings'};
 function go(requested) {
   const v=pageSections[requested]||requested;
   S.view=v;$('#mobileTitle').textContent=({office:'Workspace',ai:'Koneksi',settings:'Pengaturan'}[v]||'Chat');$('#mobileTitle').classList.toggle('hidden',v==='chat');
@@ -128,13 +128,23 @@ function go(requested) {
   $$('.view').forEach(x=>x.classList.toggle('hidden',x.id!=='v-'+v));closeMenu();
   const loaders={office:[loadOffice,loadBots,loadJobs],ai:[loadAI,loadMCP],settings:[loadSettings,loadSkills,loadMem,loadUpdates,loadModels]};
   for(const load of loaders[v]||[])load()?.catch(sayError);
-  if(requested!==v)$('#section-'+requested)?.scrollIntoView({block:'start'});
+  if(typeof selectPageTab==='function')selectPageTab(v,requested);
 }
 $$('#nav .item').forEach(b => b.onclick = () => go(b.dataset.v));
-function closeMenu(){ $('#side').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded','false') }
-$('#menuBtn').onclick = () => { const open=$('#side').classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded',String(open)) };
+const drawerMedia=matchMedia('(max-width:1000px)');
+function syncDrawer(){ $('#side').inert=drawerMedia.matches&&!$('#side').classList.contains('open'); }
+function closeMenu(){ $('#side').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded','false');syncDrawer(); }
+$('#menuBtn').onclick = () => { const open=$('#side').classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded',String(open));syncDrawer();if(open)$('#side .item').focus(); };
+drawerMedia.addEventListener('change',closeMenu);syncDrawer();
 $('#sideBackdrop').onclick=closeMenu;
-document.addEventListener('keydown', e=>{if(e.key==='Escape')closeMenu()});
+document.addEventListener('keydown', e=>{
+ if(e.key==='Escape'&&$('#side').classList.contains('open')){closeMenu();$('#menuBtn').focus()}
+ if(e.key==='Tab'&&drawerMedia.matches&&$('#side').classList.contains('open')){
+  const focusable=[...$('#side').querySelectorAll('button:not(:disabled),a[href],input')],first=focusable[0],last=focusable.at(-1);
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+ }
+});
 
 /* ---------- bot ---------- */
 async function refreshBots() {
@@ -163,6 +173,7 @@ function pickBot(id) {
 
 /* ---------- chat ---------- */
 const SUGS = {
+  orchestrator: ['Bantu rencanakan proyek', 'Apa saja kemampuan tim ini?'],
   asisten: ['Cari berita terbaru hari ini', 'Ingatkan saya minum air tiap 2 jam', 'Buatkan bot pencari resep masakan'],
   riset: ['Bandingkan harga laptop 10 juta', 'Apa tren AI terbaru minggu ini?'],
   pengingat: ['Ingatkan rapat besok jam 9', 'Jadwal saya apa saja?'],
@@ -190,7 +201,7 @@ async function loadChat(chatId) {
     const cn = $('#contNow'); if (cn) cn.onclick = async () => { await api(`/api/chats/${c.id}/buka`, {method: 'POST'}); loadChat() };
   }
   if (!d.messages.length) {
-    th.innerHTML = `<div class="empty">${av(b, 'l')}<h3>${esc(b.name)}</h3><p>Apa yang bisa saya bantu?</p><div class="sugs">${(SUGS[b.id] || ['Apa saja yang bisa kamu lakukan?']).map(s => `<button>${esc(s)}</button>`).join('')}</div></div>`;
+    th.innerHTML = `<div class="empty">${av(b, 'l')}<h3>Apa yang kita kerjakan hari ini?</h3><p>${esc(b.name)} siap membantu Anda.</p><div class="sugs">${(SUGS[b.id] || ['Apa saja yang bisa kamu lakukan?']).map(s => `<button>${esc(s)}</button>`).join('')}</div></div>`;
     $$('.sugs button').forEach(x => x.onclick = () => { $('#input').value = x.textContent; send() });
   }
   d.messages.forEach(m => addMsg(m));
