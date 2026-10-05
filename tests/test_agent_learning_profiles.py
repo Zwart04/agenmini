@@ -176,3 +176,18 @@ def test_training_split_deduplicates_and_does_not_overwrite(tmp_path):
     before=(out/'train.jsonl').read_bytes()
     with pytest.raises(ValueError):prepare(source,out)
     assert (out/'train.jsonl').read_bytes()==before
+
+@pytest.mark.asyncio
+async def test_successful_tool_followed_by_model_error_is_not_learned(isolated,monkeypatch):
+    profiles.choose('blank');db.set_setting('self_improve','review')
+    count=0
+    async def fail_after_tool(*args,**kwargs):
+        nonlocal count
+        count+=1
+        if count==1:return {'content':'','tool_calls':[{'name':'write_file','arguments':{'path':'partial.txt','content':'actual partial work'}}],'stats':{}}
+        raise llm.LLMError('upstream unavailable')
+    monkeypatch.setattr(llm,'chat',fail_after_tool)
+    result=await agent.Turn(db.bot('asisten'),'test','failed-final').run('Simpan hasil pekerjaan dalam berkas')
+    assert result['meta']['status']=='failed' and result['meta']['trace']
+    assert (config.WORK_DIR/'partial.txt').exists()
+    assert learning.stage(result['message_id']) is None and not learning.evidence(result['meta'])

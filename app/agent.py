@@ -486,6 +486,7 @@ class Turn:
         recovered_tools = []
         turn_start = len(msgs) - 1
         answer, stats, mode = "", {}, "lengkap"
+        inference_failed = False
         model = bot.get("model") or None
         if bot.get('backend') and not model:
             model = {'router': db.setting('router_last_model'), 'freellmapi': db.setting('freellmapi_model') or 'auto:smart', 'online':db.setting('online_model'), 'local':db.setting('local_model_id') or 'qwenpaw-2b'}.get(bot['backend'])
@@ -644,8 +645,10 @@ class Turn:
                 if step == max_steps - 1:
                     msgs.append({"role": "user", "content": "Cukup memakai alat. Sekarang berikan jawaban akhir."})
         except llm.LLMError as e:
+            inference_failed = True
             answer = f"Galat: {e}"
         except Exception as e:
+            inference_failed = True
             traceback.print_exc()
             answer = f"Terjadi galat: {e}"
 
@@ -655,7 +658,7 @@ class Turn:
         if not answer:
             answer = "Maaf, saya belum menemukan jawabannya."
         meta = {"tools": used, "skills": skill_ids, "seconds": round(time.time() - t0, 1), "stats": stats,
-                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "recovered_tools":recovered_tools, "status": "partial" if failures else "done"}
+                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "recovered_tools":recovered_tools, "status": "failed" if inference_failed else "partial" if failures else "done"}
         mid = db.add_message(chat["id"], "assistant", answer, meta)
         await self.on_event("done", {"text": answer, "message_id": mid, "meta": meta})
 
