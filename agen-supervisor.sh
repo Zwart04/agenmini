@@ -18,6 +18,7 @@ touch data/local-runtime.env
 compose() { docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml "$@"; }
 RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 AVAILABLE_MB=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
+SWAP_MB=$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)
 CPUS=$(nproc)
 LOCAL_MB=0
 LOCAL_ID=$(compose --profile local ps -q local 2>/dev/null || true)
@@ -25,13 +26,38 @@ if [[ -n "$LOCAL_ID" ]]; then
   LOCAL_MB=$(docker stats --no-stream --format '{{.MemUsage}}' "$LOCAL_ID" 2>/dev/null | awk '{n=$1; if(n~/GiB/) n=n*1024; else if(n~/KiB/) n=n/1024; print int(n)}' || echo 0)
 fi
 [[ "$LOCAL_MB" =~ ^[0-9]+$ ]] || LOCAL_MB=0
-jq -n --argjson ram_mb "$RAM_MB" --argjson available_mb "$AVAILABLE_MB" --argjson cpus "$CPUS" --argjson local_memory_mb "$LOCAL_MB" --arg architecture "$(uname -m)" '{ram_mb:$ram_mb,available_mb:$available_mb,cpus:$cpus,local_memory_mb:$local_memory_mb,architecture:$architecture}' > data/hardware.json.tmp
+jq -n --argjson ram_mb "$RAM_MB" --argjson swap_mb "$SWAP_MB" --argjson available_mb "$AVAILABLE_MB" --argjson cpus "$CPUS" --argjson local_memory_mb "$LOCAL_MB" --arg architecture "$(uname -m)" '{ram_mb:$ram_mb,swap_mb:$swap_mb,available_mb:$available_mb,cpus:$cpus,local_memory_mb:$local_memory_mb,architecture:$architecture}' > data/hardware.json.tmp
 mv data/hardware.json.tmp data/hardware.json
 write_status() {
   local file="$1" message="$2"
   jq -n --arg message "$message" --arg time "$(date -Is)" '{message:$message,checked_at:$time}' > "data/$file.tmp"
   mv "data/$file.tmp" "data/$file"
 }
+# Fixed host requests only, processed while the app is idle. No Docker socket in the app.
+if [[ -f data/host-setup-request.json ]]; then
+  if [[ -f data/model-busy || -f data/task-busy || -f data/harness-install-busy || -f data/harness-run-busy ]]; then exit 0; fi
+  REQUEST=data/host-setup-request.json
+  if ! jq -e '(.swap_gb==0 or .swap_gb==2 or .swap_gb==4 or .swap_gb==8) and (.harness_memory|type)=="boolean" and (.retry=="" or .retry=="hermes" or .retry=="opencode" or .retry=="claude" or .retry=="dsh" or .retry=="omp" or .retry=="pi" or .retry=="aider" or .retry=="mini" or .retry=="gemini")' "$REQUEST" >/dev/null; then
+    write_status host-setup-status.json 'Permintaan host tidak valid; tidak dijalankan.';rm -f "$REQUEST";exit 1
+  fi
+  GB=$(jq -r '.swap_gb' "$REQUEST")
+  if ! bash agen-swap.sh "$GB" > data/swap-result.txt 2>&1; then write_status host-setup-status.json "$(tail -c 800 data/swap-result.txt)";rm -f "$REQUEST";exit 1;fi
+  SWAP_MB=$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)
+  jq --argjson swap_mb "$SWAP_MB" '.swap_mb=$swap_mb' data/hardware.json > data/hardware.json.tmp;mv data/hardware.json.tmp data/hardware.json
+  if [[ $(jq -r '.harness_memory' "$REQUEST") == true ]]; then
+    (( RAM_MB >= 2560 )) || { write_status host-setup-status.json 'RAM fisik kurang dari 2,5 GB; batas container tidak diubah.';rm -f "$REQUEST";exit 1; }
+    # Preserve larger/custom allocations; raise only if effective limit is below 2 GB.
+    LIMIT=$(compose config --format json | jq -r '.services.agen.mem_limit // 0')
+    if [[ "$LIMIT" =~ ^[0-9]+$ ]] && (( LIMIT > 0 && LIMIT < 2147483648 )); then
+      sed -i '/^AGEN_MEM_LIMIT=/d' .env;printf '\nAGEN_MEM_LIMIT=2g\n' >> .env
+    fi
+    RETRY=$(jq -r '.retry' "$REQUEST")
+    [[ -z "$RETRY" ]] || printf '%s\n' "$RETRY" > data/harness-resume
+    rm -f "$REQUEST"
+    compose up -d --force-recreate agen
+    write_status host-setup-status.json 'Batas container siap untuk harness API. Pemasangan dilanjutkan setelah restart.'
+  else rm -f "$REQUEST";write_status host-setup-status.json "$(cat data/swap-result.txt)";fi
+fi
 # Persist observed state/logs even when no switch is requested.
 if [[ -n "$LOCAL_ID" ]]; then
   docker logs --tail 35 "$LOCAL_ID" > data/local-log.txt.tmp 2>&1 || true

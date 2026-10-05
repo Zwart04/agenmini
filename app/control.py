@@ -14,7 +14,7 @@ routes = web.RouteTableDef()
 @routes.get('/api/customization')
 async def customization_status(request):
     from . import customization, agent, repair, harnesses
-    bot = db.bot(request.query.get('bot', 'asisten'))
+    bot = db.bot(request.query.get('bot', 'orchestrator'))
     if not bot:
         raise ValueError('Bot tidak ditemukan.')
     runtime=harnesses.entry(db.setting('harness_mode')) if harnesses.external() else None
@@ -73,7 +73,7 @@ async def repair_propose(request):
     data = await request.json()
     if not isinstance(data, dict):
         raise ValueError('Gunakan objek permintaan.')
-    return web.json_response(await repair.propose(data.get('prompt'), data.get('files'), data.get('bot', 'asisten')))
+    return web.json_response(await repair.propose(data.get('prompt'), data.get('files'), data.get('bot', 'orchestrator')))
 
 
 @routes.post('/api/repairs/{id}/cancel')
@@ -111,7 +111,7 @@ async def check_core_tools(request):
     """Harmless workspace roundtrip + real isolated Python; never sends external messages."""
     async with _tool_check_lock:
         rows = []
-        bot=db.bot('teknisi') or db.bot('asisten')
+        bot=db.bot('teknisi') or db.bot('orchestrator')
         chat=db.chat_for(bot['id'],'diagnostic','owner')
         ctx=tools.Ctx(bot,chat,'web','web')
         name = '.agen-check-' + secrets.token_hex(12) + '.txt'
@@ -802,25 +802,67 @@ async def social_configure(request):
 @routes.get('/api/setup')
 async def setup_status(request):
     from . import social_connections,integrations,profiles
-    return web.json_response({'complete':db.setting('setup_complete')=='1','agent':profiles.status(),'social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
+    from . import host_setup
+    return web.json_response({'complete':db.setting('setup_complete')=='1','agent':profiles.status(),'resources':host_setup.status(),'social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
 
 @routes.post('/api/setup')
 async def setup_done(request):
     from . import profiles
     data=await request.json()
     if not isinstance(data,dict):raise ValueError('Setup harus objek JSON.')
+    if db.setting('setup_profile')=='pending' and data.get('profile') not in ('blank','template'):raise ValueError('Pilih Kosong atau Paket bawaan.')
     from . import harnesses
     selected=data.get('harness', 'none' if data.get('profile')=='blank' else 'assisted')
     harnesses.entry(selected)
+    password=data.get('password','')
+    if not isinstance(password,str) or (password and (len(password)<8 or len(password)>200 or '\n' in password)):
+        raise ValueError('Sandi minimal 8 karakter, maksimal 200.')
+    swap=data.get('swap_gb',0)
+    if type(swap)!=int or swap not in (0,2,4,8):raise ValueError('Pilihan swap tidak valid.')
+    bot_templates=data.get('bot_templates',False)
+    if type(bot_templates)!=bool:raise ValueError('Pilihan template bot tidak valid.')
+    if swap:
+        from . import host_setup
+        host_setup.request(swap)
+    if password:
+        from .web import hash_pw
+        db.set_setting('web_password_hash',hash_pw(password))
+        db.set_setting('session_ver',str(int(db.setting('session_ver') or '1')+1))
     if db.setting('setup_profile')=='pending':
-        profiles.choose(data.get('profile'),data.get('full_access') is True)
+        profiles.choose(data.get('profile'),data.get('full_access') is True,bot_templates)
         harnesses.select(selected,install_requested=True)
+        if bot_templates:
+            from .main import DEFAULT_BOTS,TEAM_BOTS
+            profiles.install_bots([b['id'] for b in DEFAULT_BOTS+TEAM_BOTS if b['id']!='orchestrator'])
         if data.get('profile') == 'template':
             from .main import activate_builtin_mcp
             errors = await activate_builtin_mcp()
             db.set_setting('setup_complete','1')
             return web.json_response({'ok':True,'mcp_errors':errors})
     db.set_setting('setup_complete','1');return web.json_response({'ok':True})
+
+@routes.get('/api/bot-templates')
+async def bot_templates(request):
+    from .main import DEFAULT_BOTS,TEAM_BOTS
+    return web.json_response({'items':[{**{k:b[k] for k in ('id','name','persona','icon')},'installed':bool(db.bot(b['id']))} for b in DEFAULT_BOTS+TEAM_BOTS if b['id']!='orchestrator']})
+
+@routes.post('/api/bot-templates')
+async def add_bot_templates(request):
+    from . import profiles
+    data=await request.json()
+    return web.json_response({'added':profiles.install_bots(data.get('ids'))})
+
+@routes.get('/api/host-setup')
+async def host_setup_status(request):
+    from . import host_setup
+    return web.json_response(host_setup.status())
+
+@routes.post('/api/host-setup')
+async def host_setup_save(request):
+    from . import host_setup,harnesses
+    data=await request.json()
+    if harnesses._run_lock.locked() or harnesses._install_lock.locked():raise ValueError('Tunggu tugas/pemasangan selesai sebelum mengubah resource host.')
+    return web.json_response(host_setup.request(data.get('swap_gb',0),data.get('harness_memory',False),data.get('retry','')))
 
 @routes.get('/api/learning')
 async def learning_candidates(request):

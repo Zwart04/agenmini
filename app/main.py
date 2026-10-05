@@ -55,6 +55,8 @@ def bootstrap(profile=None):
     db.conn()
     (config.DATA_DIR / "model-busy").unlink(missing_ok=True)
     (config.DATA_DIR / "task-busy").unlink(missing_ok=True)
+    (config.DATA_DIR / "harness-install-busy").unlink(missing_ok=True)
+    (config.DATA_DIR / "harness-run-busy").unlink(missing_ok=True)
     if not Path('/.dockerenv').exists():
         probe=Path(__file__).resolve().parents[1]/'host-integrations.py'
         if probe.is_file():
@@ -73,7 +75,10 @@ def bootstrap(profile=None):
         for b in db.bots():
             if "find_tools" not in b["tools"]:db.save_bot({"id":b["id"],"tools":b["tools"]+["find_tools"]})
     elif not db.bots():
-        db.save_bot({'id':'asisten','name':'Asisten','icon':'sparkle','persona':'','tools':list(tools.REGISTRY)})
+        db.save_bot({'id':'orchestrator','name':'Orchestrator','icon':'sparkle','persona':'','tools':list(tools.REGISTRY)})
+    if not db.bot('orchestrator'):
+        db.save_bot({'id':'orchestrator','name':'Orchestrator','icon':'sparkle','persona':'','tools':list(tools.REGISTRY)})
+    db.set_setting('telegram_default_bot','orchestrator')
     for bid in ('asisten', 'orchestrator'):
         bot = db.bot(bid)
         if bot:
@@ -101,11 +106,13 @@ def bootstrap(profile=None):
 
 
 def seed_templates():
-    for b in DEFAULT_BOTS:
-        if not db.bot(b["id"]):db.save_bot(b)
+    if db.setting("bot_presets_enabled")!="0":
+        for b in DEFAULT_BOTS:
+            if not db.bot(b["id"]):db.save_bot(b)
     if not db.setting('team_bots_seeded_031'):
-        for b in TEAM_BOTS:
-            if not db.bot(b['id']): db.save_bot(b)
+        if db.setting('bot_presets_enabled')!='0':
+            for b in TEAM_BOTS:
+                if not db.bot(b['id']): db.save_bot(b)
         db.set_setting('team_bots_seeded_031','1')
     if not db.setting('coding_tools_seeded_033'):
         for bot in db.bots():
@@ -156,23 +163,28 @@ def seed_templates():
 async def activate_builtin_mcp():
     from . import mcp_bridge, profiles
     errors = await mcp_bridge.register()
-    bot = db.bot('asisten')
+    bot = db.bot('orchestrator') or db.bot('asisten')
     extra = [name for name in ('mcp_agen_local_hardware', 'mcp_agen_local_search_skills')
              if name in tools.REGISTRY and bot and name not in bot['tools']]
     if bot and profiles.seed_enabled() and extra:
-        db.save_bot({'id': 'asisten', 'tools': bot['tools'] + extra})
+        db.save_bot({'id': bot['id'], 'tools': bot['tools'] + extra})
         db.set_setting('mcp_builtin_tools_seeded', '1')
     return errors
 
 async def amain():
     bootstrap()
+    from . import harnesses
+    resume=config.DATA_DIR/'harness-resume'
+    if resume.is_file():
+        hid=resume.read_text().strip();resume.unlink()
+        if db.setting('harness_mode')==hid and any(x['id']==hid and x.get('kind') for x in harnesses.CATALOG):harnesses.select(hid,True)
     from . import profiles, mcp_bridge, office
     for error in await mcp_bridge.register():
         print(f"[MCP] koneksi gagal: {error}")
-    bot = db.bot('asisten')
+    bot = db.bot('orchestrator') or db.bot('asisten')
     extra = [name for name in ('mcp_agen_local_hardware','mcp_agen_local_search_skills') if name in tools.REGISTRY and bot and name not in bot['tools']]
     if bot and profiles.seed_enabled() and not db.setting('mcp_builtin_tools_seeded'):
-        if extra: db.save_bot({'id':'asisten','tools':bot['tools']+extra})
+        if extra: db.save_bot({'id':bot['id'],'tools':bot['tools']+extra})
         if extra or 'mcp_agen_local_hardware' in bot['tools']:
             db.set_setting('mcp_builtin_tools_seeded','1')
     coordinator=db.bot('orchestrator')

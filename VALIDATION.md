@@ -1,4 +1,6 @@
-# Validasi Agen Mini 0.8.0
+# Validasi Agen Mini 0.8.1
+
+Setup tambahan diuji: Orchestrator awal, template bot idempotent tanpa menimpa persona pengguna, rekomendasi swap berdasarkan RAM fisik, permintaan host dengan pilihan tetap, validasi sandi dan pencabutan sesi, serta larangan menghapus bot utama. Workflow host menggunakan perintah swap/Docker yang dimock di container disposable; tidak mengaktifkan swap nyata pada host atau VPS pengguna. Browser memeriksa posisi notifikasi dan modal template di desktop/mobile. Hardware pada screenshot setup menggunakan fixture preview.
 
 ## Runtime asli
 

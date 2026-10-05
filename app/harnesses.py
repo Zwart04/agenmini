@@ -86,6 +86,10 @@ def status(hid):
     elif state.get('phase') in ('queued','installing') and not installing:
         state={'phase':'interrupted','message':'Pemasangan terhenti. Pilih Pasang ulang untuk mencoba lagi.'}
     cfg=settings(hid)
+    try:
+        pending=json.loads((config.DATA_DIR/'host-setup-request.json').read_text())
+        if pending.get('retry')==hid:state={'phase':'preparing','message':'Supervisor menyiapkan batas RAM container. Pemasangan dilanjutkan setelah restart saat senggang.'}
+    except (OSError,ValueError):pass
     return {**({'phase':'absent','message':'Belum diunduh.'}),**state,'model':cfg.get('model',''),'provider':cfg.get('provider',row.get('provider','')),'env':{k:('••••' if 'KEY' in k else v) for k,v in cfg.get('env',{}).items()},'credential_saved':any(v for k,v in cfg.get('env',{}).items() if 'KEY' in k)}
 
 
@@ -234,6 +238,7 @@ def cli(hid, base=None):
 async def install(hid):
     row=entry(hid);base=owned(location(hid));stage=base/'releases'/uuid.uuid4().hex[:16];success=False
     async with _install_lock:
+        busy=config.DATA_DIR/'harness-install-busy';busy.write_text(hid)
         try:
             limit=Path('/sys/fs/cgroup/memory.max')
             if limit.is_file():
@@ -298,6 +303,7 @@ async def install(hid):
             write_state(hid,'interrupted','Pemasangan dibatalkan. Dependensi yang belum lengkap tidak akan dijalankan.');raise
         except Exception as exc:write_state(hid,'failed',str(exc))
         finally:
+            busy.unlink(missing_ok=True)
             if not success and stage.exists() and not stage.parent.is_symlink() and stage.resolve().is_relative_to(base.resolve()):shutil.rmtree(stage)
 
 
@@ -386,7 +392,9 @@ async def run(hid, prompt, on_event, actor=None, model=None):
                 if actor:
                     from . import office
                     office.log(actor,'tool','Runtime '+row['name']+': '+name)
-        code,out,err=await process(cli(hid)+args,work,env,300,pulse,memory_mb=768 if hid=='omp' else 512,on_line=event)
+        busy=config.DATA_DIR/'harness-run-busy';busy.write_text(hid)
+        try:code,out,err=await process(cli(hid)+args,work,env,300,pulse,memory_mb=768 if hid=='omp' else 512,on_line=event)
+        finally:busy.unlink(missing_ok=True)
         if code:raise ValueError(redact(err or out,hid)[-1800:] or 'Runtime keluar dengan kode '+str(code))
         if hid=='mini':
             data=json.loads(trace.read_text(encoding='utf-8')) if trace.is_file() else {}

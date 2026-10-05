@@ -25,7 +25,7 @@ def isolated(monkeypatch, tmp_path):
 
 
 def test_harness_reset_and_restore_are_reversible(isolated):
-    bot = db.bot('asisten'); baseline = agent.system_prompt(bot)
+    bot = db.bot('orchestrator'); baseline = agent.system_prompt(bot)
     customization.harness('Gunakan bahasa Indonesia yang ringkas.')
     assert agent.system_prompt(bot).endswith('Gunakan bahasa Indonesia yang ringkas.')
     customization.harness('')

@@ -208,6 +208,7 @@ async def save_bot(request):
 @routes.delete("/api/bots/{id}")
 async def delete_bot(request):
     bid = request.match_info["id"]
+    if bid=='orchestrator':return web.json_response({'error':'Orchestrator adalah bot utama. Anda dapat mengeditnya, tetapi tidak menghapusnya.'},status=400)
     if len(db.bots()) <= 1:
         return web.json_response({"error": "Minimal harus ada satu bot."}, status=400)
     db.run("DELETE FROM bots WHERE id=?", (bid,))

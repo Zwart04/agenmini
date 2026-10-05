@@ -106,6 +106,32 @@ if [[ ! -f "$DIR/.env" ]]; then
     *) fail "Pilihan tidak valid: local/router/free/both/online." ;;
   esac
   PW=$(openssl rand -hex 12)
+  PASSWORD_MODE=$(ask 'Sandi web: otomatis atau sendiri' 'otomatis')
+  if [[ "$PASSWORD_MODE" == sendiri ]]; then
+    [[ -t 0 && "${AGEN_OTOMATIS:-0}" != 1 ]] || fail 'Sandi sendiri harus dimasukkan melalui terminal interaktif.'
+    while true; do
+      read -r -s -p 'Sandi baru (8–200 karakter, tanpa spasi/quote/$/#): ' PW;printf '\n'
+      read -r -s -p 'Ulangi sandi: ' CONFIRM;printf '\n'
+      if [[ "$PW" == "$CONFIRM" && "$PW" =~ ^[A-Za-z0-9_@%+=:,./!?-]{8,200}$ ]]; then break;fi
+      echo 'Sandi tidak cocok atau mengandung karakter yang tidak didukung oleh berkas konfigurasi.'
+    done
+    unset CONFIRM
+  elif [[ "$PASSWORD_MODE" != otomatis ]]; then fail 'Pilih otomatis atau sendiri.';fi
+  RAM_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+  EXISTING_SWAP=$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)
+  SWAP_RECOMMEND=0
+  if (( EXISTING_SWAP == 0 && RAM_MB < 8192 )); then
+    SWAP_RECOMMEND=2;(( RAM_MB >= 2048 )) || SWAP_RECOMMEND=4
+    echo "RAM $RAM_MB MB. Rekomendasi swap $SWAP_RECOMMEND GB sebagai cadangan; lebih lambat dari RAM dan tidak memperbesar batas container."
+  else echo "RAM $RAM_MB MB; swap yang sudah ada dipertahankan.";fi
+  SWAP_CHOICE=${AGEN_SWAP_GB:-$(ask 'Tambahkan swap (0=tidak, 2/4/8 GB)' '0')}
+  bash "$DIR/agen-swap.sh" "$SWAP_CHOICE" || fail 'Persiapan swap gagal. Data aplikasi tetap tersimpan.'
+  HARNESS_MODE=$(ask 'Resource: bawaan (ringan) atau harness (CLI asli)' 'bawaan')
+  APP_LIMIT=800m
+  if [[ "$HARNESS_MODE" == harness ]]; then
+    (( RAM_MB >= 2560 )) || fail 'Harness asli memerlukan minimal 2,5 GB RAM fisik. Pilih bawaan untuk VPS kecil.'
+    APP_LIMIT=2g
+  elif [[ "$HARNESS_MODE" != bawaan ]]; then fail 'Pilih bawaan atau harness.';fi
   umask 077
   cat > "$DIR/.env" <<EOF
 WEB_PASSWORD=$PW
@@ -120,7 +146,7 @@ TOOL_MODE=text
 NUM_CTX=4096
 CHROMIUM=0
 AGEN_AI_PROFILE=$PROFILE
-AGEN_MEM_LIMIT=800m
+AGEN_MEM_LIMIT=$APP_LIMIT
 ROUTER_MEM_LIMIT=256m
 NINE_ROUTER_IMAGE=luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba
 EOF

@@ -18,7 +18,7 @@ def isolated(monkeypatch, tmp_path):
 
 
 def completed():
-    chat=db.chat_for('asisten','test','learning')
+    chat=db.chat_for('orchestrator','test','learning')
     db.add_message(chat['id'],'user','Simpan laporan produk sebagai berkas teks')
     mid=db.add_message(chat['id'],'assistant','Laporan tersimpan.',{'tools':['write_file'],'trace':[{'alat':'write_file','arg':'{"path":"secret-name.txt"}','hasil':'Tersimpan: secret-name.txt'}]})
     return mid
@@ -39,7 +39,7 @@ def test_template_opt_in_does_not_invent_owner(isolated):
     profiles.choose('template')
     assert len(db.bots())==10 and db.bot('teknisi') and db.bot('pengingat')
     assert profiles.status()['skills']>0
-    assert not memory.profile_memories(db.bot('asisten'))
+    assert not memory.profile_memories(db.bot('orchestrator'))
     assert not db.one("SELECT id FROM memories WHERE text LIKE '%Davdigi%'")
     count=profiles.status()['skills'];main.bootstrap()
     assert count==profiles.status()['skills']
@@ -51,8 +51,8 @@ def test_old_profile_is_preserved_but_false_preset_quarantined(isolated):
     db.set_setting('seed_done','["mem:bisnis"]');mid,_=memory.add_memory('shared','profil',text)
     profiles.quarantine_legacy()
     assert db.one('SELECT text FROM memories WHERE id=?',(mid,))['text']==text
-    assert not memory.profile_memories(db.bot('asisten'))
-    assert not memory.search_memories(db.bot('asisten'),'Davdigi')
+    assert not memory.profile_memories(db.bot('orchestrator'))
+    assert not memory.search_memories(db.bot('orchestrator'),'Davdigi')
 
 
 def test_learning_single_real_tool_requires_review_and_is_idempotent(isolated):
@@ -76,8 +76,8 @@ def test_failed_cached_or_corrected_turn_never_becomes_skill(isolated):
 
 
 def test_skill_revisions_restore_without_destroying_history(isolated):
-    sid,_=memory.save_skill('asisten','Laporan','menulis laporan','write_file: tulis dan verifikasi berkas')
-    memory.save_skill('asisten','Laporan','menulis laporan','write_file: tulis lalu read_file: baca ulang')
+    sid,_=memory.save_skill('orchestrator','Laporan','menulis laporan','write_file: tulis dan verifikasi berkas')
+    memory.save_skill('orchestrator','Laporan','menulis laporan','write_file: tulis lalu read_file: baca ulang')
     v=db.one('SELECT * FROM skill_versions WHERE skill_id=?',(sid,));assert v['steps']=='write_file: tulis dan verifikasi berkas'
     learning.restore(sid,v['id']);assert db.one('SELECT steps FROM skills WHERE id=?',(sid,))['steps']==v['steps']
     assert db.one('SELECT count(*) n FROM skill_versions')['n']==2
@@ -85,7 +85,7 @@ def test_skill_revisions_restore_without_destroying_history(isolated):
 
 @pytest.mark.asyncio
 async def test_rating_toggle_does_not_inflate_scores(isolated):
-    sid,_=memory.save_skill('asisten','Test','test','write_file: tulis berkas teks')
+    sid,_=memory.save_skill('orchestrator','Test','test','write_file: tulis berkas teks')
     mid=completed();db.run('UPDATE messages SET meta=? WHERE id=?',(json.dumps({'skills':[sid]}),mid))
     await agent.feedback(mid,True);await agent.feedback(mid,True,'');await agent.feedback(mid,False);await agent.feedback(mid,True)
     assert db.one('SELECT wins,fails FROM skills WHERE id=?',(sid,))=={'wins':1,'fails':0}
@@ -122,7 +122,7 @@ async def test_minimal_turn_keeps_model_reply_and_executes_real_file(isolated,mo
     profiles.choose('blank');responses=[{'content':'','tool_calls':[{'name':'write_file','arguments':{'path':'answer.txt','content':'hasil unik 473'}}]}, {'content':'Hasil unik 473 sudah disimpan untuk permintaan Anda.','tool_calls':[]}]
     async def chat(*args,**kwargs):return responses.pop(0)|{'stats':{}}
     monkeypatch.setattr(llm,'chat',chat)
-    result=await agent.Turn(db.bot('asisten'),'test','real-write').run('Simpan hasil unik sebagai berkas teks')
+    result=await agent.Turn(db.bot('orchestrator'),'test','real-write').run('Simpan hasil unik sebagai berkas teks')
     assert '473' in result['text'] and (config.WORK_DIR/'answer.txt').read_text()=='hasil unik 473'
     assert learning.status()['candidates']==[]  # blank learning is opt-in
 
@@ -187,7 +187,7 @@ async def test_successful_tool_followed_by_model_error_is_not_learned(isolated,m
         if count==1:return {'content':'','tool_calls':[{'name':'write_file','arguments':{'path':'partial.txt','content':'actual partial work'}}],'stats':{}}
         raise llm.LLMError('upstream unavailable')
     monkeypatch.setattr(llm,'chat',fail_after_tool)
-    result=await agent.Turn(db.bot('asisten'),'test','failed-final').run('Simpan hasil pekerjaan dalam berkas')
+    result=await agent.Turn(db.bot('orchestrator'),'test','failed-final').run('Simpan hasil pekerjaan dalam berkas')
     assert result['meta']['status']=='failed' and result['meta']['trace']
     assert (config.WORK_DIR/'partial.txt').exists()
     assert learning.stage(result['message_id']) is None and not learning.evidence(result['meta'])

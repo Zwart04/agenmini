@@ -23,7 +23,7 @@ def test_catalog_is_lazy_and_rejects_custom_install_source(isolated):
 
 
 def test_none_has_no_default_prompt_or_automatic_memory(isolated,monkeypatch):
-    harnesses.select('none');db.set_setting('custom_harness','stored instructions');bot=db.bot('asisten');chat=db.chat_for(bot['id'],'web','1')
+    harnesses.select('none');db.set_setting('custom_harness','stored instructions');bot=db.bot('orchestrator');chat=db.chat_for(bot['id'],'web','1')
     monkeypatch.setattr(agent,'context_block',lambda *_:pytest.fail('none must not inject context'))
     msgs,skills=agent.build_messages(bot,chat,'hello')
     assert not any(m['role']=='system' for m in msgs) and skills==[]
@@ -52,7 +52,7 @@ def test_json_failures_cannot_be_successful_answers():
 
 @pytest.mark.asyncio
 async def test_original_runtime_never_falls_back_to_llm(isolated,monkeypatch):
-    harnesses.select('claude');bot=db.bot('asisten')
+    harnesses.select('claude');bot=db.bot('orchestrator')
     async def forbidden(*a,**kw):pytest.fail('must not silently substitute native agent')
     monkeypatch.setattr(agent.llm,'chat',forbidden)
     result=await agent.Turn(bot,'web','1').run('hello')
@@ -65,7 +65,7 @@ async def test_runtime_requires_explicit_permission_and_does_not_expand_delegati
     harnesses.select('pi')
     monkeypatch.setattr(harnesses,'status',lambda _: {'phase':'installed'})
     with pytest.raises(ValueError,match='akses penuh'):await harnesses.run('pi','hi',lambda *a:None)
-    result=await agent.Turn(db.bot('asisten'),'office','1').run('help')
+    result=await agent.Turn(db.bot('orchestrator'),'office','1').run('help')
     assert result['meta']['status']=='failed' and 'Delegasi' in result['text']
 
 
@@ -102,7 +102,7 @@ def test_corrupt_manifest_is_failed_not_a_dashboard_exception(isolated):
 
 def test_runtime_model_is_scoped_to_conversation_and_engine(isolated):
     harnesses.configure('pi',{'model':'base-model','env':{}})
-    a=db.chat_for('asisten','web','one');b=db.chat_for('asisten','tg','two')
+    a=db.chat_for('orchestrator','web','one');b=db.chat_for('orchestrator','tg','two')
     harnesses.select_chat_model('pi',a,'openai/custom')
     assert harnesses.chat_model('pi',a)=='openai/custom' and harnesses.chat_model('pi',b)=='base-model'
     assert harnesses.chat_model('claude',a)==''

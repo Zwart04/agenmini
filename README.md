@@ -8,7 +8,7 @@
 
 Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
 
-**Versi stabil: 0.8.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+**Versi stabil: 0.8.1.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
 
 ## Tampilan baru
 
@@ -50,6 +50,16 @@ Empat menu utama dengan tab yang jelas. Workspace memisahkan kantor, proyek, akt
 
 Update dengan pemasang versi baru; **jangan hapus folder data atau model lama**. Buat backup privat dari Pengaturan sebelum update.
 
+Instalasi baru dimulai dengan **Orchestrator**. Pilih template tim pada setup, atau tambah spesialis melalui **Workspace → Tim bot → Template bot**. Template tidak menimpa bot Anda dan dapat ditambahkan tanpa skill/ingatan bawaan.
+
+Pemasang VPS menawarkan sandi otomatis/sendiri dan swap opsional. Untuk RAM di bawah 2 GB tanpa swap, rekomendasi 4 GB; RAM 2–8 GB direkomendasikan 2 GB. Swap memakai disk dan lebih lambat dari RAM. Pilihan juga tersedia pada **Pengaturan → Umum → RAM & swap VPS**; swap yang sudah aktif dipertahankan. Tidak ada swap yang ditambahkan tanpa pilihan Anda.
+
+[Lihat setup sandi/swap](docs/screenshots/setup-v081.jpg) · [Template bot di mobile](docs/screenshots/templates-mobile-v081.jpg) · [Notifikasi yang diperbaiki](docs/screenshots/toast-mobile-v081.jpg). Hardware pada preview setup memakai fixture, bukan pengukuran VPS pengguna.
+
+Jika CLI asli ditolak oleh batas RAM container, pilih **Siapkan RAM container & coba lagi** pada panel harness. Supervisor menaikkan batas container ke 2 GB saat senggang lalu melanjutkan pemasangan. Memerlukan RAM fisik minimal 2,5 GB. Ini memasang CLI/dependensi, bukan bobot model lokal.
+
+Angka 2 GB adalah batas maksimum container, bukan RAM yang selalu terpakai. Agen Mini bawaan tetap memakai batas awal 800 MB bila Anda tidak memilih CLI eksternal. Memasang runtime asli tetap membutuhkan dependensi upstream; tidak dapat diganti dengan prompt profil sambil mengaku sebagai runtime asli.
+
 ## Pasang di VPS Debian / Ubuntu
 
 Jalankan sebagai root pada VPS yang mendukung Docker:
@@ -68,7 +78,7 @@ Mode API lebih ringan; 2 GB RAM disarankan. Untuk model lokal kecil, mulai dari 
 
 ## Pasang di Windows
 
-Unduh `agenmini-setup-0.8.0-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
+Unduh `agenmini-setup-0.8.1-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
 
 Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model lokal, 9router dan FreeLLMAPI memerlukan lingkungan Linux/WSL/Docker. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
 

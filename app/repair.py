@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from . import config, db, llm
 
 ROOT = Path(__file__).resolve().parents[1]
-PROTECTED = {'app/harnesses.py', 'app/harness_stdio.py', 'app/repair.py', 'app/customization.py', 'app/control.py', 'app/config.py', 'app/db.py', 'app/guardrails.py', 'app/native_apps.py'}
+PROTECTED = {'app/host_setup.py', 'app/harnesses.py', 'app/harness_stdio.py', 'app/repair.py', 'app/customization.py', 'app/control.py', 'app/config.py', 'app/db.py', 'app/guardrails.py', 'app/native_apps.py'}
 tasks = {}
 lock = asyncio.Lock()
 
@@ -124,7 +124,7 @@ async def generate(rid, sources):
         tasks.pop(rid, None)
 
 
-async def propose(prompt, names, bot='asisten'):
+async def propose(prompt, names, bot='orchestrator'):
     if not isinstance(prompt, str) or not 5 <= len(prompt.strip()) <= 6000:
         raise ValueError('Tulis tujuan perubahan 5–6.000 karakter.')
     if not db.bot(bot):
