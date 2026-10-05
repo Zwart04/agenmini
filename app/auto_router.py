@@ -34,7 +34,10 @@ async def discover(force=False):
                         for m in usable[:100]:rows.append({'backend':backend,'model':m['id'],'ready':True,'kind':'api','provider':m.get('provider') or m['id'].split('/')[0]})
             except (Exception,):pass
         # Reads are small; inference always uses llm's single gate.
-        await asyncio.gather(collect('local',runtime_status.state),collect('freellmapi',free_router.state),collect('router',router.state))
+        jobs=[collect('local',runtime_status.state)]
+        if db.setting('auto_9router')=='1' or db.setting('compatible_key'):jobs.append(collect('router',router.state))
+        if db.setting('freellmapi_key'):jobs.append(collect('freellmapi',free_router.state))
+        await asyncio.gather(*jobs)
         if db.setting('online_base') and db.setting('online_model') and db.setting('online_key'):
             rows.append({'backend':'online','model':db.setting('online_model'),'ready':False,'kind':'api','configured':True})
         _cache=rows;_at=time.monotonic()
@@ -43,7 +46,7 @@ async def discover(force=False):
 
 async def candidates(messages):
     rows=await discover();complexity=complex_request(messages)
-    preferences=db.setting('auto_route_order') or 'freellmapi,router,online,local'
+    preferences=db.setting('auto_route_order') or 'online,router,freellmapi,local'
     order=preferences.split(',')
     def rank(row):
         model=row['model'].lower();position=order.index(row['backend']) if row['backend'] in order else 9
@@ -71,5 +74,5 @@ def failed(route,seconds=60):_cooldown[(route['backend'],route['model'])]=time.m
 
 
 async def status():
-    return {'routes':await discover(),'order':(db.setting('auto_route_order') or 'freellmapi,router,online,local').split(','),
+    return {'routes':await discover(),'order':(db.setting('auto_route_order') or 'online,router,freellmapi,local').split(','),
             'policy':'Heuristik berdasarkan jenis tugas dan koneksi aktual, bukan jaminan model terbaik. Lokal dipakai hanya saat server siap; retry serial terbatas per model/provider.'}

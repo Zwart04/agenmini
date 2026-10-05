@@ -95,8 +95,8 @@ if [[ ! -f "$DIR/.env" ]]; then
   IP=$(curl -4fsS --max-time 8 https://api.ipify.org || true)
   IP=$(ask "IPv4 publik VPS" "${IP:-127.0.0.1}")
   [[ "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "Masukkan IPv4 publik VPS."
-  echo "Setup awal: 1=lokal tanpa Ollama, 2=9router, 3=FreeLLMAPI, 4=keduanya, 5=API langsung"
-  PROFILE="${AGEN_AI_PROFILE:-$(ask 'Pilih komponen AI' '2')}"
+  echo "Koneksi AI: local=model lokal tanpa Ollama, router=gateway OAuth, online=API kompatibel langsung"
+  PROFILE="${AGEN_AI_PROFILE:-$(ask 'Pilih koneksi AI' 'online')}"
   case "$PROFILE" in
     1|local) PROFILE=local; BACKEND=local; INITIAL_MODEL=local ;;
     2|router) PROFILE=router; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;

@@ -9,7 +9,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from app import config, db, llm, model_runtime, runtime_status, main, free_router, agent, control
 
-main.bootstrap()
+main.bootstrap(profile='template')
 
 
 def fixture_model():
@@ -109,7 +109,7 @@ def test_team_seed_preserves_custom_persona():
     before=db.bot('orchestrator')['persona']
     try:
         db.save_bot({'id':'orchestrator','persona':'My custom coordinator'})
-        main.bootstrap()
+        main.bootstrap(profile='template')
         assert db.bot('orchestrator')['persona']=='My custom coordinator'
     finally: db.save_bot({'id':'orchestrator','persona':before})
 

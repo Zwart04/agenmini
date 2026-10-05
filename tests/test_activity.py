@@ -8,7 +8,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from app import db, main, config, model_import, local_models, chat_models, agent, office, hub, llm, native_apps, router, free_router, control
 from app import web as pages
-main.bootstrap()
+main.bootstrap(profile='template')
 
 
 @pytest.mark.asyncio

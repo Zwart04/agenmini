@@ -13,7 +13,7 @@ os.environ.setdefault("DATA_DIR", tempfile.mkdtemp())
 
 from app import agent, config, db, llm, main, telegram, tools, vision  # noqa: E402
 
-main.bootstrap()
+main.bootstrap(profile='template')
 
 
 class FakeLLM:

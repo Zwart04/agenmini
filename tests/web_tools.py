@@ -15,7 +15,7 @@ async def t(label, coro):
 
 
 async def run():
-    main.bootstrap()
+    main.bootstrap(profile='template')
     await t("cari", browser.search("harga emas antam hari ini"))
     await t("baca biasa", browser.read_page("https://id.wikipedia.org/wiki/Jakarta", "jumlah penduduk"))
     await t("tolak alamat internal", browser.read_page("http://127.0.0.1:8443/sehat"))

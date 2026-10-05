@@ -65,11 +65,13 @@ async function loadAI(){
   const settings=await api('/api/settings');
   if(generation!==aiGeneration)return;
   const active=settings.llm_backend,mode=aiDraftMode||active;
+  $('#connectionSourceRow').classList.toggle('hidden',['auto','local'].includes(mode));
+  if(!['auto','local'].includes(mode))$('#connectionSource').value=['router','freellmapi'].includes(mode)?mode:'online';
   $('#autoPanel').classList.toggle('hidden',mode!=='auto');
-  $$('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===mode);b.setAttribute('aria-pressed',String(b.dataset.mode===mode))});
-  $('#enableEngine').textContent=mode===active?'Siapkan / perbaiki sumber':'Siapkan '+({auto:'Smart Router',local:'model lokal',router:'9router',freellmapi:'FreeLLMAPI',online:'API langsung'}[mode]||mode);
-  $('#engineGuide').textContent=({auto:'Hubungkan kandidat dahulu, lalu aktifkan Smart Router. Keputusan dan model aktual dicatat pada jawaban.',local:'Klik Siapkan, pilih model yang cocok dengan RAM, tunggu status Siap, lalu Uji koneksi.',router:'Klik Siapkan 9router, tambahkan provider/API key atau login akun, pilih model, lalu Uji koneksi.',freellmapi:'Klik Siapkan FreeLLMAPI, pilih provider dan masukkan API key, pilih model tersedia, lalu Uji koneksi.',online:'Isi URL /v1, API key dan ID model; simpan, lalu Uji koneksi.'})[mode];
-  $('#aiMode').textContent=({auto:'Smart Router Agen Mini',router:'9router',local:'Model lokal tanpa Ollama',compatible:'API kompatibel',ollama:'Ollama',freellmapi:'FreeLLMAPI',online:'API langsung'})[active]||active;
+  $$('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===(['router','freellmapi','compatible','ollama'].includes(mode)?'online':mode));b.setAttribute('aria-pressed',String(b.dataset.mode===(['router','freellmapi','compatible','ollama'].includes(mode)?'online':mode)))});
+  $('#enableEngine').textContent=mode===active?'Siapkan / perbaiki sumber':'Siapkan '+({auto:'pemilih otomatis',local:'model lokal',router:'gateway OAuth',freellmapi:'gateway lama',online:'API'}[mode]||mode);
+  $('#engineGuide').textContent=({auto:'Hubungkan kandidat dahulu, lalu aktifkan Smart Router. Keputusan dan model aktual dicatat pada jawaban.',local:'Klik Siapkan, pilih model yang cocok dengan RAM, tunggu status Siap, lalu Uji koneksi.',router:'Klik Siapkan 9router, tambahkan provider/API key atau login akun, pilih model, lalu Uji koneksi.',freellmapi:'Klik Siapkan FreeLLMAPI, pilih provider dan masukkan API key, pilih model tersedia, lalu Uji koneksi.',online:'Isi URL /v1, API key dan ID model; simpan, lalu Uji koneksi.'})[mode]||'Sumber lama tetap tersimpan. Pilih Otomatis, Model lokal atau AI terhubung untuk menyiapkan koneksi baru.';
+  $('#aiMode').textContent=({auto:'Otomatis',router:'AI terhubung',local:'Model lokal',compatible:'API kompatibel',ollama:'Ollama',freellmapi:'AI terhubung',online:'AI terhubung'})[active]||active;
   $('#routerPanel').classList.toggle('hidden',!['router','compatible'].includes(mode));
   $('#freePanel').classList.toggle('hidden',mode!=='freellmapi');
   $('#routerHeading').classList.toggle('hidden',!['router','compatible'].includes(mode));
@@ -97,7 +99,8 @@ async function loadAI(){
   }catch(e){$('#routerStatus').textContent=e.message}
   if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),5000);
 }
-$$('[data-mode]').forEach(b=>b.onclick=()=>{aiDraftMode=b.dataset.mode;loadAI().catch(sayError)});
+$$('[data-mode]').forEach(b=>b.onclick=()=>{aiDraftMode=b.dataset.mode;return loadAI().catch(sayError)});
+$('#connectionSource').onchange=()=>{aiDraftMode=$('#connectionSource').value;return loadAI().catch(sayError)};
 $('#enableEngine').onclick=async()=>{try{const mode=aiDraftMode||(await api('/api/settings')).llm_backend;const d=await api('/api/mode',{method:'POST',body:{mode}});toast(d.message);loadAI()}catch(e){sayError(e)}};
 $('#testEngine').onclick=async()=>{const box=$('#engineTest');box.innerHTML='<span class="runtime-spinner"></span> Menunggu jawaban nyata dari model…';try{const mode=aiDraftMode||(await api('/api/settings')).llm_backend;const model=mode==='router'?$('#routerModel').value:mode==='freellmapi'?$('#freeModel').value:'';const d=await api('/api/ai/test',{method:'POST',body:{backend:mode,model}});box.textContent=(d.ok?'✓ Model menjawab benar':'Model menjawab, tetapi pemeriksaan teks belum lulus')+' · '+(d.model||'model belum dilaporkan')+' · '+d.seconds+' dtk'}catch(e){box.textContent='Belum berhasil: '+e.message}};
 $('#routerConnect').onclick=()=>loadAI().catch(sayError);

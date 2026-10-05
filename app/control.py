@@ -20,8 +20,9 @@ async def check_core_tools(request):
     """Harmless workspace roundtrip + real isolated Python; never sends external messages."""
     async with _tool_check_lock:
         rows = []
-        chat = db.chat_for('teknisi', 'diagnostic', 'owner')
-        ctx = tools.Ctx(db.bot('teknisi'), chat, 'web', 'web')
+        bot=db.bot('teknisi') or db.bot('asisten')
+        chat=db.chat_for(bot['id'],'diagnostic','owner')
+        ctx=tools.Ctx(bot,chat,'web','web')
         name = '.agen-check-' + secrets.token_hex(12) + '.txt'
         try:
             await tools.write_file(ctx, name, 'Agen Mini · 1000')
@@ -45,7 +46,7 @@ async def check_core_tools(request):
             except Exception as exc:
                 rows.append({'name': 'MCP hardware bawaan', 'ok': False, 'message': str(exc)[:200]})
         else:
-            rows.append({'name': 'MCP hardware bawaan', 'ok': False, 'message': 'Belum terdaftar; periksa koneksi MCP.'})
+            rows.append({'name': 'MCP hardware bawaan', 'ok': None, 'message': 'Tidak dipasang pada profil kosong.' if db.setting('setup_profile')=='blank' else 'Belum terdaftar; periksa koneksi MCP.'})
         return web.json_response({'checks': rows, 'note': 'Layanan API, GitHub/email, dan pembuat gambar memerlukan koneksi/kuota penyedia masing-masing. Uji ini tidak mengirim pesan keluar.'})
 
 
@@ -578,7 +579,7 @@ async def auto_router_state(request):
 @routes.post('/api/auto-router')
 async def auto_router_settings(request):
     data=await request.json()
-    order=data.get('order',['freellmapi','router','online','local'])
+    order=data.get('order',['online','router','freellmapi','local'])
     if not isinstance(order,list) or sorted(order)!=sorted(['freellmapi','router','online','local']):raise ValueError('Urutan mesin router tidak valid.')
     if office.presence or llm.gate.busy:raise ValueError('Tunggu tugas aktif selesai.')
     runtime_status.request('reconcile')
@@ -636,7 +637,9 @@ async def project_create(request):
     if not isinstance(data,dict):raise ValueError('Isi proyek harus berupa objek JSON.')
     name=data.get('name','')
     if not isinstance(name,str) or len(name)>180:raise ValueError('Nama proyek maksimal 180 karakter.')
-    bot=db.bot('orchestrator');ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
+    bot=db.bot('orchestrator')
+    if not bot:raise ValueError('Profil kosong belum mempunyai Orchestrator. Tambahkan bot koordinator dengan alat proyek di Workspace > Tim bot terlebih dahulu.')
+    ctx=tools.Ctx(bot,db.chat_for(bot['id'],'web','web'),'web','web')
     pid=project_jobs.create(ctx,data.get('brief',''),data.get('repository',''))
     if name.strip():db.run('UPDATE project_jobs SET name=? WHERE id=?',(name.strip(),pid))
     return web.json_response({'id':pid})
@@ -701,12 +704,58 @@ async def social_configure(request):
 
 @routes.get('/api/setup')
 async def setup_status(request):
-    from . import social_connections,integrations
-    return web.json_response({'complete':db.setting('setup_complete')=='1','social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
+    from . import social_connections,integrations,profiles
+    return web.json_response({'complete':db.setting('setup_complete')=='1','agent':profiles.status(),'social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
 
 @routes.post('/api/setup')
 async def setup_done(request):
+    from . import profiles
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Setup harus objek JSON.')
+    if db.setting('setup_profile')=='pending':
+        profiles.choose(data.get('profile'),data.get('full_access') is True)
+        if data.get('profile') == 'template':
+            from .main import activate_builtin_mcp
+            errors = await activate_builtin_mcp()
+            db.set_setting('setup_complete','1')
+            return web.json_response({'ok':True,'mcp_errors':errors})
     db.set_setting('setup_complete','1');return web.json_response({'ok':True})
+
+@routes.get('/api/learning')
+async def learning_candidates(request):
+    from . import learning
+    return web.json_response(learning.status())
+
+@routes.post('/api/learning/{id}')
+async def learning_review(request):
+    from . import learning
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Isi tinjauan harus objek JSON.')
+    if data.get('action')=='refine':return web.json_response(await learning.refine(int(request.match_info['id'])))
+    if data.get('action') not in ('accept','reject'):raise ValueError('Pilih terima atau tolak.')
+    return web.json_response(learning.review(int(request.match_info['id']),data['action']=='accept',data.get('steps')))
+
+@routes.get('/api/skills/{id}/versions')
+async def skill_versions(request):
+    from . import learning
+    learning.init()
+    return web.json_response({'versions':db.q('SELECT * FROM skill_versions WHERE skill_id=? ORDER BY id DESC',(int(request.match_info['id']),))})
+
+@routes.post('/api/skills/{id}/restore')
+async def restore_skill(request):
+    from . import learning
+    data=await request.json();learning.restore(int(request.match_info['id']),int(data['version']))
+    return web.json_response({'ok':True})
+
+@routes.post('/api/training/export')
+async def export_training(request):
+    from . import learning
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Isi ekspor harus objek JSON.')
+    if data.get('include_private_conversations') is not True:raise ValueError('Konfirmasi ekspor percakapan privat diperlukan.')
+    rows=learning.training_rows()
+    body=''.join(json.dumps(row,ensure_ascii=False)+'\n' for row in rows)
+    return web.Response(body=body.encode(),content_type='application/x-ndjson',headers={'Content-Disposition':'attachment; filename="agenmini-confirmed.jsonl"','Cache-Control':'no-store'})
 
 @routes.get('/api/integrations')
 async def host_integrations(request):

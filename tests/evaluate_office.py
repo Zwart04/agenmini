@@ -3,7 +3,7 @@ import os,tempfile,asyncio,json,time
 os.environ.setdefault('DATA_DIR',tempfile.mkdtemp(prefix='agen-office-eval-'))
 os.environ['LOCAL_API_BASE']='http://127.0.0.1:8080/v1'
 from app import main,db,office,tools,llm
-main.bootstrap();db.set_setting('llm_backend','local');db.set_setting('model','local');db.set_setting('max_tokens','160')
+main.bootstrap(profile='template');db.set_setting('llm_backend','local');db.set_setting('model','local');db.set_setting('max_tokens','160')
 async def run():
     ctx=tools.Ctx(bot=db.bot('asisten'),chat=db.chat_for('asisten','web','office-eval'),channel='web',ext_id='office-eval')
     start=time.monotonic()

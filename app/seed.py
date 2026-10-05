@@ -153,10 +153,6 @@ NEW_SKILLS_02 = [
 
 # (kunci, jenis, teks) — 'profil' selalu disertakan; 'fakta' diambil bila relevan
 MEMORIES = [
-    ("waktu", "profil", "Pemilik berada di Indonesia dan memakai zona waktu WIB (UTC+7), format jam 24 jam."),
-    ("ringkas", "profil", "Pemilik suka jawaban ringkas: inti dulu, detail hanya kalau diminta."),
-    ("awam", "profil", "Pemilik bukan programmer; jelaskan hal teknis dengan bahasa awam yang mudah dipahami."),
-    ("bisnis", "fakta", "Pemilik menjalankan Davdigi, bisnis pemasaran digital (iklan Meta & Google, CRM, pelacakan konversi)."),
     ("rupiah", "fakta", "Format uang Indonesia: Rp 1.250.000 (titik pemisah ribuan, koma untuk desimal)."),
     ("src-emas", "fakta", "Sumber resmi harga emas Antam: logammulia.com (harga emas hari ini dan buyback)."),
     ("src-kurs", "fakta", "Sumber resmi kurs rupiah: bi.go.id (kurs transaksi Bank Indonesia); kurs bank di situs BCA/Mandiri."),
@@ -179,6 +175,8 @@ LESSONS = [
 
 
 def apply():
+    from . import profiles
+    if not profiles.seed_enabled():return 0
     done = set(json.loads(db.setting("seed_done") or "[]"))
     now = time.time()
     added = 0

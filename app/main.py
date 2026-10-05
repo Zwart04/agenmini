@@ -35,7 +35,7 @@ DEFAULT_BOTS = [
 
 
 TEAM_BOTS = [
- {'id':'orchestrator','name':'Orchestrator','icon':'sparkle','persona':'Kamu koordinator. Bagi tugas menjadi langkah jelas; pilih spesialis dari daftar bot di konteks. Gunakan ask_bot untuk meminta riset/analisis, lalu rangkum bukti dan keputusan. Maksimal empat konsultasi serial; jangan mengklaim delegasi terjadi tanpa hasil alat. Tindakan tulis tetap meminta izin pemilik.','tools':['ask_bot','web_search','read_webpage','read_file','recall','remember']},
+ {'id':'orchestrator','name':'Orchestrator','icon':'sparkle','persona':'Kamu koordinator. Bagi tugas menjadi langkah jelas; pilih spesialis dari daftar bot di konteks. Gunakan ask_bot untuk meminta riset/analisis, lalu rangkum bukti dan keputusan. Maksimal empat konsultasi serial; jangan mengklaim delegasi terjadi tanpa hasil alat. Ikuti mode izin yang dipilih pemilik.','tools':['ask_bot','web_search','read_webpage','read_file','recall','remember']},
  {'id':'trading','name':'Analis Trading','icon':'chart','persona':'Kamu analis pasar untuk riset dan simulasi. Baca harga bertanggal dan sumber aktual, hitung skenario dengan Python. Bedakan fakta, dugaan dan risiko. Jangan mengarang harga, menjamin keuntungan, atau mengeksekusi transaksi.','tools':['web_search','read_webpage','run_python','recall','ask_bot']},
  {'id':'sosmed','name':'Strategi Sosmed','icon':'chat','persona':'Kamu koordinator konten media sosial. Susun tujuan, audiens, kalender dan brief; konsultasikan copywriter/desainer bila diperlukan. Hasil berupa draf, bukan klaim sudah diposting.','tools':['ask_bot','web_search','read_webpage','remember','schedule','list_schedules']},
  {'id':'copywriter','name':'Copywriter','icon':'pen','persona':'Tulis caption, naskah dan email yang jelas sesuai brief. Hindari filler, klaim produk rekaan dan kutipan tanpa sumber. Berikan draf siap ditinjau, jangan mengklaim sudah dikirim.','tools':['recall','web_search','read_webpage','ask_bot']},
@@ -44,7 +44,7 @@ TEAM_BOTS = [
 ]
 
 
-def bootstrap():
+def bootstrap(profile=None):
     for d in (config.DATA_DIR, config.WORK_DIR, config.BACKUP_DIR, config.CERT_DIR):
         d.mkdir(parents=True, exist_ok=True)
     try:
@@ -55,9 +55,48 @@ def bootstrap():
     db.conn()
     (config.DATA_DIR / "model-busy").unlink(missing_ok=True)
     (config.DATA_DIR / "task-busy").unlink(missing_ok=True)
-    if not db.bots():
-        for b in DEFAULT_BOTS:
-            db.save_bot(b)
+    if not Path('/.dockerenv').exists():
+        probe=Path(__file__).resolve().parents[1]/'host-integrations.py'
+        if probe.is_file():
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('agen_host_integrations',probe)
+            detector=importlib.util.module_from_spec(spec);spec.loader.exec_module(detector)
+            detector.discover(os.environ.get('AGEN_HOST_HOME',str(Path.home())),config.DATA_DIR)
+    os.chmod(config.DB_PATH.parent,0o700)
+    if config.DB_PATH.exists():os.chmod(config.DB_PATH,0o600)
+    from . import profiles
+    profiles.initialize()
+    profiles.quarantine_legacy()
+    if profile and db.setting("setup_profile")=="pending":profiles.choose(profile)
+    if profiles.seed_enabled():
+        seed_templates()
+        for b in db.bots():
+            if "find_tools" not in b["tools"]:db.save_bot({"id":b["id"],"tools":b["tools"]+["find_tools"]})
+    elif not db.bots():
+        db.save_bot({'id':'asisten','name':'Asisten','icon':'sparkle','persona':'','tools':list(tools.REGISTRY)})
+    if not db.setting("pair_code"):
+        db.set_setting("pair_code", f"{secrets.randbelow(900000) + 100000}")
+    # kata sandi awal dari .env hanya dipakai sekali
+    if not db.one("SELECT 1 FROM settings WHERE key='web_password_hash'"):
+        pw = config.DEFAULTS["web_password"] or secrets.token_urlsafe(9)
+        db.set_setting("web_password_hash", web.hash_pw(pw))
+        if not config.DEFAULTS["web_password"]:
+            print(f"[agen] kata sandi web: {pw}")
+    # simpan nilai .env pertama kali supaya bisa diubah dari web
+    for k in ("ollama_url", "model", "telegram_token", "online_base", "online_key", "online_model"):
+        if config.DEFAULTS.get(k) and not db.one("SELECT 1 FROM settings WHERE key=?", (k,)):
+            db.set_setting(k, config.DEFAULTS[k])
+    ids = [x.strip() for x in config.DEFAULTS["telegram_user_ids"].split(",") if x.strip().isdigit()]
+    if ids and not db.one("SELECT 1 FROM settings WHERE key='tg_user_ids'"):
+        db.set_setting("tg_user_ids", json.dumps(ids))
+    # Alamat Ollama selalu ikut .env (pemasang yang mendeteksinya)
+    if os.environ.get("OLLAMA_URL"):
+        db.set_setting("ollama_url", os.environ["OLLAMA_URL"])
+
+
+def seed_templates():
+    for b in DEFAULT_BOTS:
+        if not db.bot(b["id"]):db.save_bot(b)
     if not db.setting('team_bots_seeded_031'):
         for b in TEAM_BOTS:
             if not db.bot(b['id']): db.save_bot(b)
@@ -87,15 +126,6 @@ def bootstrap():
             if setting['value']=='asisten': db.set_setting(setting['key'],'orchestrator')
         db.set_setting('telegram_default_bot','orchestrator')
         db.set_setting('team_execution_seeded_035','1')
-    if not Path('/.dockerenv').exists():
-        probe=Path(__file__).resolve().parents[1]/'host-integrations.py'
-        if probe.is_file():
-            import importlib.util
-            spec=importlib.util.spec_from_file_location('agen_host_integrations',probe)
-            detector=importlib.util.module_from_spec(spec);spec.loader.exec_module(detector)
-            detector.discover(os.environ.get('AGEN_HOST_HOME',str(Path.home())),config.DATA_DIR)
-    os.chmod(config.DB_PATH.parent,0o700)
-    if config.DB_PATH.exists():os.chmod(config.DB_PATH,0o600)
     if not db.setting('host_tools_seeded_036'):
         bot=db.bot('orchestrator')
         if bot:db.save_bot({'id':bot['id'],'tools':list(dict.fromkeys(bot['tools']+['inspect_integrations','github_read','cloudflare_read']))})
@@ -111,35 +141,31 @@ def bootstrap():
         mcp_path.write_text(json.dumps(servers),encoding='utf-8')
         db.set_setting('mcp_builtin_seeded','1')
     (config.DATA_DIR / 'task-busy').unlink(missing_ok=True)
-    seed.apply()  # skill & ingatan bawaan (hanya butir yang belum pernah dipasang)
-    if not db.setting("pair_code"):
-        db.set_setting("pair_code", f"{secrets.randbelow(900000) + 100000}")
-    # kata sandi awal dari .env hanya dipakai sekali
-    if not db.one("SELECT 1 FROM settings WHERE key='web_password_hash'"):
-        pw = config.DEFAULTS["web_password"] or secrets.token_urlsafe(9)
-        db.set_setting("web_password_hash", web.hash_pw(pw))
-        if not config.DEFAULTS["web_password"]:
-            print(f"[agen] kata sandi web: {pw}")
-    # simpan nilai .env pertama kali supaya bisa diubah dari web
-    for k in ("ollama_url", "model", "telegram_token", "online_base", "online_key", "online_model"):
-        if config.DEFAULTS.get(k) and not db.one("SELECT 1 FROM settings WHERE key=?", (k,)):
-            db.set_setting(k, config.DEFAULTS[k])
-    ids = [x.strip() for x in config.DEFAULTS["telegram_user_ids"].split(",") if x.strip().isdigit()]
-    if ids and not db.one("SELECT 1 FROM settings WHERE key='tg_user_ids'"):
-        db.set_setting("tg_user_ids", json.dumps(ids))
-    # Alamat Ollama selalu ikut .env (pemasang yang mendeteksinya)
-    if os.environ.get("OLLAMA_URL"):
-        db.set_setting("ollama_url", os.environ["OLLAMA_URL"])
+    seed.apply()
+    for b in db.bots():
+        if 'find_tools' not in b['tools']:
+            db.save_bot({'id': b['id'], 'tools': b['tools'] + ['find_tools']})
 
+
+async def activate_builtin_mcp():
+    from . import mcp_bridge, profiles
+    errors = await mcp_bridge.register()
+    bot = db.bot('asisten')
+    extra = [name for name in ('mcp_agen_local_hardware', 'mcp_agen_local_search_skills')
+             if name in tools.REGISTRY and bot and name not in bot['tools']]
+    if bot and profiles.seed_enabled() and extra:
+        db.save_bot({'id': 'asisten', 'tools': bot['tools'] + extra})
+        db.set_setting('mcp_builtin_tools_seeded', '1')
+    return errors
 
 async def amain():
     bootstrap()
-    from . import mcp_bridge, office
+    from . import profiles, mcp_bridge, office
     for error in await mcp_bridge.register():
         print(f"[MCP] koneksi gagal: {error}")
     bot = db.bot('asisten')
-    extra = [name for name in ('mcp_agen_local_hardware','mcp_agen_local_search_skills') if name in tools.REGISTRY and name not in bot['tools']]
-    if not db.setting('mcp_builtin_tools_seeded'):
+    extra = [name for name in ('mcp_agen_local_hardware','mcp_agen_local_search_skills') if name in tools.REGISTRY and bot and name not in bot['tools']]
+    if bot and profiles.seed_enabled() and not db.setting('mcp_builtin_tools_seeded'):
         if extra: db.save_bot({'id':'asisten','tools':bot['tools']+extra})
         if extra or 'mcp_agen_local_hardware' in bot['tools']:
             db.set_setting('mcp_builtin_tools_seeded','1')

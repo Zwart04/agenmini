@@ -33,3 +33,21 @@ def test_frontend_asset_paths_and_load_order():
     assert parser.paths[:5]==['theme.css','base.css','control.css','office.css','layout.css']
     assert parser.paths[5]=='app.js' and parser.paths[-1]=='navigation.js'
     assert all((root/name).is_file() for name in parser.paths)
+
+def test_learning_and_setup_controls_belong_to_their_visible_panels():
+    from html.parser import HTMLParser
+    class Panels(HTMLParser):
+        def __init__(self):super().__init__();self.stack=[];self.nodes={}
+        def handle_starttag(self,tag,attrs):
+            a=dict(attrs);ancestors=[x[1].get('id') for x in self.stack]
+            if a.get('id'):self.nodes[a['id']]=(a,ancestors)
+            if tag not in ('input','img','br','hr','meta','link'):self.stack.append((tag,a))
+        def handle_endtag(self,tag):
+            for i in range(len(self.stack)-1,-1,-1):
+                if self.stack[i][0]==tag:self.stack=self.stack[:i];break
+    p=Panels();p.feed((Path(__file__).resolve().parents[1]/'frontend/index.html').read_text())
+    for name in ('learningInfo','learningCandidates','trainingExport'):
+        assert 'v-skills' in p.nodes[name][1]
+    for name,setting in (('harnessMode','harness_mode'),('selfImprove','self_improve')):
+        attrs,parents=p.nodes[name];assert 'setForm' in parents and attrs['name']==setting
+    assert 'v-ai' in p.nodes['setupGuide'][1]

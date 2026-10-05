@@ -1,8 +1,8 @@
 # Agen Mini
 
-Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp, 9router, FreeLLMAPI, API kompatibel OpenAI, atau gabungkan sumber dengan Smart Router.
+Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
 
-**Versi stabil: 0.6.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+**Versi stabil: 0.7.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
 
 ## Tampilan baru
 
@@ -20,13 +20,13 @@ sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
 
 Alternatif: ekstrak `agenmini-vps.zip`, lalu jalankan `bash pasang-vps.sh`. Pemasang menyiapkan Docker/Compose jika diperlukan dan menampilkan alamat serta sandi. Buka TCP 443 pada firewall VPS. Sertifikat awal bersifat self-signed; browser meminta konfirmasi sertifikat.
 
-Setup awal menawarkan lokal, 9router, FreeLLMAPI, keduanya, atau API langsung. Layanan tambahan bersifat opsional. Untuk pemasangan tanpa prompt: `AGEN_AI_PROFILE=online AGEN_OTOMATIS=1 bash pasang-vps.sh` (profil: `local`, `router`, `free`, `both`, `online`).
+Pemasang menawarkan lokal, gateway OAuth, atau API langsung (default paling ringan). Web instalasi baru menawarkan Kosong atau Paket bawaan. Layanan tambahan bersifat opsional; konfigurasi gateway lama tetap didukung tanpa disemai ulang. Untuk pemasangan tanpa prompt: `AGEN_AI_PROFILE=online AGEN_OTOMATIS=1 bash pasang-vps.sh` (profil: `local`, `router`, `free`, `both`, `online`).
 
 Mode API lebih ringan; 2 GB RAM disarankan. Untuk model lokal kecil, mulai dari 4 GB RAM dan 2 CPU. Anggaran model diperiksa dari RAM aktual; kebutuhan disk dan kecepatan bergantung model. Semua bot lokal berbagi satu model aktif, tanpa daemon Ollama. Build dan panggilan lokal berjalan serial untuk membatasi pemakaian RAM.
 
 ## Pasang di Windows
 
-Unduh `agenmini-setup-0.6.0-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
+Unduh `agenmini-setup-0.7.0-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
 
 Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model lokal, 9router dan FreeLLMAPI memerlukan lingkungan Linux/WSL/Docker. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
 
@@ -34,9 +34,9 @@ Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model 
 
 1. Buka **Koneksi**, pilih sumber AI, isi API key atau selesaikan OAuth yang didukung provider. Untuk lokal, pilih model yang sesuai RAM dan tunggu unduh, verifikasi hash serta status siap.
 2. Klik **Uji koneksi**, lalu pilih model. Konfigurasi tersimpan belum berarti provider memiliki kuota atau model berhasil menjawab.
-3. Buka **Chat** dengan Orchestrator. Berikan tujuan, jenis hasil dan kriteria penerimaan yang jelas. Model percakapan dapat dipilih pada chat; bot dapat memiliki pilihan sendiri.
+3. Buka **Chat** dengan Asisten (profil kosong) atau Orchestrator (paket bawaan). Berikan tujuan, jenis hasil dan kriteria penerimaan yang jelas. Model percakapan dapat dipilih pada chat; bot dapat memiliki pilihan sendiri.
 4. Untuk pekerjaan bertahap, buat proyek di **Workspace**. Periksa tahap, hasil tes dan log; jeda atau lanjutkan dari checkpoint. Proyek berpindah ke Selesai setelah tahapnya lulus. Unduh source ZIP dari kartu hasil.
-5. Hubungkan Telegram pada **Pengaturan**. Bot utama memakai Orchestrator. Gunakan `/model` untuk memilih sumber/model; riwayat Telegram dapat disalin ke web untuk dilanjutkan.
+5. Hubungkan Telegram pada **Pengaturan**. Bot utama mengikuti profil yang dipilih; paket bawaan memakai Orchestrator. Gunakan `/model` untuk memilih sumber/model dan `/belajar` untuk melihat kandidat prosedur; riwayat Telegram dapat disalin ke web untuk dilanjutkan.
 
 ## Empat menu
 
@@ -48,6 +48,16 @@ Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model 
 | Pengaturan | Preferensi, izin tindakan, Telegram, skill, ingatan, backup, update dan diagnostik |
 
 Bagian utama tetap terlihat. Daftar aktivitas, skill dan ingatan memakai halaman ringkas; tombol **Baca lengkap** membuka rincian. Kantor memakai karakter CSS original dengan aksesori dan bubble, bukan aset milik Apple/OpenAI/Grok. Gerakan mengikuti aktivitas server; animasi dan polling dijeda ketika tab tersembunyi.
+
+## Harness, skill, ingatan & self-improve
+
+Setup Kosong berisi satu agen, harness minimal, nol skill/ingatan/MCP bawaan dan self-improve mati. Paket bawaan menambahkan tim dan panduan; tidak mengarang fakta tentang pemilik. Pilihan bertahan setelah restart/update. Update instalasi lama mempertahankan data dan konfigurasi; wizard tidak meresetnya.
+
+Pengaturan Umum menyediakan harness Minimal/Terbantu dan belajar Mati/Tinjau/Setelah Sesuai. Akses penuh merupakan pilihan terpisah; batas folder, alat, kredensial dan kuota model tetap berlaku. Untuk model kecil, `find_tools` membuka definisi alat seperlunya dalam izin bot.
+
+Skill hasil belajar berasal dari bukti alat, bukan sapaan, respons gagal atau penilaian sukses oleh model sendiri. Tinjau bukti/langkah pada tab Skill sebelum mengaktifkan. Revisi tersimpan dan bisa dipulihkan. Koreksi menarik kandidat dan menonaktifkan skill hasil belajar yang belum diedit pemilik. Ingatan pribadi harus berlandaskan ucapan pengguna.
+
+[Training model kecil](training/README.md) menjelaskan baseline, ekspor JSONL privat, deduplikasi, validation set, LoRA/QLoRA dan evaluasi GGUF. Tidak ada training berat pada VPS atau klaim model kecil setara frontier. Ekspor SFT jawaban tidak dianggap dataset tool-calling.
 
 ## Model, alat dan proyek
 

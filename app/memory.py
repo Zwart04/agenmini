@@ -60,7 +60,7 @@ def search_memories(bot: dict, query: str, k: int = 5) -> list[dict]:
     sc = scopes_for(bot)
     rows = db.q(
         f"SELECT m.* FROM memories_fts f JOIN memories m ON m.id=f.rowid WHERE memories_fts MATCH ? "
-        f"AND m.scope IN ({','.join('?' * len(sc))}) ORDER BY bm25(memories_fts) LIMIT ?", (fq, *sc, k))
+        f"AND m.kind!='bawaan_tidak_terverifikasi' AND m.scope IN ({','.join('?' * len(sc))}) ORDER BY bm25(memories_fts) LIMIT ?", (fq, *sc, k))
     now = time.time()
     for r in rows:
         db.run("UPDATE memories SET uses=uses+1, last_used=? WHERE id=?", (now, r["id"]))
@@ -125,6 +125,9 @@ def save_skill(scope: str, name: str, when_to_use: str, steps, source: str = "be
         return 0, False
     for r in db.q("SELECT * FROM skills WHERE scope=?", (scope,)):
         if r["name"].lower() == name.lower() or jaccard(r["name"] + " " + r["when_to_use"], name + " " + when_to_use) >= 0.6:
+            if (when_to_use or r['when_to_use'],steps) != (r['when_to_use'],r['steps']):
+                from . import learning
+                learning.snapshot(r)
             db.run("UPDATE skills SET when_to_use=?, steps=?, updated_at=?, active=1 WHERE id=?",
                    (when_to_use or r["when_to_use"], steps, time.time(), r["id"]))
             return r["id"], False
@@ -185,6 +188,7 @@ def transcript_of(messages: list[dict], limit: int = 5000) -> str:
 
 
 async def reflect(bot: dict, turn_messages: list[dict], tools_used: list[str], feedback: str = "") -> dict:
+    if db.setting("self_improve") == "off":return {}
     tr = transcript_of(turn_messages)
     if feedback:
         tr += f"\n\nUSER FEEDBACK afterwards: {feedback}"
@@ -207,16 +211,8 @@ async def reflect(bot: dict, turn_messages: list[dict], tools_used: list[str], f
             _, new = add_memory(scope, "profil", f)
             if new:
                 result["facts"].append(f)
-    sk = data.get("skill") or {}
-    final = next((m["content"] for m in reversed(turn_messages) if m["role"] == "assistant" and m.get("content")), "")
-    succeeded = data.get("success", True) and not final.startswith(("Galat", "Terjadi galat", "Maaf, saya belum"))
-    if succeeded and feedback == "Pemilik mengonfirmasi berhasil" and len(tools_used) >= 2:
-        if not (sk.get("name") and sk.get("steps")):
-            sk = synth_skill(turn_messages, user_text) or {}  # model lupa menulis skill: susun dari urutan alat
-        if sk.get("name") and sk.get("steps"):
-            sid, new = save_skill(bot["id"], sk["name"], sk.get("when_to_use", ""), sk["steps"])
-            if sid:
-                result["skill"] = sk["name"]
+    # Procedural learning goes through the evidence/review ledger in learning.py.
+    # A model's self-assessed success must never activate an unreviewed skill here.
     # Lessons come from explicit owner corrections, not model guesses after a negative rating.
     return result
 
@@ -263,6 +259,7 @@ Rewrite the steps so they work better. Reply JSON: {{"when_to_use": "...", "step
 
 
 async def consolidate() -> dict:
+    if db.setting("self_improve") == "off":return {}
     report = {"memori_digabung": 0, "skill_dimatikan": 0, "skill_diperbaiki": 0, "ringkasan_dibuang": 0}
     # 1) gabung memori yang hampir sama (per scope)
     for scope_row in db.q("SELECT DISTINCT scope FROM memories"):
@@ -293,19 +290,8 @@ async def consolidate() -> dict:
             db.run("UPDATE skills SET active=0 WHERE id=?", (s["id"],))
             report["skill_dimatikan"] += 1
             continue
-        lessons = db.q("SELECT text FROM memories WHERE kind='pelajaran' AND scope=? ORDER BY id DESC LIMIT 5", (s["scope"],))
-        try:
-            res = await llm.chat([{"role": "user", "content": FIX_SKILL_PROMPT.format(
-                name=s["name"], when=s["when_to_use"], steps=s["steps"],
-                lessons="\n".join("- " + l["text"] for l in lessons) or "-")}],
-                fmt="json", prio=llm.PRIO_BACKGROUND, temperature=0.2)
-            d = json.loads(res["content"])
-            if d.get("steps"):
-                save_skill(s["scope"], s["name"], d.get("when_to_use") or s["when_to_use"], d["steps"])
-                db.run("UPDATE skills SET fails=0, wins=0 WHERE id=?", (s["id"],))
-                report["skill_diperbaiki"] += 1
-        except Exception:
-            pass
+        # A model rewrite is an untested hypothesis, not a repaired procedure.
+        # Keep failed evidence and owner-edited versions; do not silently overwrite skills.
     return report
 
 

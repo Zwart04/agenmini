@@ -13,6 +13,8 @@ TZ = os.environ.get("TZ", "Asia/Jakarta")
 
 # Nilai awal; bisa ditimpa lewat halaman Pengaturan.
 DEFAULTS = {
+    "harness_mode": "assisted",
+    "self_improve": "review",
     "telegram_default_bot": "orchestrator",
     "llm_backend": os.environ.get("LLM_BACKEND", "ollama"),
     "compatible_base": os.environ.get("COMPATIBLE_BASE", "http://host.docker.internal:8080/v1"),

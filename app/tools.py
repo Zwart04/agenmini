@@ -75,6 +75,23 @@ def schemas_for(bot: dict) -> list[dict]:
     return [REGISTRY[n].schema() for n in names]
 
 
+@tool('find_tools', 'Mencari alat',
+      'Find available tools for a task, including MCP/account/project tools. Search before guessing an unknown tool. Returns only tools assigned to this bot.',
+      {'query': S('task or tool/domain keywords')}, ['query'])
+async def find_tools(ctx, query='', **_):
+    words = set(memory.words(query))
+    ranked = []
+    for name in ctx.bot.get('tools', []):
+        if name == 'find_tools' or name not in REGISTRY:continue
+        tool = REGISTRY[name]
+        tokens = set(memory.words(name.replace('_',' ')+' '+tool.label+' '+tool.description))
+        score = len(words & tokens)
+        if score:ranked.append((score,name))
+    names = [name for _,name in sorted(ranked,reverse=True)[:6]]
+    ctx.exposed_tools = list(dict.fromkeys(getattr(ctx,'exposed_tools',[]) + names))
+    return json.dumps([REGISTRY[name].schema()['function'] for name in names], ensure_ascii=False) if names else 'Tidak ada alat yang cocok dalam izin bot ini. Coba kata kunci lain atau tambahkan alat di Tim bot.'
+
+
 def validate_arguments(name, args):
     t = REGISTRY.get(name)
     if not t:

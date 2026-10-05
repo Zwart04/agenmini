@@ -11,7 +11,7 @@ os.environ["DATA_DIR"] = tempfile.mkdtemp()
 
 from app import agent, config, db, llm, main, scheduler, telegram, tools  # noqa: E402
 
-main.bootstrap()
+main.bootstrap(profile='template')
 
 
 class FakeLLM:
@@ -148,7 +148,7 @@ def test_create_bot_tool():
     assert b and b["icon"] == "heart" and "create_bot" not in b["tools"] and "web_search" in b["tools"]
 
 
-def test_reflection_saves_skill_and_grounded_fact():
+def test_reflection_keeps_grounded_fact_but_does_not_bypass_skill_review():
     from app import memory
     reply = {"content": json.dumps({"facts_about_user": ["Pemilik bernama Rudi.", "Pemilik suka kucing."],
                                     "success": True, "lesson": "",
@@ -157,7 +157,8 @@ def test_reflection_saves_skill_and_grounded_fact():
     llm.chat = FakeLLM([reply])
     turn = [{"role": "user", "content": "Nama saya Rudi, cari tiket Jakarta-Bali lalu simpan"}]
     res = run(memory.reflect(db.bot("asisten"), turn, ["web_search", "write_file"], feedback="Pemilik mengonfirmasi berhasil"))
-    assert res["skill"] == "Cari tiket lalu simpan"
+    assert res["skill"] is None
+    assert not db.one("SELECT id FROM skills WHERE name='Cari tiket lalu simpan'")
     assert res["facts"] == ["Pemilik bernama Rudi."]  # "suka kucing" tidak pernah diucapkan
 
 
@@ -174,7 +175,7 @@ def test_seed_skills_found_and_filtered_by_tools():
     assert names(asisten, "tolong terjemahkan ke bahasa inggris")[0] == "Terjemahkan teks"
     assert names(asisten, "Apa ibu kota Australia?") == []  # "kota" saja tidak cukup untuk skill cuaca/sholat
     prof = [m["text"] for m in memory.profile_memories(asisten)]
-    assert any("WIB" in t for t in prof)
+    assert not any("WIB (UTC+7)" in t or "Davdigi" in t for t in prof)  # presets must not invent owner facts
     db.run("DELETE FROM skills WHERE name='Cari resep masakan'")
     seed.apply()
     assert not db.one("SELECT 1 FROM skills WHERE name='Cari resep masakan'")  # yang dihapus tidak kembali
@@ -241,7 +242,7 @@ def test_filler_removed_and_final_answer_requested():
     assert res["text"] == "Harga emas Rp 1.987.000." and fake.seen[2]["messages"][-1]["content"] == agent.FINAL_PROMPT
 
 
-def test_skill_synthesized_when_model_forgets():
+def test_reflection_does_not_store_literal_task_arguments_as_skill():
     from app import memory
     llm.chat = FakeLLM([{"content": json.dumps({"facts_about_user": [], "success": True, "lesson": ""})}])
     turn = [{"role": "user", "content": "[Konteks]\nx\n\n[Pesan]\nCari jadwal KRL Bogor lalu simpan ke krl.txt"},
@@ -251,9 +252,8 @@ def test_skill_synthesized_when_model_forgets():
             {"role": "tool", "tool_name": "write_file", "content": "Tersimpan"},
             {"role": "assistant", "content": "Sudah disimpan di krl.txt."}]
     res = run(memory.reflect(db.bot("asisten"), turn, ["web_search", "write_file"], feedback="Pemilik mengonfirmasi berhasil"))
-    assert res["skill"] == "Cari jadwal KRL Bogor lalu simpan"
-    sk = db.one("SELECT * FROM skills WHERE name=?", (res["skill"],))
-    assert "web_search: jadwal KRL Bogor" in sk["steps"] and "write_file: krl.txt" in sk["steps"]
+    assert res["skill"] is None
+    assert not db.one("SELECT id FROM skills WHERE name='Cari jadwal KRL Bogor lalu simpan'")
 
 
 def test_clean_answer():

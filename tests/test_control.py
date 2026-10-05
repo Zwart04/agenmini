@@ -9,7 +9,7 @@ from app import control, web as pages, db, llm, router, config, office, agent, t
 
 
 from app import main
-main.bootstrap()
+main.bootstrap(profile='template')
 
 async def client():
     app = web.Application(middlewares=[control.errors, pages.auth_mw])

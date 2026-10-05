@@ -4,7 +4,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient,TestServer
 from app import db,main,control,tools,project_jobs,workspace_records,office,config
 from app import web as auth
-main.bootstrap()
+main.bootstrap(profile='template')
 
 @pytest.mark.asyncio
 async def test_project_and_activity_crud_preserve_files_and_conversations(tmp_path,monkeypatch):

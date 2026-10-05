@@ -2,7 +2,7 @@
 import json
 import pytest
 from app import db,main,tools,config,project_jobs,projects,workflow,llm,office,auto_router
-main.bootstrap()
+main.bootstrap(profile='template')
 
 
 def context(bid='orchestrator'):

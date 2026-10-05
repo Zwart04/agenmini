@@ -31,13 +31,16 @@ class Job:
 async def run(argv,cwd,timeout,stdin=None,project=False):
     cwd=Path(cwd);cwd.mkdir(parents=True,exist_ok=True);argv=list(argv)
     if argv[0] in ('python3','python'):argv[0]=sys.executable
-    if argv[0]=='bash':argv=[os.environ.get('COMSPEC','cmd.exe'),'/d','/s','/c',argv[-1]]
+    shell_command=argv[-1] if argv[0]=='bash' else None
     env={key:value for key,value in os.environ.items() if key.upper() in ('PATH','SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','TEMP','TMP')}
     env.update({'HOME':str(cwd),'USERPROFILE':str(cwd),'PYTHONIOENCODING':'utf-8','MPLBACKEND':'Agg','NODE_OPTIONS':'--max-old-space-size='+str(384 if project else 192),'GIT_TERMINAL_PROMPT':'0'})
-    proc=await asyncio.create_subprocess_exec(*argv,cwd=cwd,env=env,stdin=asyncio.subprocess.PIPE if stdin else asyncio.subprocess.DEVNULL,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.STDOUT,creationflags=0x08000000)
+    options=dict(cwd=cwd,env=env,stdin=asyncio.subprocess.PIPE if stdin else asyncio.subprocess.DEVNULL,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.STDOUT,creationflags=0x08000000)
+    # Pass a raw command to cmd, rather than list2cmdline-escaping nested quotes a second time.
+    if shell_command is not None:proc=await asyncio.create_subprocess_shell(shell_command,executable=os.environ.get('COMSPEC','cmd.exe'),**options)
+    else:proc=await asyncio.create_subprocess_exec(*argv,**options)
     job=None
     try:
-        job=Job(proc.pid,640 if project else 384)
+        job=Job(proc.pid,768)
         output,_=await asyncio.wait_for(proc.communicate(stdin),timeout)
         text=output.decode('utf-8',errors='replace').strip()
         if len(text)>4000:text=text[:2000]+'\n…(dipotong)…\n'+text[-1500:]

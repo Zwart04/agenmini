@@ -332,8 +332,10 @@ class TgBot:
                         {"text": "Tolak", "callback_data": f"ap:{res['approval']}:0"}]]
         elif res.get("message_id"):
             buttons = [[{"text": "Sesuai", "callback_data": f"fb:{res['message_id']}:1"},
-                        {"text": "Koreksi", "callback_data": f"fb:{res['message_id']}:0"}],
-                       [{"text": "Simpan cara kerja", "callback_data": f"learn:{res['message_id']}"}]]
+                        {"text": "Koreksi", "callback_data": f"fb:{res['message_id']}:0"}]]
+            from . import learning
+            if learning.evidence(res.get('meta') or {}):
+                buttons.append([{"text": "Simpan cara kerja", "callback_data": f"learn:{res['message_id']}"}])
         else:
             buttons = None
         if len(text) <= 3800:
@@ -441,7 +443,7 @@ class TgBot:
                 "**Perintah**\n"
                 "/bot  daftar bot dan pindah bot\n/model  pilih model AI\n/baru  percakapan baru\n/riwayat  lanjutkan atau unduh percakapan lama\n"
                 "/ingatan  isi ingatan\n"
-                "/skill  skill yang sudah dipelajari\n/jadwal  jadwal aktif\n/laporan  laporan proyek (on/off)\n/status  kondisi server\n\n"
+                "/skill  skill yang sudah dipelajari\n/belajar  kandidat dan bukti pembelajaran\n/jadwal  jadwal aktif\n/laporan  laporan proyek (on/off)\n/status  kondisi server\n\n"
                 "**Bot dengan akun Telegram sendiri**\n"
                 "1. Buat bot baru di @BotFather, salin tokennya\n"
                 "2. Kirim: /tokenbot namabot token\n"
@@ -483,7 +485,7 @@ class TgBot:
                     await self.send(chat_id, 'Pilih model. Model lokal berbagi satu mesin; pergantian dapat mengunduh bobot. Daftar kosong berarti hubungkan provider melalui web dahulu.', buttons or None)
                 else:
                     active = chat_models.effective(bot, chat)
-                    await self.send(chat_id, 'Model percakapan: ' + (active.get('backend') or db.setting('llm_backend')) + ' · ' + (active.get('model') or llm.default_model(active.get('backend'))) + '\n\nPilih layanan:', [[{'text': label, 'callback_data': 'models:' + mode}] for mode, label in [('utama','Ikuti model bot'),('auto','Smart · Agen Mini'),('local','Model lokal'),('router','9router'),('freellmapi','FreeLLMAPI'),('online','API langsung')]])
+                    await self.send(chat_id, 'Model percakapan: ' + (active.get('backend') or db.setting('llm_backend')) + ' · ' + (active.get('model') or llm.default_model(active.get('backend'))) + '\n\nPilih layanan:', [[{'text': label, 'callback_data': 'models:' + mode}] for mode, label in [('utama','Ikuti model bot'),('auto','AI terhubung'),('local','Model lokal')]])
             except (ValueError, llm.LLMError) as exc: await self.send(chat_id, str(exc))
             return True
         if cmd == "/tokenbot":
@@ -550,6 +552,16 @@ class TgBot:
         if cmd == "/ingatan":
             rows = db.q("SELECT * FROM memories ORDER BY id DESC LIMIT 20")
             await self.send(chat_id, "**Ingatan terbaru**\n" + ("\n".join(f"• {friendly(r['text'])}" for r in rows) or "(kosong)"))
+            return True
+        if cmd == '/belajar':
+            from . import learning
+            learning.init()
+            rows = db.q("SELECT l.* FROM learning_candidates l JOIN messages m ON m.id=l.message_id JOIN chats c ON c.id=m.chat_id WHERE c.channel='tg' AND c.ext_id=? AND l.status='pending' ORDER BY l.id DESC LIMIT 5", (chat_id,))
+            await self.send(chat_id, 'Pembelajaran: ' + (db.setting('self_improve') or 'review') + '. Prosedur tersimpan tidak mengubah bobot model.\n\n' + ('Pilih kandidat untuk mengaktifkan setelah meninjau bukti. Detail lengkap dan edit tersedia di web → Skill.' if rows else 'Belum ada kandidat dari percakapan Telegram ini.'))
+            for row in rows:
+                proof = '\n'.join(p['tool'] + ': ' + p['result'][:200] for p in json.loads(row['evidence']))
+                await self.send(chat_id, row['name'] + '\n\n' + row['steps'] + '\n\nBukti:\n' + proof,
+                                [[{'text':'Terima prosedur','callback_data':f"learn:{row['message_id']}"}]])
             return True
         if cmd == "/skill":
             rows = db.q("SELECT * FROM skills WHERE active=1 ORDER BY updated_at DESC LIMIT 15")

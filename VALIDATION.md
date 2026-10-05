@@ -1,18 +1,15 @@
-# Validasi Agen Mini 0.6.0
+# Validasi Agen Mini 0.7.0
 
-## Perubahan
+## Pemeriksaan
 
-Redesign frontend dari HEAD terbaru e2a2f9f (versi 0.5.6). Tidak mengubah implementasi model, provider, sandbox, data atau izin pengguna.
-
-## Pemeriksaan lokal
-
-- 30 tes frontend syntax/asset paths, office layout, control API dan workspace records lulus di Windows Python 3.12. Tes office menggunakan stdin untuk Node supaya tidak melampaui batas command line Windows.
-- Layout memeriksa batas layar dan benturan label/status untuk 2, 10, 30 agen pada 252/284/330/358/398/720/936/1104px, termasuk seluruh agen menunggu atau rapat.
-- Browser dengan backend preview terisolasi: 14 tab pada 320/390/430/1024/1280/1440px (84 pemeriksaan), tepat satu panel terlihat dan tidak ada overflow halaman.
-- Tema terang/gelap, chat, kantor, akun layanan, MCP, settings, draft proyek lintas tab, keyboard ArrowRight, drawer serta dialog ditinjau. Tidak ada error JavaScript pada console.
-- Animasi diuji di browser: Aktif menghasilkan transform karakter yang berubah; Ikuti perangkat/Mati berhenti pada perangkat dengan reduced-motion.
-- CSS memakai font sistem/aset lokal dan animasi yang sudah ada; tidak menambah runtime frontend, layanan, request per karakter atau dependency produksi.
+- Uji regresi mencakup alur agent, tools, proyek, izin, Telegram, API kontrol, memory dan backend. Workflow Linux menjalankan seluruh tests dan installer/supervisor sebelum rilis; Windows menjalankan pemasang EXE nyata beserta lifecycle native app.
+- Tambahan uji terisolasi: setup kosong bertahan saat restart, paket bawaan tidak mengarang profil pemilik, karantina fakta preset lama, satu bukti alat memerlukan tinjauan, cache/galat/koreksi tidak dipromosikan, versi skill/rollback, skor rating idempotent, ekspor privat, batas discovery alat, respons Telegram dan write_file nyata.
+- API setup/learning/export memerlukan sesi; pilihan setup dan konfirmasi ekspor eksplisit. Dataset deduplikasi/split tidak menimpa data lama. Jalur refleksi tidak melewati tinjauan skill.
+- Di Windows lokal: 41 tes agent/profil/backend lulus, ditambah pemeriksaan kontrol/profil/frontend 38 tes dan 3 tes kontrak/syntax frontend (sebagian tumpang tindih; bukan dijumlahkan). Shell quote dan grafik Python diverifikasi dengan eksekusi kode nyata.
+- Browser preview dengan data sendiri: setup Kosong, simpan mode belajar, tinjauan kandidat dari write_file nyata dan aktivasi skill. Pengaturan, Skill dan koneksi diperiksa pada 320/390/1280px (9 kombinasi tab/ukuran); tidak ada overflow horizontal atau galat JS. Tidak menjalankan model/provider pemilik.
 
 ## Batas
 
-Preview tidak menjalankan model, pekerjaan bot atau layanan provider pengguna. Status model yang tidak tersambung tetap ditampilkan apa adanya. Tidak mengklaim deployment atau validasi OAuth/Telegram/VPS pengguna. Workflow Linux dan Windows memeriksa commit sebelum publication release; ZIP diverifikasi dengan CRC dan SHA256 oleh build_release.py.
+Fixture model menguji kontrak dan penanganan hasil alat, bukan kecerdasan model. Tidak ada bobot baru dilatih, benchmark frontier atau jaminan bebas halusinasi. Training SFT jawaban tidak membuktikan tool-calling. Panduan training mencantumkan sumber primer dan proses evaluasi terpisah.
+
+Belum menguji live VPS pengguna, pesan Telegram nyata atau OAuth/API akun pengguna. Data/model/kredensial lama tidak dihapus atau dipublikasikan. Gateway lama dipertahankan untuk kompatibilitas; layanan opsional tidak dijalankan jika tidak dibutuhkan.

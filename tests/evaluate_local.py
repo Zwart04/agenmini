@@ -2,7 +2,7 @@
 import asyncio, json, os, tempfile, time
 os.environ.setdefault('DATA_DIR', tempfile.mkdtemp(prefix='agen-real-eval-'))
 from app import main, db, agent, llm
-main.bootstrap()
+main.bootstrap(profile='template')
 os.environ['LOCAL_API_BASE']=os.environ.get('EVAL_BASE','http://127.0.0.1:8080/v1')
 db.set_setting('llm_backend','local')
 db.set_setting('compatible_base',os.environ.get('EVAL_BASE','http://127.0.0.1:8080/v1'))

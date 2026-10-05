@@ -526,7 +526,7 @@ async def bench_start(request):
 
 # pengaturan
 
-PUBLIC_SETTINGS = ["full_access", "llm_backend", "compatible_base", "tool_mode", "model", "num_ctx", "keep_alive", "online_base", "online_model", "searx_url", "max_steps",
+PUBLIC_SETTINGS = ["harness_mode", "self_improve", "full_access", "llm_backend", "compatible_base", "tool_mode", "model", "num_ctx", "keep_alive", "online_base", "online_model", "searx_url", "max_steps",
                    "browser_engine", "dns_aman", "vision_model", "image_gen", "cpu_hemat", "auto_local", "auto_9router"]
 
 
@@ -549,6 +549,8 @@ async def set_settings(request):
         return web.json_response({'error': 'Ganti mesin melalui menu AI agar layanan VPS ikut disesuaikan.'}, status=400)
     if 'full_access' in data and str(data['full_access']) not in ('0', '1'):
         return web.json_response({'error': 'Mode akses harus 0 atau 1.'}, status=400)
+    for key, choices in {'harness_mode':('minimal','assisted'),'self_improve':('off','review','confirmed')}.items():
+        if key in data and data[key] not in choices:return web.json_response({'error':'Pilihan '+key+' tidak valid.'},status=400)
     activating_full_access = str(data.get('full_access', '')) == '1' and db.setting('full_access') != '1'
     for k in PUBLIC_SETTINGS:
         if k in data:

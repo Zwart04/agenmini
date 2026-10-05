@@ -45,6 +45,7 @@ async def discuss(manual=False):
     if not ok:return {'ok':False,'reason':reason}
     async with _lock:
         bots=[b for b in db.bots(active_only=True) if b['id']!='orchestrator']
+        if not db.bot('orchestrator'):return {'ok':False,'reason':'Diskusi tim memerlukan bot Orchestrator. Profil kosong tidak memasang tim otomatis.'}
         if len(bots)<2:return {'ok':False,'reason':'Butuh dua anggota tim aktif.'}
         init();number=db.one('SELECT count(*) n FROM office_discussions')['n'];pair=[bots[number%len(bots)],bots[(number+1)%len(bots)]]
         topics=['ide fitur aplikasi yang berguna','ide konten seller Indonesia','pelajaran dari pekerjaan terbaru','literasi investasi dan pertanyaan yang perlu diverifikasi']
