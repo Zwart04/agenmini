@@ -284,7 +284,7 @@ async def install(hid):
                 npm_cli=Path(npm).parent/'node_modules/npm/bin/npm-cli.js'
                 launcher=[shutil.which('node'),str(npm_cli)] if os.name=='nt' else [npm]
                 await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','node@24.21.0'])
-                if hid=='omp':await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','bun@1.4.2'])
+                if hid=='omp':await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org','bun@1.3.14'])
                 await checked(launcher+['install','--prefix',str(stage),'--no-audit','--no-fund','--registry=https://registry.npmjs.org',row['package']+'@'+row['version']])
             code,out,err=await process(cli(hid,stage)+['--help'],stage,env,90,memory_mb=768 if hid=='omp' else 512)
             if code or not (out or err).strip():raise ValueError('Runtime tidak lulus pemeriksaan CLI: '+(err or out)[-2000:])

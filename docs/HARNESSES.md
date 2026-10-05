@@ -23,7 +23,7 @@ Agen Mini menjalankan distribusi CLI upstream asli. Ini bukan persona atau promp
 | [OpenCode](https://github.com/anomalyco/opencode) | `opencode-ai@1.18.34` | Banyak provider, model `provider/id` |
 | [Claude Code](https://code.claude.com/docs/en/headless) | `@anthropic-ai/claude-code@2.1.289` | Distribusi resmi; kode inti bukan open source untuk di-fork. Mode `--bare` memakai API key Anthropic |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | `@deepseek-ai/dsh@0.2.0-rc.2` | Developer preview; API key DeepSeek; model opsional mengubah patch pemilih model asli |
-| [oh-my-pi](https://github.com/can1357/oh-my-pi) | `@oh-my-pi/pi-coding-agent@18.6.1` | Bun 1.4.2 (`--smol`) dipasang hanya untuk pilihan ini |
+| [oh-my-pi](https://github.com/can1357/oh-my-pi) | `@oh-my-pi/pi-coding-agent@18.6.1` | Bun 1.3.14 (`--smol`) dipasang hanya untuk pilihan ini |
 | [Pi](https://github.com/earendil-works/pi) | `@earendil-works/pi-coding-agent@1.0.3` | CLI ringkas, Node; provider/model asli |
 | [Aider](https://github.com/Aider-AI/aider) | `aider-chat==0.86.2` | Python 3.10–3.12; venv sendiri, auto-commit dimatikan |
 | [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent) | `mini-swe-agent==2.4.6` | Loop shell/model asli; dependensi model Python terpisah |
