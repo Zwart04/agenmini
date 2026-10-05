@@ -7,7 +7,7 @@ from . import config, db
 CATALOG = [
  dict(id='none', name='Kosong', description='Tanpa prompt, panduan tugas atau konteks otomatis Agen Mini.', version='builtin'),
  dict(id='assisted', name='Agen Mini', description='Alat, tim bot, skill dan ingatan dalam satu aplikasi ringan.', version='builtin'),
- dict(id='hermes', name='Hermes Agent', description='Runtime Nous asli dengan alat, skill dan pembelajaran Hermes.', kind='pip', package='https://codeload.github.com/nousresearch/hermes-agent/zip/7157422022ff06f3e632d1dd394ee1253b17ad37', version='7157422022ff', bin='hermes', source='https://github.com/nousresearch/hermes-agent', keys=['OPENROUTER_API_KEY','OPENAI_API_KEY','OPENAI_BASE_URL','ANTHROPIC_API_KEY'], provider='openrouter'),
+ dict(id='hermes', name='Hermes Agent', description='Runtime Nous asli; Python 3.14 privat, skill dan ingatan Hermes.', kind='pip', package='https://codeload.github.com/nousresearch/hermes-agent/zip/7157422022ff06f3e632d1dd394ee1253b17ad37', version='7157422022ff', bin='hermes', source='https://github.com/nousresearch/hermes-agent', keys=['OPENROUTER_API_KEY','OPENAI_API_KEY','OPENAI_BASE_URL','ANTHROPIC_API_KEY'], provider='openrouter'),
  dict(id='opencode', name='OpenCode', description='Agen coding asli, banyak provider; model memakai provider/id.', kind='npm', package='opencode-ai', version='1.18.34', bin='opencode', source='https://github.com/anomalyco/opencode', keys=['ANTHROPIC_API_KEY','OPENAI_API_KEY','OPENROUTER_API_KEY']),
  dict(id='claude', name='Claude Code', description='CLI resmi Anthropic. Mode integrasi memakai API key Anthropic.', kind='npm', package='@anthropic-ai/claude-code', version='2.1.289', bin='claude', source='https://code.claude.com/docs/en/headless', keys=['ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL']),
  dict(id='dsh', name='DeepSeek Harness', description='Runtime plugin DeepSeek asli; preview, API key DeepSeek.', kind='npm', package='@deepseek-ai/dsh', version='0.2.0-rc.2', bin='dsh', source='https://github.com/deepseek-ai/deepseek-harness', keys=['DEEPSEEK_API_KEY']),
@@ -104,19 +104,19 @@ def configure(hid, data):
 
 def environment(base, hid, credentials=False, dependencies=None):
     home=owned(base/'home')
-    env={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','TEMP','TMP')}
+    env={k:v for k,v in os.environ.items() if k.upper() in ('SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','TEMP','TMP','PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMDATA','COMMONPROGRAMFILES','COMMONPROGRAMFILES(X86)')}
     # Only executable search path is inherited, never host login/API environment.
     env['PATH']=os.environ.get('PATH','/usr/local/bin:/usr/bin:/bin')
     dependencies=dependencies or runtime_path(hid)
     node=dependencies/'node_modules/node/bin'
     bun=dependencies/'node_modules/bun/bin'
     env['PATH']=os.pathsep.join((str(node),str(bun),env['PATH']))
-    env.update(HOME=str(home),USERPROFILE=str(home),XDG_CONFIG_HOME=str(owned(home/'config')),XDG_DATA_HOME=str(owned(home/'data')),XDG_CACHE_HOME=str(owned(home/'cache')),HERMES_HOME=str(owned(home/'hermes')),PI_CODING_AGENT_DIR=str(owned(home/'pi')),DSH_HOME=str(owned(home/'dsh')),GIT_CONFIG_GLOBAL=str(home/'gitconfig'),GIT_CONFIG_NOSYSTEM='1',GIT_TERMINAL_PROMPT='0',MSWEA_GLOBAL_CONFIG_DIR=str(owned(home/'mini')),MSWEA_SILENT_STARTUP='1',APPDATA=str(owned(home/'appdata')),LOCALAPPDATA=str(owned(home/'localappdata')),PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',NODE_OPTIONS='--max-old-space-size=384',NO_COLOR='1',CI='1',npm_config_cache=str(owned(home/'npm-cache')),npm_config_userconfig=str(home/'npmrc'),PIP_CACHE_DIR=str(owned(home/'pip-cache')),DSH_TELEMETRY_MODE='OFF',DISABLE_TELEMETRY='1',OTEL_SDK_DISABLED='true')
+    env.update(HOME=str(home),USERPROFILE=str(home),XDG_CONFIG_HOME=str(owned(home/'config')),XDG_DATA_HOME=str(owned(home/'data')),XDG_CACHE_HOME=str(owned(home/'cache')),HERMES_HOME=str(owned(home/'hermes')),PI_CODING_AGENT_DIR=str(owned(home/'pi')),DSH_HOME=str(owned(home/'dsh')),GIT_CONFIG_GLOBAL=str(home/'gitconfig'),GIT_CONFIG_NOSYSTEM='1',GIT_TERMINAL_PROMPT='0',MSWEA_GLOBAL_CONFIG_DIR=str(owned(home/'mini')),MSWEA_SILENT_STARTUP='1',MSWEA_CONFIGURED='1',APPDATA=str(owned(home/'appdata')),LOCALAPPDATA=str(owned(home/'localappdata')),PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',NODE_OPTIONS='--max-old-space-size=384',NO_COLOR='1',CI='1',npm_config_cache=str(owned(home/'npm-cache')),npm_config_userconfig=str(home/'npmrc'),PIP_CACHE_DIR=str(owned(home/'pip-cache')),DSH_TELEMETRY_MODE='OFF',DISABLE_TELEMETRY='1',OTEL_SDK_DISABLED='true')
     if credentials:env.update(settings(hid).get('env',{}))
     return env
 
 
-async def process(argv, cwd, env, timeout=900, pulse=None, memory_mb=512):
+async def process(argv, cwd, env, timeout=900, pulse=None, memory_mb=512, on_line=None):
     """No shell; bounded output/lifetime. All Unix third-party code runs unprivileged."""
     options={};job=None
     if os.name=='nt':options['creationflags']=0x08000000
@@ -134,11 +134,16 @@ async def process(argv, cwd, env, timeout=900, pulse=None, memory_mb=512):
         from .windows_execution import Job
         try:job=Job(proc.pid,memory_mb)
         except Exception:proc.kill();await proc.wait();raise
-    async def read(stream):
-        result=bytearray()
+    async def read(stream,events=False):
+        result=bytearray();pending=bytearray()
         while chunk:=await stream.read(4096):
             result.extend(chunk)
             if len(result)>1024*1024:raise ValueError('Keluaran runtime melebihi 1 MB.')
+            if events and on_line:
+                pending.extend(chunk)
+                while b'\n' in pending:
+                    line,_,rest=pending.partition(b'\n');pending=bytearray(rest)
+                    await on_line(line.decode('utf-8','replace'))
         return bytes(result).decode('utf-8','replace')
     exhausted=[]
     async def notify():
@@ -159,7 +164,7 @@ async def process(argv, cwd, env, timeout=900, pulse=None, memory_mb=512):
             if pulse:await pulse()
             await asyncio.sleep(5)
     ticker=asyncio.create_task(notify())
-    readers=[asyncio.create_task(read(proc.stdout)),asyncio.create_task(read(proc.stderr))]
+    readers=[asyncio.create_task(read(proc.stdout,True)),asyncio.create_task(read(proc.stderr))]
     try:
         async with asyncio.timeout(timeout):
             out,err=await asyncio.gather(*readers);await proc.wait()
@@ -191,6 +196,7 @@ def runtime_path(hid):
 def cli(hid, base=None):
     row=entry(hid);base=base or runtime_path(hid)
     if row['kind']=='pip':
+        if hid=='hermes':return [str(base/'native-venv'/('Scripts/hermes.exe' if os.name=='nt' else 'bin/hermes'))]
         if hid=='mini' and os.name=='nt':return [str(base/'venv/Scripts/python.exe'),str(Path(__file__).with_name('harness_stdio.py'))]
         return [str(base/'venv'/('Scripts' if os.name=='nt' else 'bin')/(row['bin']+('.exe' if os.name=='nt' else '')))]
     pkg=base/'node_modules'/row['package'];manifest=json.loads((pkg/'package.json').read_text(encoding='utf-8'))
@@ -220,6 +226,7 @@ async def install(hid):
                 code,out,err=await process(argv,stage,env,timeout,memory_mb=1024)
                 if code:
                     text=err or out
+                    if 'npm error' in text:text='\n'.join(l for l in text.splitlines() if 'npm error' in l)
                     raise ValueError((text[:800]+'\n…\n'+text[-1200:]) if len(text)>2000 else (text or 'Pemasang gagal dengan kode '+str(code)))
             if row['kind']=='pip':
                 if hid=='aider' and sys.version_info>=(3,13):raise ValueError('Aider memerlukan Python 3.10–3.12.')
@@ -238,7 +245,16 @@ async def install(hid):
                     await checked([git,'-C',str(source),'remote','add','origin','https://github.com/nousresearch/hermes-agent.git'])
                     await checked([git,'-C',str(source),'fetch','--depth','1','origin','7157422022ff06f3e632d1dd394ee1253b17ad37'])
                     await checked([git,'-C',str(source),'checkout','--detach','FETCH_HEAD'])
-                    await checked([py,'-m','pip','install','--disable-pip-version-check','-e',str(source)])
+                    # Current Hermes deliberately gates its core dependencies on Python >= 3.14.
+                    # Bootstrap a private managed Python, never replace the app's interpreter.
+                    await checked([py,'-m','pip','install','--disable-pip-version-check','uv==0.12.23'])
+                    uv=stage/'venv'/('Scripts/uv.exe' if os.name=='nt' else 'bin/uv')
+                    env['UV_PYTHON_INSTALL_DIR']=str(owned(stage/'python'))
+                    env['UV_CACHE_DIR']=str(owned(base/'home/uv-cache'))
+                    await checked([uv,'python','install','--no-bin','--no-registry','3.14'])
+                    await checked([uv,'venv','--python','3.14','--seed',str(stage/'native-venv')])
+                    native=stage/'native-venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+                    await checked([native,'-m','pip','install','--disable-pip-version-check','-e',str(source)])
                 else:await checked([py,'-m','pip','install','--disable-pip-version-check',row['package']])
             else:
                 npm=shutil.which('npm')
@@ -314,7 +330,7 @@ def answer(hid, output):
     return output.strip()
 
 
-async def run(hid, prompt, on_event):
+async def run(hid, prompt, on_event, actor=None):
     row=entry(hid)
     if status(hid)['phase']!='installed':raise ValueError('Runtime belum terpasang. Buka Pengaturan → Harness.')
     if db.setting('full_access')!='1':raise ValueError('Runtime asli mempunyai alat sendiri. Aktifkan akses penuh secara sadar pada Pengaturan sebelum menjalankannya; izin alat Agen Mini tidak berlaku pada CLI eksternal.')
@@ -323,7 +339,9 @@ async def run(hid, prompt, on_event):
     if not any(v for k,v in cfg.get('env',{}).items() if 'KEY' in k):raise ValueError('Simpan API key runtime di Pengaturan → Harness. Login host tidak diwariskan.')
     if _run_lock.locked() or any(not task.done() for task in _tasks.values()):raise ValueError('Runtime sedang mengerjakan atau memasang tugas lain. Coba setelah selesai.')
     async with _run_lock:
-        base=location(hid);work=owned(base/'workspace');env=environment(base,hid,True)
+        if len(prompt)>24000:raise ValueError('Konteks runtime terlalu panjang. Mulai percakapan baru atau ringkas pesan.')
+        base=location(hid);work=owned(config.WORK_DIR/('runtime-'+hid));env=environment(base,hid,True);started=time.time();used=[]
+        if work.is_symlink() or not work.resolve().is_relative_to(config.WORK_DIR.resolve()):raise ValueError('Workspace runtime keluar folder kerja.')
         await on_event('status','Menjalankan '+row['name']+' asli…')
         async def pulse():await on_event('status',row['name']+' masih mengerjakan tugas…')
         args=arguments(hid,prompt,cfg)
@@ -331,8 +349,34 @@ async def run(hid, prompt, on_event):
             patch=base/'model.patch.yml'
             patch.write_text('- id: agent-default-model\n  config:\n    provider: deepseek-official\n    model: '+json.dumps(cfg['model'])+'\n',encoding='utf-8')
             args=['--profile','headless','--patch',str(patch),prompt]
-        code,out,err=await process(cli(hid)+args,work,env,300,pulse)
+        if hid=='mini':
+            trace=Path(env['MSWEA_GLOBAL_CONFIG_DIR'])/('turn-'+uuid.uuid4().hex+'.json')
+            args+=['--output',str(trace)]
+        async def event(line):
+            try:item=json.loads(line)
+            except ValueError:return
+            if item.get('type') in ('tool_execution_start','tool_call'):
+                name=str(item.get('toolName') or item.get('name') or 'alat native')[:80]
+                used.append(name)
+                await on_event('status',row['name']+' memakai '+name+'…')
+                if actor:
+                    from . import office
+                    office.log(actor,'tool','Runtime '+row['name']+': '+name)
+        code,out,err=await process(cli(hid)+args,work,env,300,pulse,on_line=event)
         if code:raise ValueError(redact(err or out,hid)[-1800:] or 'Runtime keluar dengan kode '+str(code))
-        result=answer(hid,out).strip()
+        if hid=='mini':
+            data=json.loads(trace.read_text(encoding='utf-8')) if trace.is_file() else {}
+            info=data.get('info',{})
+            if info.get('exit_status')!='Submitted':raise ValueError('mini-SWE-agent belum menyelesaikan tugas: '+str(info.get('exit_status') or 'tidak ada hasil akhir'))
+            result=str(info.get('submission') or '').strip()
+        else:result=answer(hid,out).strip()
         if not result:raise ValueError('Runtime selesai tanpa jawaban akhir yang bisa diverifikasi. '+redact(err,hid)[-500:])
-        return redact(result,hid)
+        files=[]
+        for path in work.rglob('*'):
+            relative=path.relative_to(work)
+            if any(part.startswith('.') for part in relative.parts) or path.is_symlink() or not path.resolve().is_relative_to(work.resolve()):continue
+            if path.is_file() and path.stat().st_mtime>=started and path.stat().st_size<=20*1024*1024:
+                files.append(path.relative_to(config.WORK_DIR).as_posix())
+                if len(files)>=20:break
+        return {'text':redact(result,hid),'files':files,'tools':used}
+

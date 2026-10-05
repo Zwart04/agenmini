@@ -19,7 +19,7 @@ Agen Mini menjalankan distribusi CLI upstream asli. Ini bukan persona atau promp
 | --- | --- | --- |
 | Kosong | Tidak memasang paket tambahan | Tidak menyuntik prompt/panduan/konteks otomatis; protokol alat dan penjaga aplikasi tetap berjalan |
 | Agen Mini | Bawaan aplikasi | Integrasi alat, delegasi, MCP, skill, ingatan dan pembelajaran Agen Mini |
-| [Hermes](https://github.com/nousresearch/hermes-agent) | Source commit `7157422022ff` dalam venv sendiri | Python; provider/model asli; skill/ingatan Hermes terpisah |
+| [Hermes](https://github.com/nousresearch/hermes-agent) | Source commit `7157422022ff` dalam venv sendiri | Python 3.14 privat dipasang saat dipilih; provider/model asli; skill/ingatan Hermes terpisah |
 | [OpenCode](https://github.com/anomalyco/opencode) | `opencode-ai@1.18.34` | Banyak provider, model `provider/id` |
 | [Claude Code](https://code.claude.com/docs/en/headless) | `@anthropic-ai/claude-code@2.1.289` | Distribusi resmi; kode inti bukan open source untuk di-fork. Mode `--bare` memakai API key Anthropic |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | `@deepseek-ai/dsh@0.2.0-rc.2` | Developer preview; API key DeepSeek; model opsional mengubah patch pemilih model asli |
@@ -29,7 +29,7 @@ Agen Mini menjalankan distribusi CLI upstream asli. Ini bukan persona atau promp
 | [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent) | `mini-swe-agent==2.4.6` | Loop shell/model asli; dependensi model Python terpisah |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `@google/gemini-cli@0.62.0` | API key Gemini; persetujuan native tetap berlaku |
 
-Pin upstream disengaja supaya update aplikasi dapat diuji sebelum versi CLI diganti. Ini bukan janji setiap pin selalu versi upstream terbaru. Paket JavaScript memasang Node 24.21.0 privat saat dipilih; npm sistem hanya menjadi bootstrap. Paket Python memakai venv privat. Lisensi upstream tetap berlaku; aplikasi tidak menggandakan semua repo atau fork sebagai paket bawaan.
+Pin upstream disengaja supaya update aplikasi dapat diuji sebelum versi CLI diganti. Ini bukan janji setiap pin selalu versi upstream terbaru. Paket JavaScript memasang Node 24.21.0 privat saat dipilih; npm sistem hanya menjadi bootstrap. Paket Python memakai venv privat; Hermes terbaru memerlukan Python 3.14 dan mendapat interpreter privat melalui uv saat dipilih, tanpa mengganti Python aplikasi. Lisensi upstream tetap berlaku; aplikasi tidak menggandakan semua repo atau fork sebagai paket bawaan.
 
 ## Ringan dan transparan
 

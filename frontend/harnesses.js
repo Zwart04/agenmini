@@ -24,6 +24,7 @@ async function loadHarnesses(){
 }
 harnessMode.addEventListener('change',()=>{harnessFingerprint='';harnessHints()});setupHarness.addEventListener('change',harnessHints);
 document.getElementById('setupProfile').addEventListener('change',()=>{setupHarness.value=document.getElementById('setupProfile').value==='blank'?'none':'assisted';harnessHints();if(window.refreshDesignControls)refreshDesignControls(setupHarness)});
+const originalLoadAI=loadAI;loadAI=async function(){await originalLoadAI();await loadHarnesses()};
 const originalLoadSettings=loadSettings;loadSettings=async function(){await loadHarnesses();await originalLoadSettings();harnessHints();if(window.refreshDesignControls)refreshDesignControls(harnessMode)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(harnessPoll);harnessPoll=null}else if(harnessCatalog)loadHarnesses().catch(sayError)});
 loadHarnesses().catch(()=>{});

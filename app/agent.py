@@ -346,7 +346,7 @@ class Turn:
             await self._callback('status', 'Menulis jawaban…')
         elif kind == 'approval':
             office.phase('Menunggu izin Anda', 'alert')
-        if kind == 'done' and isinstance(data, dict) and data.get('message_id') and db.setting('self_improve') != 'off':
+        if kind == 'done' and isinstance(data, dict) and data.get('message_id') and not data.get('meta',{}).get('mode','').startswith('runtime') and db.setting('self_improve') != 'off':
             from . import learning
             learning.stage(data['message_id'])
         await self._callback(kind, data)
@@ -384,8 +384,8 @@ class Turn:
                 history=db.history(chat['id'],limit=8)
                 transcript='\n\n'.join(h['role']+': '+h['content'][:4000] for h in history)
                 prompt=(('Previous conversation:\n'+transcript+'\n\n') if transcript else '')+text
-                response=await harnesses.run(db.setting('harness_mode'),prompt,self.on_event)
-                return await self._reply(text,response,{},t0,mode='runtime:'+db.setting('harness_mode'))
+                response=await harnesses.run(db.setting('harness_mode'),prompt,self.on_event,actor=bot['id'])
+                return await self._reply(text,response['text'],{},t0,mode='runtime:'+db.setting('harness_mode'),files=response['files'],used=response['tools'])
             except (ValueError, OSError, TimeoutError) as exc:
                 return await self._reply(text,'Galat runtime: '+str(exc),{},t0,mode='runtime_failed')
         if re.search(r'(?:apa|berapa|lihat|sebut|tampilkan).*?(?:kata sandi|password).*?(?:saya|email|akun)',text,re.I):
@@ -691,10 +691,10 @@ class Turn:
         asyncio.create_task(self._learn(text, turn_msgs, used, skill_ids, mid))
         return {"text": answer, "message_id": mid, "meta": meta}
 
-    async def _reply(self, user_text: str, answer: str, user_meta: dict, t0: float, mode: str = "penjaga") -> dict:
+    async def _reply(self, user_text: str, answer: str, user_meta: dict, t0: float, mode: str = "penjaga", files=None, used=None) -> dict:
         """Jawaban langsung tanpa otak utama (penjaga atau jawaban "mata"): tetap tersimpan di riwayat."""
         db.add_message(self.chat["id"], "user", user_text, user_meta)
-        meta = {"tools": [], "seconds": round(time.time() - t0, 1), "mode": mode, "files": [], "status": "failed" if mode == "runtime_failed" else "done"}
+        meta = {"tools": used or [], "seconds": round(time.time() - t0, 1), "mode": mode, "files": files or [], "status": "failed" if mode == "runtime_failed" else "done"}
         mid = db.add_message(self.chat["id"], "assistant", answer, meta)
         await self.on_event("done", {"text": answer, "message_id": mid, "meta": meta})
         return {"text": answer, "message_id": mid, "meta": meta}
