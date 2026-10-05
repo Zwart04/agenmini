@@ -13,11 +13,12 @@ routes = web.RouteTableDef()
 
 @routes.get('/api/customization')
 async def customization_status(request):
-    from . import customization, agent, repair
+    from . import customization, agent, repair, harnesses
     bot = db.bot(request.query.get('bot', 'asisten'))
     if not bot:
         raise ValueError('Bot tidak ditemukan.')
-    return web.json_response({'custom': db.setting('custom_harness') or '',
+    runtime=harnesses.entry(db.setting('harness_mode')) if harnesses.external() else None
+    return web.json_response({'runtime':{'name':runtime['name'],'source':runtime['source']} if runtime else None,'custom': db.setting('custom_harness') or '',
         'default_prompt': agent.default_system_prompt(bot), 'effective_prompt': agent.system_prompt(bot),
         'tools': bot['tools'], 'memory_scope': bot['memory_scope'],
         'versions': customization.versions('harness', 'shared'), 'files': repair.files(),

@@ -111,7 +111,7 @@ def environment(base, hid, credentials=False, dependencies=None):
     node=dependencies/'node_modules/node/bin'
     bun=dependencies/'node_modules/bun/bin'
     env['PATH']=os.pathsep.join((str(node),str(bun),env['PATH']))
-    env.update(HOME=str(home),USERPROFILE=str(home),XDG_CONFIG_HOME=str(owned(home/'config')),XDG_DATA_HOME=str(owned(home/'data')),XDG_CACHE_HOME=str(owned(home/'cache')),HERMES_HOME=str(owned(home/'hermes')),PI_CODING_AGENT_DIR=str(owned(home/'pi')),DSH_HOME=str(owned(home/'dsh')),GIT_CONFIG_GLOBAL=str(home/'gitconfig'),GIT_CONFIG_NOSYSTEM='1',GIT_TERMINAL_PROMPT='0',PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',NODE_OPTIONS='--max-old-space-size=384',NO_COLOR='1',CI='1',npm_config_cache=str(owned(home/'npm-cache')),npm_config_userconfig=str(home/'npmrc'),PIP_CACHE_DIR=str(owned(home/'pip-cache')),DSH_TELEMETRY_MODE='OFF',DISABLE_TELEMETRY='1',OTEL_SDK_DISABLED='true')
+    env.update(HOME=str(home),USERPROFILE=str(home),XDG_CONFIG_HOME=str(owned(home/'config')),XDG_DATA_HOME=str(owned(home/'data')),XDG_CACHE_HOME=str(owned(home/'cache')),HERMES_HOME=str(owned(home/'hermes')),PI_CODING_AGENT_DIR=str(owned(home/'pi')),DSH_HOME=str(owned(home/'dsh')),GIT_CONFIG_GLOBAL=str(home/'gitconfig'),GIT_CONFIG_NOSYSTEM='1',GIT_TERMINAL_PROMPT='0',MSWEA_GLOBAL_CONFIG_DIR=str(owned(home/'mini')),MSWEA_SILENT_STARTUP='1',APPDATA=str(owned(home/'appdata')),LOCALAPPDATA=str(owned(home/'localappdata')),PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',NODE_OPTIONS='--max-old-space-size=384',NO_COLOR='1',CI='1',npm_config_cache=str(owned(home/'npm-cache')),npm_config_userconfig=str(home/'npmrc'),PIP_CACHE_DIR=str(owned(home/'pip-cache')),DSH_TELEMETRY_MODE='OFF',DISABLE_TELEMETRY='1',OTEL_SDK_DISABLED='true')
     if credentials:env.update(settings(hid).get('env',{}))
     return env
 
@@ -124,7 +124,7 @@ async def process(argv, cwd, env, timeout=900, pulse=None, memory_mb=512):
         def child():
             os.setsid()
             import resource
-            resource.setrlimit(resource.RLIMIT_NOFILE,(256,256))
+            resource.setrlimit(resource.RLIMIT_NOFILE,(2048,2048))
             resource.setrlimit(resource.RLIMIT_CORE,(0,0))
             if os.geteuid()==0:
                 os.setgroups([]);os.setgid(config.KERJA_GID);os.setuid(config.KERJA_UID)
@@ -190,7 +190,9 @@ def runtime_path(hid):
 
 def cli(hid, base=None):
     row=entry(hid);base=base or runtime_path(hid)
-    if row['kind']=='pip':return [str(base/'venv'/('Scripts' if os.name=='nt' else 'bin')/(row['bin']+('.exe' if os.name=='nt' else '')))]
+    if row['kind']=='pip':
+        if hid=='mini' and os.name=='nt':return [str(base/'venv/Scripts/python.exe'),str(Path(__file__).with_name('harness_stdio.py'))]
+        return [str(base/'venv'/('Scripts' if os.name=='nt' else 'bin')/(row['bin']+('.exe' if os.name=='nt' else '')))]
     pkg=base/'node_modules'/row['package'];manifest=json.loads((pkg/'package.json').read_text(encoding='utf-8'))
     bins=manifest['bin'];rel=bins.get(row['bin']) if isinstance(bins,dict) else bins
     if not rel and isinstance(bins,dict):rel=next(iter(bins.values()))
@@ -198,7 +200,7 @@ def cli(hid, base=None):
     if not executable.is_relative_to(pkg.resolve()):raise ValueError('Entry point paket keluar direktori.')
     with executable.open('rb') as handle:magic=handle.read(64)
     if magic.startswith((b'\x7fELF',b'MZ')):return [str(executable)]
-    runner=base/'node_modules'/('bun/bin/bun.exe' if os.name=='nt' else 'bun/bin/bun') if hid=='omp' else base/'node_modules'/('node/bin/node.exe' if os.name=='nt' else 'node/bin/node')
+    runner=base/'node_modules'/'bun/bin/bun.exe' if hid=='omp' else base/'node_modules'/('node/bin/node.exe' if os.name=='nt' else 'node/bin/node')
     return [str(runner),str(executable)]
 
 
@@ -228,7 +230,16 @@ async def install(hid):
                         if not path.is_symlink():os.chown(path,config.KERJA_UID,config.KERJA_GID)
                     os.chown(stage/'venv',config.KERJA_UID,config.KERJA_GID)
                 py=stage/'venv'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
-                await checked([py,'-m','pip','install','--disable-pip-version-check',row['package']])
+                if hid=='hermes':
+                    git=shutil.which('git')
+                    if not git:raise ValueError('Git belum tersedia dalam runtime aplikasi.')
+                    source=stage/'source'
+                    await checked([git,'init',str(source)])
+                    await checked([git,'-C',str(source),'remote','add','origin','https://github.com/nousresearch/hermes-agent.git'])
+                    await checked([git,'-C',str(source),'fetch','--depth','1','origin','7157422022ff06f3e632d1dd394ee1253b17ad37'])
+                    await checked([git,'-C',str(source),'checkout','--detach','FETCH_HEAD'])
+                    await checked([py,'-m','pip','install','--disable-pip-version-check','-e',str(source)])
+                else:await checked([py,'-m','pip','install','--disable-pip-version-check',row['package']])
             else:
                 npm=shutil.which('npm')
                 if not npm:raise ValueError('npm belum tersedia. Gunakan installer resmi Agen Mini yang menyertakan Node/npm.')
