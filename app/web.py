@@ -445,11 +445,23 @@ async def skills(request):
 async def update_skill(request):
     data = await request.json()
     sid = int(request.match_info["id"])
+    old = db.one('SELECT * FROM skills WHERE id=?', (sid,))
+    if not old:
+        raise web.HTTPNotFound(text='Skill tidak ditemukan')
+    for key, limit in (('name',100),('when_to_use',500),('steps',12000)):
+        if key in data and (not isinstance(data[key],str) or len(data[key])>limit or (key in ('name','steps') and not data[key].strip())):
+            raise ValueError('Isi skill tidak valid atau terlalu panjang.')
+    if 'scope' in data and data['scope'] != 'shared' and not db.bot(data['scope']):
+        raise ValueError('Bot tidak ditemukan')
+    if any(k in data and data[k] != old[k] for k in ('steps','name','when_to_use')):
+        from . import learning
+        learning.snapshot(old)
+        db.run("UPDATE skills SET source='manual' WHERE id=?", (sid,))
     if "active" in data:
         db.run("UPDATE skills SET active=? WHERE id=?", (int(bool(data["active"])), sid))
-    if "steps" in data:
+    if any(key in data for key in ('steps','when_to_use','name')):
         db.run("UPDATE skills SET steps=?, when_to_use=?, name=?, updated_at=? WHERE id=?",
-               (data["steps"], data.get("when_to_use", ""), data.get("name", ""), time.time(), sid))
+               (data.get('steps',old['steps']), data.get("when_to_use", old['when_to_use']), data.get("name", old['name']), time.time(), sid))
     if "scope" in data:
         scope = data["scope"]
         if scope != "shared" and not db.bot(scope):

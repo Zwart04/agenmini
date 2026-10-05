@@ -92,6 +92,18 @@ async def find_tools(ctx, query='', **_):
     return json.dumps([REGISTRY[name].schema()['function'] for name in names], ensure_ascii=False) if names else 'Tidak ada alat yang cocok dalam izin bot ini. Coba kata kunci lain atau tambahkan alat di Tim bot.'
 
 
+@tool('inspect_app', 'Memeriksa aplikasi', 'Inspect Agen Mini editable source filenames and current harness, assigned tools and memory scope. Read-only; no secrets or live code edits.', {}, [])
+async def inspect_app(ctx, **_):
+    from . import repair, agent
+    return json.dumps({'files': repair.files(), 'harness': agent.system_prompt(ctx.bot), 'tools': ctx.bot['tools'], 'memory_scope': ctx.bot['memory_scope'], 'guard': 'Code changes are proposals only. Owner review and GitHub Actions are required before release installation.'}, ensure_ascii=False)
+
+
+@tool('propose_app_change', 'Mengusulkan perbaikan aplikasi', 'Propose a fix or feature for Agen Mini. Use inspect_app to find relevant files first. Creates a separate review draft, never edits or installs the live application.', {'prompt': S('Requested fix and acceptance criteria'), 'files': {'type':'array','items':{'type':'string'},'minItems':1,'maxItems':6}}, ['prompt','files'])
+async def propose_app_change(ctx, prompt, files, **_):
+    from . import repair
+    return json.dumps(await repair.propose(prompt, files, ctx.bot['id']), ensure_ascii=False)
+
+
 def validate_arguments(name, args):
     t = REGISTRY.get(name)
     if not t:

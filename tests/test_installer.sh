@@ -35,7 +35,7 @@ cat > /mock/ss <<'EOF'
 exit 0
 EOF
 chmod +x /mock/*
-export PATH=/mock:$PATH AGEN_OTOMATIS=1
+export PATH=/mock:$PATH AGEN_OTOMATIS=1 AGEN_AI_PROFILE=router
 bash /src/dist/pasang-vps.sh > /tmp/install-output
 [[ -f /opt/agenmini/app/main.py && -f /opt/agenmini/.env ]]
 grep -q 'TERPASANG' /tmp/install-output
@@ -80,6 +80,7 @@ grep -q 'LLM_BACKEND=freellmapi' /opt/agenmini/.env
 # Mock plan controls runtime independently of the fresh env.
 ! grep -q 'profile router up -d --build' /tmp/docker-calls
 rm -rf /opt/agenmini
-AGEN_AI_PROFILE=online bash /src/dist/pasang-vps.sh > /tmp/online-install-output
+unset AGEN_AI_PROFILE
+bash /src/dist/pasang-vps.sh > /tmp/online-install-output
 grep -q 'LLM_BACKEND=online' /opt/agenmini/.env
 echo 'PASS: install, preserve data/config, failure handling, atomic updates of running supervisor and CLI.'

@@ -9,6 +9,96 @@ from aiohttp import web, ClientError
 from . import VERSION, config, db, llm, memory, tools, mcp_bridge, router, office, runtime_status, free_router
 
 routes = web.RouteTableDef()
+
+
+@routes.get('/api/customization')
+async def customization_status(request):
+    from . import customization, agent, repair
+    bot = db.bot(request.query.get('bot', 'asisten'))
+    if not bot:
+        raise ValueError('Bot tidak ditemukan.')
+    return web.json_response({'custom': db.setting('custom_harness') or '',
+        'default_prompt': agent.default_system_prompt(bot), 'effective_prompt': agent.system_prompt(bot),
+        'tools': bot['tools'], 'memory_scope': bot['memory_scope'],
+        'versions': customization.versions('harness', 'shared'), 'files': repair.files(),
+        'guard': 'Instruksi mengubah perilaku, bukan izin kode. Alat, folder, akun dan penjaga deploy tetap di luar instruksi AI.'})
+
+
+@routes.post('/api/customization')
+async def customization_save(request):
+    from . import customization
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise ValueError('Gunakan objek pengaturan.')
+    if data.get('action') == 'restore':
+        customization.restore('harness', 'shared', int(data['version']))
+    elif data.get('action') == 'default':
+        customization.harness('')
+    elif data.get('action') == 'save':
+        customization.harness(data.get('text'))
+    else:
+        raise ValueError('Pilih save, restore atau default.')
+    return web.json_response({'ok': True})
+
+
+@routes.post('/api/memories/{id}/edit')
+async def customization_memory_edit(request):
+    from . import customization
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise ValueError('Gunakan objek pengaturan.')
+    if data.get('action') == 'restore':
+        customization.restore('memory', request.match_info['id'], int(data['version']))
+    else:
+        customization.edit_memory(int(request.match_info['id']), data.get('text'))
+    return web.json_response({'ok': True})
+
+
+@routes.get('/api/memories/{id}/versions')
+async def customization_memory_versions(request):
+    from . import customization
+    return web.json_response({'versions': customization.versions('memory', request.match_info['id'])})
+
+
+@routes.get('/api/repairs')
+async def repair_status(request):
+    from . import repair
+    return web.json_response({'repairs': repair.status()})
+
+
+@routes.post('/api/repairs')
+async def repair_propose(request):
+    from . import repair
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise ValueError('Gunakan objek permintaan.')
+    return web.json_response(await repair.propose(data.get('prompt'), data.get('files'), data.get('bot', 'asisten')))
+
+
+@routes.post('/api/repairs/{id}/cancel')
+async def repair_cancel(request):
+    from . import repair
+    task = repair.tasks.get(request.match_info['id'])
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        repair.tasks.pop(request.match_info['id'], None)
+    return web.json_response({'ok': True})
+
+
+@routes.get('/api/repairs/{id}')
+async def repair_detail(request):
+    from . import repair
+    return web.json_response(repair.detail(request.match_info['id']))
+
+
+@routes.get('/api/repairs/{id}/download')
+async def repair_download(request):
+    from . import repair
+    return web.Response(body=repair.archive(request.match_info['id']), content_type='application/zip', headers={'Content-Disposition': 'attachment; filename="agenmini-repair-draft.zip"', 'Cache-Control': 'no-store'})
 _oauth = {}
 _mcp_lock = asyncio.Lock()
 _approval_lock = asyncio.Lock()

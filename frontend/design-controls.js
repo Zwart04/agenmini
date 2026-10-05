@@ -15,7 +15,7 @@ function openDesignOptions(anchor,rows,choose,current){
 function refreshDesignControls(){
  document.querySelectorAll('select').forEach(select=>{
   let button=designSelects.get(select);if(!button){
-   const label=select.getAttribute('aria-label')||[...select.labels].map(l=>l.textContent.trim()).join(' ')||select.name||'Pilihan';
+   const label=select.getAttribute('aria-label')||[...select.labels].map(l=>{const copy=l.cloneNode(true);copy.querySelectorAll('select,input,textarea,button,datalist').forEach(n=>n.remove());return copy.textContent.trim()}).join(' ')||select.name||'Pilihan';
    button=document.createElement('button');button.type='button';button.id='designSelect'+(++designControlId);button.className=select.className+' design-select';button.setAttribute('role','combobox');button.setAttribute('aria-label',label);button.setAttribute('aria-haspopup','listbox');button.setAttribute('aria-expanded','false');button.dataset.selectSource=select.id||select.name;
    select.before(button);select.classList.add('design-select-source');select.tabIndex=-1;select.setAttribute('aria-hidden','true');designSelects.set(select,button);
    const open=focus=>{const panel=openDesignOptions(button,[...select.options].map(o=>({value:o.value,label:o.textContent,disabled:o.disabled,hidden:o.hidden})),v=>{select.value=v;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));refreshDesignControls()},select.value);if(focus)(panel.querySelector('[aria-selected=true]:not(:disabled)')||panel.querySelector('button:not(:disabled)'))?.focus()};

@@ -140,4 +140,8 @@ aside{border-right:1px solid var(--line);background:var(--side)}
 #panel-settings{max-width:760px;margin:0 auto}.preference-detail .field:last-child{margin-bottom:0}
 
 .model-apply-icon{display:none}
+.record-detail{overflow:hidden;max-height:calc(100dvh - 32px)}
+.record-detail[open]{display:flex;flex-direction:column}
+.record-detail>header{flex-shrink:0}
+.record-detail .record-detail-body{min-height:0;max-height:none;overflow:auto}
 @media(max-width:680px){.chat-model-bar .model-apply-label{display:none}.chat-model-bar .model-apply-icon{display:block}.chat-model-bar #chatModelApply{width:40px;padding:8px}.chat-model-bar .inp{padding-right:24px}.chat-model-bar .i{width:16px;height:16px}}

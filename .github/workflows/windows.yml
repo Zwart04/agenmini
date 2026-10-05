@@ -15,6 +15,10 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Guarded customization and repair on native Windows
+        run: |
+          python -m pip install pytest pytest-asyncio
+          python -m pytest tests/test_customization_repair.py tests/test_frontend_syntax.py -q
       - run: python windows/build.py
         env:
           GH_TOKEN: ${{ github.token }}

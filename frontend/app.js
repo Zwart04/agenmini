@@ -185,7 +185,7 @@ async function loadChat(chatId) {
   S.viewChat = chatId || null;
   if(typeof loadChatModels==='function')loadChatModels().catch(sayError);
   $('#chAv').outerHTML = `<span class="av" id="chAv">${ic(b.icon, 's')}</span>`;
-  $('#chName').textContent = b.name; $('#chDesc').textContent = b.persona;
+  $('#chName').textContent = b.name; $('#chDesc').textContent = b.persona.split(/(?<=[.!?])\s+/)[0].slice(0,120);
   const d = await api('/api/chat/' + b.id + (chatId ? '?chat_id=' + chatId : ''));
   const th = $('#thread'); th.innerHTML = '';
   const bar = $('#oldBar'), c = d.chat || {}, tg = c.channel === 'tg';
@@ -392,7 +392,7 @@ async function loadMem() {
   memoryPage=Math.min(memoryPage,Math.max(0,Math.ceil(d.memories.length/8)-1));
   $('#memList').innerHTML = d.memories.slice(memoryPage*8,memoryPage*8+8).map(m => `<div class="r"><div class="grow"><span class="memory-preview">${esc(friendlySteps(m.text).slice(0,180))}</span><button class="btn sm ghost" data-memory-read="${m.id}">Baca lengkap</button><div class="sub">${KIND[m.kind] || esc(m.kind)} · ${m.scope === 'shared' ? 'bersama' : esc((S.bots.find(b => b.id === m.scope) || {name: m.scope}).name)} · dipakai ${m.uses}× · ${ago(m.created_at)}</div></div><button class="ib" data-del="${m.id}" aria-label="Hapus">${ic('trash', 's')}</button></div>`).join('') || empty('Belum ada ingatan. Ceritakan sesuatu tentang Anda di chat, atau tekan Tambah.');
   recordPager($('#memList'),memoryPage,d.memories.length,n=>{memoryPage=n;loadMem()});
-  $$('#memList [data-memory-read]').forEach(b=>b.onclick=()=>showDetail('Ingatan', '<pre class=detail-text>'+esc(d.memories.find(m=>m.id===Number(b.dataset.memoryRead)).text)+'</pre>'));
+  $$('#memList [data-memory-read]').forEach(b=>b.onclick=()=>editMemoryDetail(d.memories.find(m=>m.id===Number(b.dataset.memoryRead))));
   $$('#memList [data-del]').forEach(x => x.onclick = async () => { await api('/api/memories/' + x.dataset.del, {method: 'DELETE'}); loadMem() });
 }
 let memT; $('#memQ').oninput = () => { memoryPage=0;clearTimeout(memT); memT = setTimeout(loadMem, 300) };

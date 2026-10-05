@@ -26,7 +26,7 @@ def evidence(meta):
     if meta.get('tool_failures') or meta.get('status') in ('failed', 'partial', 'waiting', 'queued') or meta.get('approval'):
         return []
     return [r for r in meta.get('trace', []) if not r.get('cached') and r.get('hasil')
-            and not FAILED.search(r['hasil']) and r.get('alat') not in ('review_recovery',)]
+            and not FAILED.search(r['hasil']) and r.get('alat') not in ('review_recovery','propose_app_change')]
 
 
 def stage(message_id):

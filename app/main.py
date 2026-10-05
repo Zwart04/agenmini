@@ -74,6 +74,12 @@ def bootstrap(profile=None):
             if "find_tools" not in b["tools"]:db.save_bot({"id":b["id"],"tools":b["tools"]+["find_tools"]})
     elif not db.bots():
         db.save_bot({'id':'asisten','name':'Asisten','icon':'sparkle','persona':'','tools':list(tools.REGISTRY)})
+    for bid in ('asisten', 'orchestrator'):
+        bot = db.bot(bid)
+        if bot:
+            extra = [n for n in ('inspect_app','propose_app_change') if n not in bot['tools']]
+            if extra:
+                db.save_bot({'id': bid, 'tools': bot['tools'] + extra})
     if not db.setting("pair_code"):
         db.set_setting("pair_code", f"{secrets.randbelow(900000) + 100000}")
     # kata sandi awal dari .env hanya dipakai sekali

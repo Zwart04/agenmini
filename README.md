@@ -1,10 +1,31 @@
 # Agen Mini
 
+[![Linux tests](https://github.com/Zwart04/agenmini/actions/workflows/test.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/test.yml)
+[![Windows installer](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml)
+
+[Unduh aplikasi](https://github.com/Zwart04/agenmini/releases/latest) · [Instalasi Windows](CARA-PASANG-WINDOWS.txt) · [Instalasi Linux](CARA-PASANG-VPS.txt) · [Batas pengujian](VALIDATION.md)
+
 Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
 
 **Versi stabil: 0.7.0.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
 
 ## Tampilan baru
+
+![Workspace desktop dengan paket tim bawaan](docs/screenshots/workspace-desktop.jpg)
+
+<details><summary>Preview navigasi dan tampilan mobile</summary>
+
+![Preview navigasi aplikasi](docs/screenshots/preview.gif)
+
+[Video preview MP4](docs/screenshots/preview.mp4) · [Chat desktop](docs/screenshots/chat-desktop.jpg)
+
+[Chat mobile](docs/screenshots/chat-mobile.jpg) · [Workspace mobile](docs/screenshots/workspace-mobile.jpg) · [Dialog perbaikan](docs/screenshots/repair-dialog.jpg)
+
+![Instruksi transparan pada mobile](docs/screenshots/harness-mobile.jpg)
+
+Preview direkam dari aplikasi lokal dengan data demo terpisah; status model yang belum terhubung tetap terlihat. Bukan demonstrasi model menjawab atau bot bekerja.
+
+</details>
 
 Empat menu utama dengan tab yang jelas. Workspace memisahkan kantor, proyek, aktivitas, tim, jadwal serta ide/biaya; desktop menampilkan studio, mobile memakai susunan karakter ringkas. Tema terang/gelap, navigasi keyboard, draft formulir dan indikator aktivitas tetap tersedia tanpa framework atau font eksternal.
 
@@ -58,6 +79,16 @@ Pengaturan Umum menyediakan harness Minimal/Terbantu dan belajar Mati/Tinjau/Set
 Skill hasil belajar berasal dari bukti alat, bukan sapaan, respons gagal atau penilaian sukses oleh model sendiri. Tinjau bukti/langkah pada tab Skill sebelum mengaktifkan. Revisi tersimpan dan bisa dipulihkan. Koreksi menarik kandidat dan menonaktifkan skill hasil belajar yang belum diedit pemilik. Ingatan pribadi harus berlandaskan ucapan pengguna.
 
 [Training model kecil](training/README.md) menjelaskan baseline, ekspor JSONL privat, deduplikasi, validation set, LoRA/QLoRA dan evaluasi GGUF. Tidak ada training berat pada VPS atau klaim model kecil setara frontier. Ekspor SFT jawaban tidak dianggap dataset tool-calling.
+
+## Mengedit agen dan memperbaiki aplikasi
+
+Di **Pengaturan → Umum → Instruksi & perbaikan aplikasi**, buka **Lihat & edit harness** untuk membaca prompt aktif, daftar alat, cakupan ingatan dan instruksi tambahan. Revisi tersimpan; **Kembali bawaan** menghapus instruksi tambahan dengan tetap menyimpan versi sebelumnya. Skill dan ingatan punya editor serta riwayat pemulihan masing-masing. Persona dan izin per bot tetap di **Workspace → Tim bot**. Instruksi prompt tidak menghapus penjaga kode atau memberikan akun yang belum tersambung.
+
+**Minta perbaikan** menerima prompt, bot/model pilihan dan 1–6 berkas source yang relevan. Asisten/Orchestrator juga memiliki `inspect_app` dan `propose_app_change` untuk mengusulkan perubahan dari chat web/Telegram. Proses menampilkan Menunggu/Mengerjakan/Gagal/Dihentikan/Draft, dapat dibatalkan, dan menyimpan hasil di SQLite. Draft berisi diff, source kandidat, hash awal/akhir serta ZIP yang bisa diunduh. Source aktif tidak ditulis; kode AI tidak dieksekusi. Penjaga, akun, konfigurasi, database, workflow dan installer tidak termasuk area edit.
+
+Alur pemasangan perubahan kode: tinjau diff → salin kandidat ke branch terpisah **Zwart04/agenmini** di Windows atau Linux → jalankan GitHub Actions → review keamanan dan fungsi → buat release melalui workflow Publish → pasang release yang lulus. Draft bukan pemasang dan belum menjamin tes integrasi lulus. Hash yang berubah membuat draft kedaluwarsa. Bila model gagal atau proses berhenti, source aktif tetap utuh; status pulih menjadi Dihentikan. Proses ini sengaja tidak melakukan deploy otomatis dari jawaban model.
+
+Untuk memulihkan kode bawaan, gunakan pemasang release stabil resmi, pertahankan folder data dan buat backup privat dahulu. Pemulihan instruksi/skill/ingatan menggunakan riwayat versi di web; jangan menghapus database untuk mereset instruksi.
 
 ## Model, alat dan proyek
 
