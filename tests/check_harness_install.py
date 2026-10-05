@@ -1,9 +1,19 @@
 """Real upstream CLI installation smoke. No provider accounts or live model required."""
-import asyncio,json,os,sys,tempfile
+import asyncio,json,os,sys,tempfile,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+class RuntimeTempDirectory(tempfile.TemporaryDirectory):
+    def cleanup(self):
+        # Windows may retain executable/scanner handles briefly after Job termination.
+        # Retry only this freshly created test directory; never suppress a final failure.
+        for attempt in range(16):
+            try:return super().cleanup()
+            except OSError:
+                if os.name!='nt' or attempt==15:raise
+                time.sleep(.25)
+
 async def check(hid):
-    with tempfile.TemporaryDirectory(prefix='agenmini-runtime-check-') as tmp:
+    with RuntimeTempDirectory(prefix='agenmini-runtime-check-') as tmp:
         os.environ.update(DATA_DIR=tmp,AGEN_HARNESS_DIR=str(Path(tmp)/'runtimes'),WEB_PASSWORD='ci-runtime-smoke-only',PYTHONIOENCODING='utf-8')
         if os.name!='nt':
             os.environ['KERJA_UID']=str(os.getuid());os.environ['KERJA_GID']=str(os.getgid())
