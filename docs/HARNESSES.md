@@ -37,7 +37,7 @@ Tidak ada daemon harness tambahan, dashboard kedua atau port baru. Hanya CLI ter
 
 Runtime eksternal adalah opsional dan lebih besar daripada Agen Mini bawaan. Sediakan setidaknya 2 GB RAM untuk mode API, ruang disk tambahan untuk dependensi, dan container Agen Mini minimal 2 GB bila memakai harness eksternal. Installer default tidak menaikkan batas RAM diam-diam: atur `AGEN_MEM_LIMIT=2g` di `.env`, lalu jalankan `cd /opt/agenmini && docker compose --env-file .env --env-file data/local-runtime.env -f docker-compose.standalone.yml up -d agen` agar container dibuat ulang dengan batas baru. Pada Windows gunakan installer resmi yang menyertakan Python, Node/npm dan Git.
 
-Output dibatasi 1 MB; proses chat CLI maksimal 512 MB RAM (oh-my-pi 768 MB dengan Bun `--smol`), pemasang maksimal 1 GB (Windows Job Object; Linux memantau grup proses), timeout dan pembatalan membunuh turunannya. Paket yang membutuhkan lebih banyak resource akan gagal dengan pesan yang terlihat. Cache pemasangan tetap tersimpan saat kembali ke Agen Mini, sehingga tidak perlu unduh ulang. Semua versi dan status terlihat dalam pengaturan. Data dan kredensial privat tidak dimasukkan source ZIP.
+Output dibatasi 1 MB; proses chat CLI maksimal 512 MB RAM (oh-my-pi 768 MB dengan Bun `--smol`), pemasang maksimal 1 GB (oh-my-pi 1,5 GB saat pemasangan; Windows Job Object dan Linux memantau grup proses), timeout dan pembatalan membunuh turunannya. Paket yang membutuhkan lebih banyak resource akan gagal dengan pesan yang terlihat. Cache pemasangan tetap tersimpan saat kembali ke Agen Mini, sehingga tidak perlu unduh ulang. Semua versi dan status terlihat dalam pengaturan. Data dan kredensial privat tidak dimasukkan source ZIP.
 
 ## Batas izin dan fitur
 

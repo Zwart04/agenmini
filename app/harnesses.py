@@ -244,7 +244,7 @@ async def install(hid):
             if stage.exists():shutil.rmtree(stage)
             owned(stage);env=environment(base,hid,dependencies=stage)
             async def checked(argv,timeout=900):
-                code,out,err=await process(argv,stage,env,timeout,memory_mb=1024)
+                code,out,err=await process(argv,stage,env,timeout,memory_mb=1536 if hid=='omp' else 1024)
                 if code:
                     text=err or out
                     if 'npm error' in text:text='\n'.join(l for l in text.splitlines() if 'npm error' in l)

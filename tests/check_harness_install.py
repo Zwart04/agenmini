@@ -4,6 +4,8 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 class RuntimeTempDirectory(tempfile.TemporaryDirectory):
     def cleanup(self):
+        if os.name=='nt' and not self.name.startswith('\\\\?\\'):
+            self.name='\\\\?\\'+os.path.abspath(self.name)
         # Windows may retain executable/scanner handles briefly after Job termination.
         # Retry only this freshly created test directory; never suppress a final failure.
         for attempt in range(16):
