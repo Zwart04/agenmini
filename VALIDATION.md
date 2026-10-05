@@ -1,4 +1,12 @@
-# Validasi Agen Mini 0.7.0
+# Validasi Agen Mini 0.8.0
+
+## Runtime asli
+
+Katalog menyediakan sembilan CLI upstream, diunduh hanya ketika dipilih. Workflow `harnesses.yml` memasang paket asli pada Linux dan Windows (18 kombinasi), menjalankan CLI dan memeriksa argumen headless. Uji Pi tambahan menjalankan alat `write` upstream dan memverifikasi berkas hasil serta lampiran unduhan; respons model pada uji tersebut berasal dari server fixture protokol, bukan model/provider nyata.
+
+45 tes terkait harness/profil/penjaga/frontend lulus di Windows lokal. Kasus mencakup isolasi environment, masking kunci, mode Kosong, penolakan fallback, pembatalan/timeout, manifest rusak, izin native serta pemilihan model per percakapan web/Telegram. Release memerlukan keberhasilan workflow aplikasi Linux, installer Windows nyata dan seluruh matriks runtime pada commit yang sama. Bukti aktual tersedia melalui badge dan riwayat Actions.
+
+Pemilih custom dan penjelasan runtime diperiksa pada desktop 1440 px dan mobile 390 px. Screenshot `runtime-desktop.jpg` dan `runtime-mobile.jpg` memakai data demo. Pengujian ini tidak menggunakan kredensial, akun provider atau VPS pengguna.
 
 ## Pemeriksaan
 
