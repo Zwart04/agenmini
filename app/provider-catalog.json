@@ -1,0 +1,900 @@
+[
+  {
+    "id": "agnes",
+    "name": "Agnes AI",
+    "category": "freeTier",
+    "alias": "agnes",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://agnes-ai.com",
+    "logo": "/static/providers/agnes.png"
+  },
+  {
+    "id": "atria",
+    "name": "Atria Dawn",
+    "category": "apikey",
+    "alias": "atria",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://atria-asi.ai",
+    "logo": "/static/providers/atria.png"
+  },
+  {
+    "id": "bai",
+    "name": "B.AI",
+    "category": "apikey",
+    "alias": "bai",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://b.ai",
+    "logo": "/static/providers/bai.png"
+  },
+  {
+    "id": "dahl",
+    "name": "Dahl Inference",
+    "category": "apikey",
+    "alias": "dahl",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://dahl.global",
+    "logo": "/static/providers/dahl.png"
+  },
+  {
+    "id": "tokenharbor",
+    "name": "Token Harbor",
+    "category": "apikey",
+    "alias": "tokenharbor",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://tokenharbor.ai",
+    "logo": "/static/providers/tokenharbor.png"
+  },
+  {
+    "id": "antigravity",
+    "name": "Antigravity",
+    "category": "oauth",
+    "alias": "ag",
+    "noAuth": false,
+    "website": "https://antigravity.google",
+    "logo": "/static/providers/antigravity.png"
+  },
+  {
+    "id": "claude",
+    "name": "Claude Code",
+    "category": "oauth",
+    "alias": "cc",
+    "noAuth": false,
+    "website": "https://claude.ai",
+    "logo": "/static/providers/claude.png"
+  },
+  {
+    "id": "cline",
+    "name": "Cline",
+    "category": "oauth",
+    "alias": "cl",
+    "noAuth": false,
+    "website": "https://cline.bot",
+    "logo": "/static/providers/cline.png"
+  },
+  {
+    "id": "clinepass",
+    "name": "ClinePass",
+    "category": "oauth",
+    "alias": "clinepass",
+    "authModes": [
+      "apikey",
+      "oauth"
+    ],
+    "noAuth": false,
+    "website": "https://cline.bot",
+    "logo": "/static/providers/clinepass.png"
+  },
+  {
+    "id": "codebuddy-intl",
+    "name": "CodeBuddy",
+    "category": "oauth",
+    "alias": "cbai",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "noAuth": false,
+    "website": "https://www.codebuddy.ai",
+    "logo": "/static/providers/codebuddy-intl.png"
+  },
+  {
+    "id": "codebuddy-cn",
+    "name": "CodeBuddy CN",
+    "category": "oauth",
+    "alias": "cbcn",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "noAuth": false,
+    "website": "https://copilot.tencent.com",
+    "logo": "/static/providers/codebuddy-cn.png"
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor IDE",
+    "category": "oauth",
+    "alias": "cu",
+    "noAuth": false,
+    "website": "https://cursor.com",
+    "logo": "/static/providers/cursor.png"
+  },
+  {
+    "id": "github",
+    "name": "GitHub Copilot",
+    "category": "oauth",
+    "alias": "gh",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://github.com/features/copilot",
+    "logo": "/static/providers/github.png"
+  },
+  {
+    "id": "gitlab",
+    "name": "GitLab Duo",
+    "category": "oauth",
+    "alias": "gitlab",
+    "noAuth": false,
+    "website": "https://gitlab.com",
+    "logo": "/static/providers/gitlab.png"
+  },
+  {
+    "id": "grok-cli",
+    "name": "Grok CLI (Grok Build)",
+    "category": "oauth",
+    "alias": "gcli",
+    "noAuth": false,
+    "website": "https://x.ai",
+    "logo": "/static/providers/grok-cli.png"
+  },
+  {
+    "id": "iflow",
+    "name": "iFlow AI",
+    "category": "oauth",
+    "alias": "if",
+    "noAuth": false,
+    "website": "https://iflow.cn",
+    "logo": "/static/providers/iflow.png"
+  },
+  {
+    "id": "kilocode",
+    "name": "Kilo Code",
+    "category": "oauth",
+    "alias": "kc",
+    "noAuth": false,
+    "website": "https://kilocode.ai",
+    "logo": "/static/providers/kilocode.png"
+  },
+  {
+    "id": "kimi",
+    "name": "Kimi",
+    "category": "oauth",
+    "alias": "kimi",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "noAuth": false,
+    "website": "https://kimi.moonshot.cn",
+    "logo": "/static/providers/kimi.png"
+  },
+  {
+    "id": "muse",
+    "name": "Muse (Meta Model API)",
+    "category": "oauth",
+    "alias": "muse",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://muse.ai",
+    "logo": ""
+  },
+  {
+    "id": "codex",
+    "name": "OpenAI Codex",
+    "category": "oauth",
+    "alias": "cx",
+    "noAuth": false,
+    "website": "https://chatgpt.com/codex",
+    "logo": "/static/providers/codex.png"
+  },
+  {
+    "id": "qoder-cn",
+    "name": "Qoder CN",
+    "category": "oauth",
+    "alias": "qdcn",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authHint": "Personal Access Token (pt-...) from https://qoder.com.cn/account/integrations",
+    "noAuth": false,
+    "website": "https://qoder.com.cn",
+    "logo": "/static/providers/qoder-cn.png"
+  },
+  {
+    "id": "qoder",
+    "name": "Qoder",
+    "category": "oauth",
+    "alias": "qd",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authHint": "Personal Access Token (pt-...) từ https://qoder.com/account/integrations",
+    "noAuth": false,
+    "website": "https://qoder.com",
+    "logo": "/static/providers/qoder.png"
+  },
+  {
+    "id": "xai",
+    "name": "xAI (Grok)",
+    "category": "oauth",
+    "alias": "xai",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "noAuth": false,
+    "website": "https://x.ai",
+    "logo": "/static/providers/xai.png"
+  },
+  {
+    "id": "xiaomi-mimo",
+    "name": "Xiaomi MiMo",
+    "category": "oauth",
+    "alias": "mimo",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://xiaomimimo.com",
+    "logo": "/static/providers/xiaomi-mimo.png"
+  },
+  {
+    "id": "zed",
+    "name": "Zed",
+    "category": "oauth",
+    "alias": "zd",
+    "authType": "oauth",
+    "noAuth": false,
+    "website": "https://zed.dev",
+    "logo": "/static/providers/zed.png"
+  },
+  {
+    "id": "freebuff",
+    "name": "Freebuff",
+    "category": "oauth",
+    "alias": "fb",
+    "noAuth": false,
+    "logo": "/static/providers/freebuff.png"
+  },
+  {
+    "id": "gemini-cli",
+    "name": "Gemini CLI",
+    "category": "free",
+    "alias": "gc",
+    "noAuth": false,
+    "website": "https://github.com/google-gemini/gemini-cli",
+    "logo": "/static/providers/gemini-cli.png"
+  },
+  {
+    "id": "kiro",
+    "name": "Kiro AI",
+    "category": "free",
+    "alias": "kr",
+    "noAuth": false,
+    "website": "https://kiro.dev",
+    "logo": "/static/providers/kiro.png"
+  },
+  {
+    "id": "mimo-free",
+    "name": "MiMo Code Free",
+    "category": "free",
+    "alias": "mmf",
+    "noAuth": true,
+    "logo": "/static/providers/mimo-free.png"
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode Free",
+    "category": "free",
+    "alias": "oc",
+    "noAuth": true,
+    "logo": "/static/providers/opencode.png"
+  },
+  {
+    "id": "api-airforce",
+    "name": "API.airforce",
+    "category": "freeTier",
+    "alias": "af",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://api.airforce",
+    "logo": "/static/providers/api-airforce.png"
+  },
+  {
+    "id": "bazaarlink",
+    "name": "Bazaarlink",
+    "category": "freeTier",
+    "alias": "bzl",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://bazaarlink.ai",
+    "logo": "/static/providers/bazaarlink.png"
+  },
+  {
+    "id": "byteplus",
+    "name": "BytePlus ModelArk",
+    "category": "freeTier",
+    "alias": "bpm",
+    "noAuth": false,
+    "website": "https://console.byteplus.com/ark",
+    "logo": "/static/providers/byteplus.png"
+  },
+  {
+    "id": "cloudflare-ai",
+    "name": "Cloudflare",
+    "category": "freeTier",
+    "alias": "cf",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://developers.cloudflare.com/workers-ai/",
+    "logo": "/static/providers/cloudflare-ai.png"
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini",
+    "category": "freeTier",
+    "alias": "gemini",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://ai.google.dev",
+    "logo": "/static/providers/gemini.png"
+  },
+  {
+    "id": "kilo-gateway",
+    "name": "Kilo Gateway",
+    "category": "freeTier",
+    "alias": "kgw",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://kilo.ai",
+    "logo": "/static/providers/kilo-gateway.png"
+  },
+  {
+    "id": "kimchi",
+    "name": "Kimchi",
+    "category": "freeTier",
+    "alias": "kimchi",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "noAuth": false,
+    "website": "https://kimchi.dev",
+    "logo": "/static/providers/kimchi.png"
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA NIM",
+    "category": "freeTier",
+    "alias": "nvidia",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://developer.nvidia.com/nim",
+    "logo": "/static/providers/nvidia.png"
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama Cloud",
+    "category": "freeTier",
+    "alias": "ollama",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://ollama.com",
+    "logo": "/static/providers/ollama.png"
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "category": "freeTier",
+    "alias": "openrouter",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://openrouter.ai",
+    "logo": "/static/providers/openrouter.png"
+  },
+  {
+    "id": "poolside",
+    "name": "Poolside",
+    "category": "freeTier",
+    "alias": "ps",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://poolside.ai",
+    "logo": "/static/providers/poolside.png"
+  },
+  {
+    "id": "vertex",
+    "name": "Vertex AI",
+    "category": "freeTier",
+    "alias": "vx",
+    "noAuth": false,
+    "website": "https://cloud.google.com/vertex-ai",
+    "logo": "/static/providers/vertex.png"
+  },
+  {
+    "id": "alicode",
+    "name": "Alibaba",
+    "category": "apikey",
+    "alias": "alicode",
+    "noAuth": false,
+    "website": "https://bailian.console.aliyun.com",
+    "logo": "/static/providers/alicode.png"
+  },
+  {
+    "id": "alicode-intl",
+    "name": "Alibaba Coding",
+    "category": "apikey",
+    "alias": "alicode-intl",
+    "noAuth": false,
+    "website": "https://www.alibabacloud.com/product/coding",
+    "logo": "/static/providers/alicode-intl.png"
+  },
+  {
+    "id": "alims-intl",
+    "name": "Alibaba Studio",
+    "category": "apikey",
+    "alias": "alims-intl",
+    "noAuth": false,
+    "website": "https://modelstudio.console.alibabacloud.com",
+    "logo": "/static/providers/alims-intl.png"
+  },
+  {
+    "id": "alitp-intl",
+    "name": "Alibaba Token Plan",
+    "category": "apikey",
+    "alias": "alitp-intl",
+    "noAuth": false,
+    "website": "https://www.alibabacloud.com/campaign/ai-landing-page-token",
+    "logo": "/static/providers/alitp-intl.png"
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "category": "apikey",
+    "alias": "anthropic",
+    "noAuth": false,
+    "website": "https://console.anthropic.com",
+    "logo": "/static/providers/anthropic.png"
+  },
+  {
+    "id": "azure",
+    "name": "Azure OpenAI",
+    "category": "apikey",
+    "alias": "azure",
+    "noAuth": false,
+    "website": "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
+    "logo": "/static/providers/azure.png"
+  },
+  {
+    "id": "baidu",
+    "name": "Baidu Qianfan",
+    "category": "apikey",
+    "alias": "qianfan",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://cloud.baidu.com/product/qianfan.html",
+    "logo": "/static/providers/baidu.png"
+  },
+  {
+    "id": "blackbox",
+    "name": "Blackbox AI",
+    "category": "apikey",
+    "alias": "bb",
+    "noAuth": false,
+    "website": "https://blackbox.ai",
+    "logo": "/static/providers/blackbox.png"
+  },
+  {
+    "id": "bluesminds",
+    "name": "BluesMinds",
+    "category": "apikey",
+    "alias": "bm",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://bluesminds.com",
+    "logo": "/static/providers/bluesminds.png"
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "category": "apikey",
+    "alias": "cerebras",
+    "noAuth": false,
+    "website": "https://www.cerebras.ai",
+    "logo": "/static/providers/cerebras.png"
+  },
+  {
+    "id": "chutes",
+    "name": "Chutes AI",
+    "category": "apikey",
+    "alias": "ch",
+    "noAuth": false,
+    "website": "https://chutes.ai",
+    "logo": "/static/providers/chutes.png"
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "category": "apikey",
+    "alias": "cohere",
+    "noAuth": false,
+    "website": "https://cohere.com",
+    "logo": "/static/providers/cohere.png"
+  },
+  {
+    "id": "commandcode",
+    "name": "Command Code",
+    "category": "apikey",
+    "alias": "cmc",
+    "noAuth": false,
+    "website": "https://commandcode.ai",
+    "logo": "/static/providers/commandcode.png"
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "category": "apikey",
+    "alias": "ds",
+    "noAuth": false,
+    "website": "https://deepseek.com",
+    "logo": "/static/providers/deepseek.png"
+  },
+  {
+    "id": "devin-cli",
+    "name": "Devin CLI",
+    "category": "free",
+    "alias": "devin-cli",
+    "authType": "none",
+    "noAuth": true,
+    "website": "https://devin.ai",
+    "logo": "/static/providers/devin-cli.png"
+  },
+  {
+    "id": "featherless",
+    "name": "Featherless",
+    "category": "apikey",
+    "alias": "fl",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://featherless.ai",
+    "logo": "/static/providers/featherless.png"
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks AI",
+    "category": "apikey",
+    "alias": "fireworks",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://fireworks.ai",
+    "logo": "/static/providers/fireworks.png"
+  },
+  {
+    "id": "glm-cn",
+    "name": "GLM (China)",
+    "category": "apikey",
+    "alias": "glm-cn",
+    "noAuth": false,
+    "website": "https://open.bigmodel.cn",
+    "logo": "/static/providers/glm-cn.png"
+  },
+  {
+    "id": "glm",
+    "name": "GLM Coding",
+    "category": "apikey",
+    "alias": "glm",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://open.bigmodel.cn",
+    "logo": "/static/providers/glm.png"
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "category": "apikey",
+    "alias": "groq",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://groq.com",
+    "logo": "/static/providers/groq.png"
+  },
+  {
+    "id": "hyperbolic",
+    "name": "Hyperbolic",
+    "category": "apikey",
+    "alias": "hyp",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://hyperbolic.xyz",
+    "logo": "/static/providers/hyperbolic.png"
+  },
+  {
+    "id": "kimi-coding",
+    "name": "kimi-coding",
+    "category": "oauth",
+    "alias": "kimi-coding",
+    "noAuth": false,
+    "logo": "/static/providers/kimi-coding.png"
+  },
+  {
+    "id": "llm7",
+    "name": "LLM7",
+    "category": "apikey",
+    "alias": "llm7",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://llm7.io",
+    "logo": "/static/providers/llm7.png"
+  },
+  {
+    "id": "minimax-cn",
+    "name": "Minimax (China)",
+    "category": "apikey",
+    "alias": "minimax-cn",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.minimaxi.com",
+    "logo": "/static/providers/minimax-cn.png"
+  },
+  {
+    "id": "minimax",
+    "name": "Minimax Coding",
+    "category": "apikey",
+    "alias": "minimax",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.minimaxi.com",
+    "logo": "/static/providers/minimax.png"
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "category": "apikey",
+    "alias": "mistral",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://mistral.ai",
+    "logo": "/static/providers/mistral.png"
+  },
+  {
+    "id": "morph",
+    "name": "Morph",
+    "category": "apikey",
+    "alias": "morph",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://morphllm.com",
+    "logo": "/static/providers/morph.png"
+  },
+  {
+    "id": "nebius",
+    "name": "Nebius AI",
+    "category": "apikey",
+    "alias": "nebius",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://nebius.com",
+    "logo": "/static/providers/nebius.png"
+  },
+  {
+    "id": "ollama-local",
+    "name": "Ollama Local",
+    "category": "apikey",
+    "alias": "ollama-local",
+    "noAuth": false,
+    "website": "https://ollama.com",
+    "logo": "/static/providers/ollama-local.png"
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "category": "apikey",
+    "alias": "openai",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://platform.openai.com",
+    "logo": "/static/providers/openai.png"
+  },
+  {
+    "id": "opencode-go",
+    "name": "OpenCode Go",
+    "category": "apikey",
+    "alias": "ocg",
+    "noAuth": false,
+    "website": "https://opencode.ai/auth",
+    "logo": "/static/providers/opencode-go.png"
+  },
+  {
+    "id": "opencode-zen",
+    "name": "OpenCode Zen",
+    "category": "apikey",
+    "alias": "ocz",
+    "noAuth": false,
+    "website": "https://opencode.ai/auth",
+    "logo": "/static/providers/opencode-zen.png"
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "category": "apikey",
+    "alias": "pplx",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.perplexity.ai",
+    "logo": "/static/providers/perplexity.png"
+  },
+  {
+    "id": "perplexity-agent",
+    "name": "Perplexity Agent",
+    "category": "apikey",
+    "alias": "pa",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.perplexity.ai",
+    "logo": "/static/providers/perplexity-agent.png"
+  },
+  {
+    "id": "sambanova",
+    "name": "SambaNova",
+    "category": "apikey",
+    "alias": "samba",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://sambanova.ai",
+    "logo": "/static/providers/sambanova.png"
+  },
+  {
+    "id": "siliconflow",
+    "name": "SiliconFlow",
+    "category": "apikey",
+    "alias": "siliconflow",
+    "noAuth": false,
+    "website": "https://cloud.siliconflow.com",
+    "logo": "/static/providers/siliconflow.png"
+  },
+  {
+    "id": "tencent",
+    "name": "Tencent Hunyuan",
+    "category": "apikey",
+    "alias": "hunyuan",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://cloud.tencent.com/product/hunyuan",
+    "logo": "/static/providers/tencent.png"
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "category": "apikey",
+    "alias": "together",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.together.ai",
+    "logo": "/static/providers/together.png"
+  },
+  {
+    "id": "tokenrouter",
+    "name": "TokenRouter",
+    "category": "apikey",
+    "alias": "tokenrouter",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://www.tokenrouter.com",
+    "logo": "/static/providers/tokenrouter.png"
+  },
+  {
+    "id": "trae",
+    "name": "trae",
+    "category": "oauth",
+    "alias": "trae",
+    "authType": "oauth",
+    "noAuth": false,
+    "website": "https://www.trae.ai",
+    "logo": "/static/providers/trae.png"
+  },
+  {
+    "id": "venice",
+    "name": "Venice AI",
+    "category": "apikey",
+    "alias": "venice",
+    "authType": "apikey",
+    "noAuth": false,
+    "website": "https://venice.ai",
+    "logo": "/static/providers/venice.png"
+  },
+  {
+    "id": "vercel-ai-gateway",
+    "name": "Vercel AI Gateway",
+    "category": "apikey",
+    "alias": "vercel",
+    "noAuth": false,
+    "website": "https://vercel.com/ai-gateway",
+    "logo": "/static/providers/vercel-ai-gateway.png"
+  },
+  {
+    "id": "vertex-partner",
+    "name": "Vertex Partner",
+    "category": "apikey",
+    "alias": "vxp",
+    "noAuth": false,
+    "website": "https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models",
+    "logo": "/static/providers/vertex-partner.png"
+  },
+  {
+    "id": "volcengine-ark",
+    "name": "Volcengine Ark",
+    "category": "apikey",
+    "alias": "ark",
+    "noAuth": false,
+    "website": "https://ark.cn-beijing.volces.com",
+    "logo": "/static/providers/volcengine-ark.png"
+  },
+  {
+    "id": "windsurf",
+    "name": "windsurf",
+    "category": "oauth",
+    "alias": "windsurf",
+    "authModes": [
+      "oauth",
+      "apikey"
+    ],
+    "authType": "oauth",
+    "noAuth": false,
+    "website": "https://windsurf.com",
+    "logo": "/static/providers/windsurf.png"
+  },
+  {
+    "id": "xiaomi-tokenplan",
+    "name": "Xiaomi MiMo (Token Plan)",
+    "category": "apikey",
+    "alias": "xmtp",
+    "noAuth": false,
+    "website": "https://mimo.xiaomi.com",
+    "logo": "/static/providers/xiaomi-tokenplan.png"
+  },
+  {
+    "id": "grok-web",
+    "name": "Grok Web (Subscription)",
+    "category": "webCookie",
+    "alias": "gw",
+    "authType": "cookie",
+    "authHint": "Paste your sso= cookie value from grok.com",
+    "noAuth": false,
+    "website": "https://grok.com",
+    "logo": "/static/providers/grok-web.png"
+  },
+  {
+    "id": "perplexity-web",
+    "name": "Perplexity Web (Pro/Max)",
+    "category": "webCookie",
+    "alias": "pw",
+    "authType": "cookie",
+    "authHint": "Paste your __Secure-next-auth.session-token cookie value from perplexity.ai",
+    "noAuth": false,
+    "website": "https://www.perplexity.ai",
+    "logo": "/static/providers/perplexity-web.png"
+  }
+]

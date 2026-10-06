@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-FILES = ["app", "frontend", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
+FILES = ["app", "frontend", "gateway", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
 DEFAULT_MODEL = "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"
 
 
@@ -18,7 +18,9 @@ def add(tar: tarfile.TarFile, path: Path, arc: str):
                 continue
             add(tar, p, f"{arc}/{p.name}")
         return
-    data = path.read_bytes().replace(b"\r\n", b"\n")
+    data = path.read_bytes()
+    if path.suffix.lower() in {".py", ".js", ".css", ".html", ".sh", ".json", ".yml", ".yaml", ".md", ".txt", ".go", ".mod", ".sum", ".lock", ".example"} or not path.suffix:
+        data = data.replace(b"\r\n", b"\n")
     info = tarfile.TarInfo(arc)
     info.size = len(data)
     info.mode = 0o755 if arc in ("agen", "agen-standalone") else 0o644

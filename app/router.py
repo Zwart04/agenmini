@@ -3,6 +3,7 @@ import asyncio
 import os
 import time
 import re
+import json
 import aiohttp
 from datetime import datetime
 import jwt
@@ -19,6 +20,44 @@ DEVICE_PROVIDERS = ['github', 'kiro', 'kimi', 'kilocode', 'codebuddy-cn', 'codeb
                     'qoder', 'qoder-cn', 'grok-cli', 'muse', 'glm']
 CODE_PROVIDERS = ['codex', 'claude', 'gemini-cli', 'antigravity', 'iflow']
 API_PROVIDERS = ['openai', 'anthropic', 'gemini', 'deepseek', 'openrouter', 'groq', 'mistral', 'xai']
+PROVIDER_CATALOG = json.loads(Path(__file__).with_name('provider-catalog.json').read_text(encoding='utf-8'))
+PROVIDER_ALIASES.update({p['id']:p.get('alias',p['id']) for p in PROVIDER_CATALOG})
+API_PROVIDERS = sorted(set(API_PROVIDERS) | {p['id'] for p in PROVIDER_CATALOG if p['category'] in ('apikey','freeTier') or 'apikey' in p.get('authModes',[]) or p.get('noAuth')})
+GO_DEVICE_PROVIDERS = [p for p in DEVICE_PROVIDERS if p != 'glm'] + ['kimi-coding']
+GO_CODE_ROUTES = {'codex':'pkce','claude':'pkce','xai':'pkce','gitlab':'pkce','gemini-cli':'authcode','iflow':'authcode','antigravity':'antigravity','cline':'cline','xiaomi-mimo':'xiaomi-mimo','trae':'trae','windsurf':'windsurf','zed':'zed','kimchi':'kimchi'}
+_engine_cache = None
+_engine_at = 0
+
+async def engine():
+    global _engine_cache, _engine_at
+    if _engine_cache is not None and time.monotonic()-_engine_at < 60: return _engine_cache
+    try: info = await request('GET','/api/version')
+    except llm.LLMError: info = {}
+    _engine_cache = 'go' if info.get('goVersion') or info.get('engine') == 'agenmini-gateway' else 'node'
+    _engine_at = time.monotonic()
+    return _engine_cache
+
+async def oauth_begin(provider, redirect):
+    kind=await engine()
+    device=provider in (GO_DEVICE_PROVIDERS if kind=='go' else DEVICE_PROVIDERS)
+    from urllib.parse import quote
+    if kind=='go':
+        if device: result=await request('POST','/api/oauth/device/start',{'provider':provider})
+        else:
+            route=GO_CODE_ROUTES.get(provider)
+            if not route: raise ValueError('Provider ini memerlukan metode login khusus; belum tersedia.')
+            result=await request('GET','/api/oauth/'+route+'/authorize?provider='+quote(provider,safe='')+'&redirect_uri='+quote(redirect,safe=''))
+    else:
+        result=await request('GET','/api/oauth/'+provider+('/device-code' if device else '/authorize?redirect_uri='+quote(redirect,safe='')))
+    return kind,device,result
+
+async def oauth_exchange(flow, payload):
+    provider=flow['provider']
+    if flow.get('engine')=='go':
+        if flow['device']:
+            return await request('POST','/api/oauth/device/poll',{'provider':provider,'device_code':flow['data'].get('device_code'),'session':flow['data'].get('session',{})})
+        return await request('POST','/api/oauth/'+GO_CODE_ROUTES[provider]+'/exchange',{'provider':provider,**payload})
+    return await request('POST','/api/oauth/'+provider+('/poll' if flow['device'] else '/exchange'),payload)
 
 
 def base():
@@ -97,11 +136,12 @@ async def keyless_models():
 
 async def state():
     await ensure_key()
-    providers, models, combos = await asyncio.gather(request('GET', '/api/providers'),
+    kind=await engine()
+    providers, models, combos = await asyncio.gather(request('GET', '/api/connections' if kind=='go' else '/api/providers'),
                         request('GET', '/api/models?connected=1'), request('GET', '/api/combos'))
     # Only expose safe fields; upstream fields can change between releases.
     connections=[]
-    for c in providers.get('connections',[]):
+    for c in (providers if isinstance(providers,list) else providers.get('connections',[])):
         row={k:c.get(k) for k in ('id','provider','name','email','isActive','testStatus','expiresAt')}
         error=str(c.get('lastError') or '')[:500]
         for key,value in c.items():
@@ -139,9 +179,12 @@ async def state():
             seen.add(key);unique.append(row)
     available=unique
     available += [{'id': c['name'], 'name': c['name'] + ' (fallback)'} for c in (combos if isinstance(combos,list) else combos.get('combos', []))]
+    kind=await engine()
     return {'connections': connections, 'models': available, 'active_model': db.setting('model'),
-            'device_providers': DEVICE_PROVIDERS, 'code_providers': CODE_PROVIDERS,
-            'api_providers': API_PROVIDERS, 'key_ready': True, 'model_note': 'Katalog provider terhubung; ketersediaan/kuota setiap model dibuktikan saat diuji.'}
+            'device_providers': GO_DEVICE_PROVIDERS if kind=='go' else DEVICE_PROVIDERS,
+            'code_providers': list(GO_CODE_ROUTES) if kind=='go' else CODE_PROVIDERS,
+            'api_providers': API_PROVIDERS, 'provider_catalog': PROVIDER_CATALOG, 'engine':kind,
+            'key_ready': True, 'model_note': 'Model berasal dari provider terhubung; kuota dibuktikan saat diuji.'}
 
 async def secure():
     """Enforce authentication on the owner-managed gateway, then provision its client key."""

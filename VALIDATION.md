@@ -1,4 +1,12 @@
-# Validasi Agen Mini 0.8.1
+# Validasi Agen Mini 0.9.0
+
+## Gateway koneksi
+
+Fork Go dijalankan sebagai proses nyata dengan direktori dan kredensial disposable. Pemeriksaan mencakup autentikasi admin/API, pembuatan key, daftar koneksi tanpa key privat, katalog model, awal PKCE, dan penolakan endpoint fitur yang dibuang. Tes bridge memeriksa session device login tetap di server dan akun API dibaca dari endpoint koneksi lengkap. Tes installer memastikan byte PNG logo tidak rusak oleh normalisasi baris.
+
+30 tes kontrol/bridge/frontend/arsip lulus di Windows lokal. Seluruh suite juga dicoba: 257 lulus, 10 gagal pada asumsi shell, izin POSIX, discovery atau supervisor Linux di Windows. Pemeriksaan Linux wajib menggunakan Actions sebelum publikasi. Keberhasilan fixture bukan bukti login atau kuota semua provider. Binary Windows diuji mandiri; pengelolaan gateway otomatis dari wizard Windows belum tersedia, gunakan endpoint gateway yang sudah berjalan.
+
+Gateway tidak menjalankan dashboard kedua, rute media, terminal, analitik, relay atau updater mandiri. Sumber upstream dan lisensi MIT disimpan pada gateway/UPSTREAM.json dan gateway/LICENSE. Harness CLI asli belum diubah menjadi SDK pada rilis ini.
 
 Setup tambahan diuji: Orchestrator awal, template bot idempotent tanpa menimpa persona pengguna, rekomendasi swap berdasarkan RAM fisik, permintaan host dengan pilihan tetap, validasi sandi dan pencabutan sesi, serta larangan menghapus bot utama. Workflow host menggunakan perintah swap/Docker yang dimock di container disposable; tidak mengaktifkan swap nyata pada host atau VPS pengguna. Browser memeriksa posisi notifikasi dan modal template di desktop/mobile. Hardware pada screenshot setup menggunakan fixture preview.
 

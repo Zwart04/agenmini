@@ -1,11 +1,11 @@
-# Agen Mini 0.8.1
+# Agen Mini 0.9.0
 
-Notifikasi custom berada di tengah viewport, termasuk ketika memakai Popover API. Lebar dan teks panjang dibatasi agar pesan tidak terpotong di sisi layar.
+Agen Mini Gateway adalah fork koneksi 9router-go berdasarkan 9router: OAuth, refresh, API key, model, streaming dan fallback berada dalam satu aplikasi. Dashboard kedua, media, terminal, analitik, relay dan updater router tidak dijalankan. Logo provider disimpan lokal dan dapat dicari di Pengaturan → Koneksi AI & model.
 
-Instalasi baru dimulai dengan Orchestrator. Template spesialis dapat dipilih pada setup atau Workspace → Tim bot → Template bot. Bot milik pengguna tidak ditimpa; template bot terpisah dari skill, ingatan dan MCP. Orchestrator dapat diedit tetapi tidak dihapus.
+Menu utama menjadi Chat, Tugas & Tim, Pengaturan. Proyek dan aktivitas digabung pada Tugas; biaya dan diskusi tim berada pada bagian lanjutan. FreeLLMAPI tidak ditawarkan pada instalasi baru; konfigurasi lama dipertahankan.
 
-Setup web menyediakan sandi baru opsional dengan konfirmasi; sesi lama dibatalkan setelah perubahan. Pemasang VPS menawarkan sandi otomatis/sendiri, swap 0/2/4/8 GB dan resource bawaan atau CLI asli. Rekomendasi swap memakai RAM fisik; swap yang sudah ada dipertahankan. Swap bukan tambahan RAM fisik atau cara memperbesar batas container.
+Pemasang Linux mengambil binary Go sesuai arsitektur dan memeriksa SHA256 sebelum build container. Compiler Go/Node tidak dipasang di VPS. Database gateway managed lama dibackup sebelum migrasi; akun laptop dan VPS pengguna tidak disentuh saat pengembangan.
 
-Saat pemasangan harness ditolak oleh batas container, tombol Siapkan RAM container & coba lagi meminta supervisor menaikkan batas menjadi 2 GB dan melanjutkan pemasangan setelah restart saat senggang. Memerlukan minimal 2,5 GB RAM fisik; tidak mengunduh bobot model. Batas lebih besar dan data/model/kredensial lama dipertahankan. Aplikasi tidak mendapat Docker socket atau akses root; permintaan host memakai pilihan tetap.
+Perbaikan bridge mencakup endpoint OAuth Go, status authorized, daftar koneksi API lengkap, session device privat, dan callback beberapa metode login. Arsip installer mempertahankan byte logo PNG.
 
-Linux diuji melalui GitHub Actions dengan uji aplikasi dan perintah host yang dimock dalam container disposable. Tidak mengakses VPS pengguna. Pengujian tidak memakai akun model pengguna atau membuktikan swapon nyata pada VPS tersebut.
+Pemeriksaan menggunakan binary gateway nyata dan kredensial fixture, bukan akun atau kuota provider pengguna. Gateway Windows tersedia sebagai binary mandiri; wizard Agen Mini Windows masih memakai endpoint gateway yang sudah berjalan. CLI harness asli belum diganti SDK. Hasil CI dan batas pengujian tersedia dalam VALIDATION.md.

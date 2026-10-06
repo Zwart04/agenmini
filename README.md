@@ -8,7 +8,13 @@
 
 Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
 
-**Versi stabil: 0.8.1.** Unduh pemasang dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+**Versi: 0.9.0.** Unduh pemasang yang telah lulus pemeriksaan dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+
+### Koneksi AI dalam satu aplikasi
+
+Agen Mini Gateway adalah fork koneksi dari [9router-go](https://github.com/luqman-v1/9router-go), berdasarkan [9router](https://github.com/decolua/9router). OAuth, refresh token, API key, daftar model, streaming dan fallback dipertahankan. Dashboard kedua, fitur media, terminal, analitik, relay dan updater router tidak dijalankan. Pilih **Pengaturan → Koneksi AI & model**, cari provider dengan logo aslinya, lalu login atau isi key.
+
+Gateway memakai binary Go; pemasang Linux mengambil binary sesuai arsitektur dan memeriksa SHA256. Tidak perlu memasang Node atau compiler Go untuk menjalankan gateway. Batas container gateway tetap 256 MB; pemakaian nyata bergantung provider dan jumlah permintaan. [Sumber dan lisensi fork](gateway/README.md). Akun dan kuota setiap provider tetap mengikuti layanannya.
 
 ## Tampilan baru
 
@@ -40,7 +46,7 @@ Pilih pada setup awal atau **Pengaturan → Umum → Harness**. Kosong dan Agen 
 
 Preview direkam dari aplikasi lokal dengan data demo terpisah; status model yang belum terhubung tetap terlihat. Bukan demonstrasi model menjawab atau bot bekerja.
 
-Empat menu utama dengan tab yang jelas. Workspace memisahkan kantor, proyek, aktivitas, tim, jadwal serta ide/biaya; desktop menampilkan studio, mobile memakai susunan karakter ringkas. Tema terang/gelap, navigasi keyboard, draft formulir dan indikator aktivitas tetap tersedia tanpa framework atau font eksternal.
+Tiga menu utama: **Chat, Tugas & Tim, Pengaturan**. Proyek dan aktivitas berada pada tab Tugas; biaya dan diskusi tim disimpan dalam bagian lanjutan. Desktop menampilkan studio, mobile memakai susunan karakter ringkas. Tema terang/gelap, navigasi keyboard, draft formulir dan indikator aktivitas tersedia tanpa framework atau font eksternal.
 
 ## Pilih pemasangan
 

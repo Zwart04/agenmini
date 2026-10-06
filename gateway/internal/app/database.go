@@ -1,0 +1,70 @@
+package app
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"go.uber.org/fx"
+
+	"9router/proxy/internal/config"
+	"9router/proxy/internal/db"
+)
+
+// DatabaseModule handles database initialization and provides *sql.DB and *db.Repo.
+var DatabaseModule = fx.Module("database",
+	fx.Provide(
+		ProvideDatabase,
+		ProvideRepo,
+	),
+)
+
+// ProvideDatabase initializes the global SQLite database and registers an OnStop lifecycle hook to close it cleanly.
+func ProvideDatabase(lc fx.Lifecycle, cfg *config.Config) (*sql.DB, error) {
+	if err := db.InitGlobalDatabase(cfg.DatabasePath); err != nil {
+		return nil, fmt.Errorf("database init: %w", err)
+	}
+
+	conn, err := db.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("database connect: %w", err)
+	}
+
+	// Upstream core schema bootstrap (fresh .9router): create the shared
+	// tables/indexes when absent, backfill missing columns, and seed the
+	// minimal rows. Idempotent — existing user data is never touched.
+	// Best-effort like leases below: a shared test binary may hand us a
+	// connection bound to a removed temp file (global singleton); a dead
+	// connection is a test artifact, not a production schema failure.
+	if err := db.EnsureCoreSchema(conn); err != nil {
+		_, statErr := conn.Exec("SELECT 1")
+		if statErr == nil {
+			return nil, fmt.Errorf("database schema: %w", err)
+		}
+	}
+
+	// Cross-process lease table for upstream coordination (Freebuff
+	// sessions, future scopes). Idempotent: no-op when already present,
+	// invisible to dashboards that do not know the table. Best-effort:
+	// a shared test binary may hand us a connection bound to a removed
+	// temp file (global singleton); leases then simply stay unavailable.
+	if err := db.EnsureUpstreamLeases(conn); err != nil {
+		_, statErr := conn.Exec("SELECT 1")
+		if statErr == nil {
+			return nil, fmt.Errorf("database leases: %w", err)
+		}
+	}
+
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return conn.Close()
+		},
+	})
+
+	return conn, nil
+}
+
+// ProvideRepo provides *db.Repo using the database connection.
+func ProvideRepo(conn *sql.DB) *db.Repo {
+	return db.NewRepo(conn)
+}

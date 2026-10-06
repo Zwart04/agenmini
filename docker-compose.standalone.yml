@@ -16,7 +16,10 @@ services:
       options: {max-size: "10m", max-file: "3"}
   router:
     profiles: [router]
-    image: ${NINE_ROUTER_IMAGE:-luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba}
+    image: ${NINE_ROUTER_IMAGE:-agenmini-gateway:local}
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile.runtime
     restart: unless-stopped
     ports: ["127.0.0.1:20128:20128"]
     volumes: ["router-data:/app/data"]

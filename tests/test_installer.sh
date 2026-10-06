@@ -72,11 +72,12 @@ for caller in /opt/agenmini/agen-supervisor.sh /usr/local/bin/agen; do
   grep -q TERPASANG /tmp/live-update-output
   grep -q keep-me /opt/agenmini/data/marker
 done
-# Fresh FreeLLMAPI setup must not start 9router. Isolated fixture only.
+# Legacy fresh FreeLLMAPI choice maps to the single connection gateway.
 rm -rf /opt/agenmini
 : > /tmp/docker-calls
 AGEN_AI_PROFILE=free bash /src/dist/pasang-vps.sh > /tmp/free-install-output
-grep -q 'LLM_BACKEND=freellmapi' /opt/agenmini/.env
+grep -q 'LLM_BACKEND=router' /opt/agenmini/.env
+grep -q 'NINE_ROUTER_IMAGE=agenmini-gateway:local' /opt/agenmini/.env
 # Mock plan controls runtime independently of the fresh env.
 ! grep -q 'profile router up -d --build' /tmp/docker-calls
 rm -rf /opt/agenmini

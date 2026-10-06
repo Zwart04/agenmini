@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/luqman-v1/9router-go",
+  "commit": "fd6633e412d465f2e67383abe7c25a4b1f0a8092",
+  "based_on": "https://github.com/decolua/9router",
+  "changes": "Connection and LLM gateway only; no dashboard, media, relay deployment, analytics, self-update or terminal routes."
+}

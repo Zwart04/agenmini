@@ -100,8 +100,7 @@ if [[ ! -f "$DIR/.env" ]]; then
   case "$PROFILE" in
     1|local) PROFILE=local; BACKEND=local; INITIAL_MODEL=local ;;
     2|router) PROFILE=router; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;
-    3|free|freellmapi) PROFILE=free; BACKEND=freellmapi; INITIAL_MODEL=auto:smart ;;
-    4|both) PROFILE=both; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;
+    3|free|freellmapi|4|both) PROFILE=router; BACKEND=router; INITIAL_MODEL=pilih-model-di-9router ;;
     5|online) PROFILE=online; BACKEND=online; INITIAL_MODEL=online ;;
     *) fail "Pilihan tidak valid: local/router/free/both/online." ;;
   esac
@@ -148,7 +147,7 @@ CHROMIUM=0
 AGEN_AI_PROFILE=$PROFILE
 AGEN_MEM_LIMIT=$APP_LIMIT
 ROUTER_MEM_LIMIT=256m
-NINE_ROUTER_IMAGE=luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba
+NINE_ROUTER_IMAGE=agenmini-gateway:local
 EOF
   chmod 600 "$DIR/.env"
 else
@@ -167,9 +166,9 @@ if ! grep -q '^ROUTER_JWT_SECRET=.' "$DIR/.env"; then
   printf '\nROUTER_JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$DIR/.env"
 fi
 # Migrate only the previously managed upstream image. Preserve custom images.
-if [[ $(get_env NINE_ROUTER_IMAGE) == decolua/9router:* || $(get_env NINE_ROUTER_IMAGE) == decolua/9router@* ]]; then
+if [[ $(get_env NINE_ROUTER_IMAGE) == decolua/9router:* || $(get_env NINE_ROUTER_IMAGE) == decolua/9router@* || $(get_env NINE_ROUTER_IMAGE) == luqmenul/9router-go:* || $(get_env NINE_ROUTER_IMAGE) == luqmenul/9router-go@* ]]; then
   python3 "$DIR/router-backup.py" "$DIR/data/backup" || fail "Backup database router gagal; migrasi dibatalkan."
-  sed -i 's|^NINE_ROUTER_IMAGE=.*|NINE_ROUTER_IMAGE=luqmenul/9router-go@sha256:d3b16a02af319a413f84e7911a7be92e74bda4cde78e5a34f05c35713ae5efba|' "$DIR/.env"
+  sed -i 's|^NINE_ROUTER_IMAGE=.*|NINE_ROUTER_IMAGE=agenmini-gateway:local|' "$DIR/.env"
   sed -i 's|^ROUTER_MEM_LIMIT=768m$|ROUTER_MEM_LIMIT=256m|' "$DIR/.env"
 fi
 # Optional FreeLLMAPI uses an internal account, never a public setup page.
@@ -182,6 +181,22 @@ mkdir -p "$DIR/data"
 chmod 600 "$DIR/.env"
 step "4/5 Membangun dan menyalakan"
 cd "$DIR"
+if [[ $(get_env NINE_ROUTER_IMAGE) == agenmini-gateway:local ]]; then
+  mkdir -p gateway/bin
+  if [[ "${AGEN_INSTALLER_TEST_CONTAINER:-}" == 1 && -f /.dockerenv ]]; then
+    printf 'disposable installer fixture\n' > gateway/bin/agenmini-gateway
+  else
+    case "$(uname -m)" in x86_64) GATEWAY_ARCH=amd64 ;; aarch64|arm64) GATEWAY_ARCH=arm64 ;; *) fail 'Arsitektur gateway tidak didukung.' ;; esac
+    GATEWAY_ASSET="agenmini-gateway-linux-$GATEWAY_ARCH"
+    GATEWAY_RELEASE="https://github.com/Zwart04/agenmini/releases/download/v__VERSI__"
+    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET" -o "gateway/bin/$GATEWAY_ASSET"
+    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET.sha256" -o "gateway/bin/$GATEWAY_ASSET.sha256"
+    (cd gateway/bin && sha256sum -c "$GATEWAY_ASSET.sha256") || fail 'Checksum gateway gagal; tidak dijalankan.'
+    mv "gateway/bin/$GATEWAY_ASSET" gateway/bin/agenmini-gateway
+    chmod 755 gateway/bin/agenmini-gateway
+  fi
+  docker compose -f docker-compose.standalone.yml --profile router build router
+fi
 rm -f data/maintenance
 docker compose -f docker-compose.standalone.yml --profile router config --quiet
 docker compose -f docker-compose.standalone.yml up -d --build agen

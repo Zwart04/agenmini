@@ -341,7 +341,12 @@ async def add_provider(request):
     data = await request.json()
     if data.get('provider') not in router.API_PROVIDERS:
         raise ValueError('Provider API tidak dikenal.')
-    result = await router.request('POST', '/api/providers', {k: data[k] for k in ('provider', 'apiKey', 'name') if k in data})
+    payload={k: data[k] for k in ('provider', 'apiKey', 'name') if k in data}
+    keyless = any(p['id']==data['provider'] and p.get('noAuth') for p in router.PROVIDER_CATALOG)
+    if not keyless and (not isinstance(payload.get('apiKey'),str) or not payload['apiKey'].strip()): raise ValueError('Isi API key provider.')
+    if keyless: payload['apiKey']=''
+    payload['authType']='apikey'
+    result = await router.request('POST', '/api/connections' if await router.engine()=='go' else '/api/providers', payload)
     return web.json_response({'ok': True})
 
 
@@ -380,7 +385,7 @@ async def combo(request):
 async def oauth_start(request):
     data = await request.json()
     provider = data.get('provider')
-    if provider not in router.DEVICE_PROVIDERS + router.CODE_PROVIDERS:
+    if provider not in router.DEVICE_PROVIDERS + router.CODE_PROVIDERS + router.GO_DEVICE_PROVIDERS + list(router.GO_CODE_ROUTES):
         raise ValueError('Provider OAuth tidak didukung menu ini.')
     # Bound pending sessions and discard expired secrets.
     for key in list(_oauth):
@@ -390,14 +395,12 @@ async def oauth_start(request):
         raise ValueError('Terlalu banyak login tertunda.')
     flow_id = secrets.token_urlsafe(24)
     redirect = data.get('redirect_uri') or ('http://localhost:1455/auth/callback' if provider == 'codex' else 'http://localhost:8080/callback')
-    device = provider in router.DEVICE_PROVIDERS
-    path = '/api/oauth/' + provider + ('/device-code' if device else '/authorize?redirect_uri=' + quote(redirect, safe=''))
-    result = await router.request('GET', path)
-    _oauth[flow_id] = {'provider': provider, 'device': device, 'data': result, 'redirect': redirect,
-                       'owner': request.cookies.get('agen_sesi'), 'expires': time.time() + min(int(result.get('expires_in', 600)), 900)}
+    kind,device,result = await router.oauth_begin(provider,redirect)
+    _oauth[flow_id] = {'provider': provider, 'device': device, 'engine':kind, 'data': result, 'redirect': result.get('redirectUri') or redirect,
+                       'owner': request.cookies.get('agen_sesi'), 'expires': time.time() + max(1, min(int(result.get('expires_in') or 600), 900))}
     return web.json_response({'flow': flow_id, 'device': device, 'user_code': result.get('user_code'),
         'url': result.get('verification_uri_complete') or result.get('verification_uri') or result.get('authUrl'),
-        'interval': max(5, int(result.get('interval', 5)))})
+        'interval': max(5, int(result.get('interval') or 5))})
 
 
 @routes.post('/api/router/oauth/{flow}')
@@ -416,15 +419,23 @@ async def oauth_finish(request):
         pasted = str(body.get('callback', '')).strip()
         if not pasted.startswith(('http://', 'https://')):
             raise ValueError('Tempel URL callback lengkap agar state OAuth bisa diverifikasi.')
-        query = parse_qs(urlparse(pasted).query)
-        if query.get('state', [''])[0] != original.get('state'):
+        parsed = urlparse(pasted)
+        query = parse_qs(parsed.query or parsed.fragment)
+        encrypted = flow['engine']=='go' and flow['provider'] in ('zed','xiaomi-mimo') and original.get('codeVerifier')
+        if not encrypted and (not original.get('state') or query.get('state', [''])[0] != original.get('state')):
             raise ValueError('State OAuth tidak sesuai; jangan gunakan callback dari login lain.')
         payload = {'code': query.get('code', [''])[0], 'state': original.get('state'),
                    'redirectUri': flow['redirect'], 'codeVerifier': original.get('codeVerifier')}
+        if flow['engine']=='go' and flow['provider'] in ('windsurf','trae','zed','xiaomi-mimo'):
+            payload['code'] = pasted
+        if flow['provider']=='kimchi':
+            payload['code'] = query.get('token', query.get('access_token', [payload['code']]))[0]
+        if flow['provider']=='zed': payload['systemId'] = original.get('systemId')
+        if not payload['code']: raise ValueError('Callback tidak berisi kode login; mulai login lagi.')
         action = 'exchange'
-    result = await router.request('POST', f'/api/oauth/{flow["provider"]}/{action}', payload)
-    success = bool(result.get('success') or result.get('connection'))
-    pending = bool(result.get('pending'))
+    result = await router.oauth_exchange(flow,payload)
+    success = bool(result.get('success') or result.get('connection') or result.get('status')=='authorized')
+    pending = bool(result.get('pending') or result.get('status')=='pending')
     if result.get('error') == 'slow_down':
         flow['interval'] = min(flow.get('interval', 5) + 5, 30)
     if success:

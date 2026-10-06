@@ -25,6 +25,7 @@ jobs:
             gh run watch "$run_id" --exit-status
             test "$(gh run view "$run_id" --json conclusion --jq .conclusion)" = success
             if test "$workflow" = windows.yml; then echo "WINDOWS_RUN=$run_id" >> "$GITHUB_ENV"; fi
+            if test "$workflow" = test.yml; then echo "TEST_RUN=$run_id" >> "$GITHUB_ENV"; fi
           done
       - name: Build source and VPS assets and obtain tested Windows installer
         shell: bash
@@ -32,6 +33,7 @@ jobs:
           set -euo pipefail
           python3 build_release.py
           gh run download "$WINDOWS_RUN" --name windows-installer --dir dist
+          gh run download "$TEST_RUN" --name gateway-binaries --dir dist
           python3 - <<'PY'
           import hashlib,re,zipfile
           from pathlib import Path
@@ -50,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           tag=$(cat release-tag.txt)
-          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/agenmini-frontend.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/agenmini-frontend.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 dist/agenmini-gateway-* --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
           gh release edit "$tag" --draft=false
           mkdir public-verification
           python3 - <<'PY'

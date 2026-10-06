@@ -12,3 +12,5 @@ dist/
 
 windows/payload/
 windows/node-download/
+gateway-dist/
+gateway/bin/

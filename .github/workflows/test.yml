@@ -8,6 +8,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: gateway/go.sum
+      - name: Build and exercise connection-only gateway
+        run: |
+          mkdir -p gateway-dist
+          cd gateway
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../gateway-dist/agenmini-gateway-linux-amd64 ./cmd/agenmini-gateway
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../gateway-dist/agenmini-gateway-linux-arm64 ./cmd/agenmini-gateway
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../gateway-dist/agenmini-gateway-windows-amd64.exe ./cmd/agenmini-gateway
+          cd ..
+          pip install PyJWT
+          python tests/check_gateway.py gateway-dist/agenmini-gateway-linux-amd64
+          cd gateway-dist
+          for asset in agenmini-gateway-*; do sha256sum "$asset" > "$asset.sha256"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gateway-binaries
+          path: gateway-dist/*
       - run: docker build --build-arg CHROMIUM=0 -t agenmini-ci .
       # Linux RLIMIT_NPROC counts the UID across the host, including the runner.
       # Keep the sandbox UID separate from the GitHub runner's usual UID 1001.

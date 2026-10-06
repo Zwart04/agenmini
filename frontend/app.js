@@ -123,9 +123,9 @@ $('#loginForm').onsubmit = async e => {
 const pageSections={bots:'office',jobs:'office',projects:'office',activity:'office',insights:'office',integrations:'ai',mcp:'ai',skills:'settings',memory:'settings',updates:'settings',models:'settings'};
 function go(requested) {
   const v=pageSections[requested]||requested;
-  S.view=v;$('#mobileTitle').textContent=({office:'Workspace',ai:'Koneksi',settings:'Pengaturan'}[v]||'Chat');$('#mobileTitle').classList.toggle('hidden',v==='chat');
+  S.view=v;$('#mobileTitle').textContent=({office:'Tugas & Tim',ai:'Koneksi AI',settings:'Pengaturan'}[v]||'Chat');$('#mobileTitle').classList.toggle('hidden',v==='chat');
   ['botSelect','histBtn2','newChat2'].forEach(id=>$('#'+id).classList.toggle('hidden',v!=='chat'));
-  $$('#nav .item').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $$('#nav .item').forEach(b=>b.classList.toggle('on',b.dataset.v===(v==='ai'?'settings':v)));
   $$('.view').forEach(x=>x.classList.toggle('hidden',x.id!=='v-'+v));closeMenu();
   const loaders={office:[loadOffice,loadBots,loadJobs],ai:[loadAI,loadMCP],settings:[loadSettings,loadSkills,loadMem,loadUpdates,loadModels]};
   for(const load of loaders[v]||[])load()?.catch(sayError);

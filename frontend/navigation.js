@@ -1,6 +1,6 @@
 /* Move nodes once; tab changes preserve forms and live activity. */
 const pageTabs={
- office:[['office','Kantor'],['projects','Proyek'],['activity','Aktivitas'],['insights','Ide & biaya'],['bots','Tim bot'],['jobs','Jadwal']],
+ office:[['office','Kantor'],['projects','Tugas'],['bots','Tim bot'],['jobs','Jadwal']],
  ai:[['ai','AI & model'],['integrations','Akun layanan'],['mcp','MCP']],
  settings:[['settings','Umum'],['skills','Skill'],['memory','Ingatan'],['updates','Update'],['models','Diagnostik']],
 };
@@ -28,6 +28,10 @@ for(const [parent,tabs] of Object.entries(pageTabs)) {
    }
   }
   [...original.querySelectorAll(':scope > [data-section]')].filter(n=>!n.querySelector('form')).forEach(n=>n.remove());
+  const tasks=target.querySelector('#panel-projects');
+  while(target.querySelector('#panel-activity').firstChild)tasks.append(target.querySelector('#panel-activity').firstChild);
+  const advanced=document.createElement('details');advanced.className='preference-detail';const summary=document.createElement('summary');summary.textContent='Biaya & diskusi tim (lanjutan)';advanced.append(summary);
+  while(target.querySelector('#panel-insights').firstChild)advanced.append(target.querySelector('#panel-insights').firstChild);tasks.append(advanced);
  }
  for(const [child,owner] of Object.entries(pageSections))if(owner===parent) {
   const source=$('#v-'+child+' .page-in');if(!source)continue;source.querySelectorAll('.section-tabs').forEach(n=>n.remove());
@@ -45,6 +49,7 @@ for(const [parent,tabs] of Object.entries(pageTabs)) {
  });
  original.before(nav);selectPageTab(parent,parent,false);
 }
+const connectionShortcut=document.createElement('button');connectionShortcut.type='button';connectionShortcut.className='btn pri';connectionShortcut.textContent='Koneksi AI & model';connectionShortcut.onclick=()=>go('ai');$('#panel-settings').prepend(connectionShortcut);
 // Advanced preferences are reachable without filling the first screen with forms.
 for(const group of [...$('#setForm').children]) {
  const heading=group.querySelector(':scope > h4');
@@ -54,6 +59,7 @@ for(const group of [...$('#setForm').children]) {
  while(group.firstChild)details.append(group.firstChild);group.replaceWith(details);
 }
 function selectPageTab(parent,requested,restore=true) {
+ if(parent==='office'&&['activity','insights'].includes(requested))requested='projects';
  const tabs=pageTabs[parent];if(!tabs)return;
  const page=$('#v-'+parent+' .page'),previous=selectedPageTabs[parent];
  if(previous&&restore)panelScroll.set(previous,page.scrollTop);

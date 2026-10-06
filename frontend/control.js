@@ -94,8 +94,11 @@ async function loadAI(){
     $('#routerConnections').innerHTML=d.connections.map(c=>`<div class="r"><div class="grow"><b>${esc(c.name||c.provider)}</b><div class="sub">${esc(c.email||c.provider)} · ${esc(c.testStatus||'terhubung')}</div>${c.lastError?`<section data-section><h4>Lihat kendala provider</h4><p class="hint">${esc(c.lastError)}</p></section>`:''}</div><button class="btn sm" data-remove-provider="${esc(c.id)}">Hapus</button></div>`).join('')||empty('Belum ada provider. Tambahkan API key atau login OAuth di bawah.');
     $$('[data-remove-provider]').forEach(x=>x.onclick=async()=>{if(await uiConfirm('Hapus koneksi provider ini?')){try{await api('/api/router/provider/'+encodeURIComponent(x.dataset.removeProvider),{method:'DELETE'});loadAI()}catch(e){sayError(e)}}});
  syncOptions($('#routerModel'),d.models.map(m=>({value:m.id,label:(m.name||m.id)+' · '+m.id})),d.active_model);
- syncOptions($('#oauthProvider'),d.device_providers.concat(d.code_providers).map(p=>({value:p,label:p})),'');
- syncOptions($('#apiProvider'),d.api_providers.map(p=>({value:p,label:p})),'');
+ window.providerCatalog=d.provider_catalog||[];
+ const providerChoice=p=>({value:p,label:providerCatalog.find(x=>x.id===p)?.name||p});
+ syncOptions($('#oauthProvider'),d.device_providers.concat(d.code_providers).map(providerChoice),'');
+ syncOptions($('#apiProvider'),d.api_providers.map(providerChoice),'');
+ if(window.renderProviderCards)renderProviderCards(d);
   }catch(e){$('#routerStatus').textContent=e.message}
   if(S.view==='ai'&&!document.hidden)aiTimer=setTimeout(()=>loadAI().catch(sayError),5000);
 }
