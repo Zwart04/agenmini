@@ -194,8 +194,8 @@
     ],
     "authType": "apikey",
     "noAuth": false,
-    "website": "https://muse.ai",
-    "logo": ""
+    "website": "https://www.meta.ai/",
+    "logo": "/static/providers/muse.png"
   },
   {
     "id": "codex",
