@@ -22,8 +22,8 @@ CODE_PROVIDERS = ['codex', 'claude', 'gemini-cli', 'antigravity', 'iflow']
 API_PROVIDERS = ['openai', 'anthropic', 'gemini', 'deepseek', 'openrouter', 'groq', 'mistral', 'xai']
 PROVIDER_CATALOG = json.loads(Path(__file__).with_name('provider-catalog.json').read_text(encoding='utf-8'))
 PROVIDER_ALIASES.update({p['id']:p.get('alias',p['id']) for p in PROVIDER_CATALOG})
-API_PROVIDERS = sorted(set(API_PROVIDERS) | {p['id'] for p in PROVIDER_CATALOG if p['category'] in ('apikey','freeTier') or 'apikey' in p.get('authModes',[]) or p.get('noAuth')})
-GO_DEVICE_PROVIDERS = [p for p in DEVICE_PROVIDERS if p != 'glm'] + ['kimi-coding']
+API_PROVIDERS = sorted(set(API_PROVIDERS) | {p['id'] for p in PROVIDER_CATALOG if p['category'] in ('apikey','freeTier','webCookie') or p['id']=='cursor' or 'apikey' in p.get('authModes',[]) or p.get('noAuth')})
+GO_DEVICE_PROVIDERS = [p for p in DEVICE_PROVIDERS if p != 'glm'] + ['kimi-coding','freebuff']
 GO_CODE_ROUTES = {'codex':'pkce','claude':'pkce','xai':'pkce','gitlab':'pkce','gemini-cli':'authcode','iflow':'authcode','antigravity':'antigravity','cline':'cline','xiaomi-mimo':'xiaomi-mimo','trae':'trae','windsurf':'windsurf','zed':'zed','kimchi':'kimchi'}
 _engine_cache = None
 _engine_at = 0
@@ -42,7 +42,8 @@ async def oauth_begin(provider, redirect):
     device=provider in (GO_DEVICE_PROVIDERS if kind=='go' else DEVICE_PROVIDERS)
     from urllib.parse import quote
     if kind=='go':
-        if device: result=await request('POST','/api/oauth/device/start',{'provider':provider})
+        if provider=='freebuff': result=await request('POST','/api/oauth/freebuff/initiate',{})
+        elif device: result=await request('POST','/api/oauth/device/start',{'provider':provider})
         else:
             route=GO_CODE_ROUTES.get(provider)
             if not route: raise ValueError('Provider ini memerlukan metode login khusus; belum tersedia.')
@@ -54,6 +55,8 @@ async def oauth_begin(provider, redirect):
 async def oauth_exchange(flow, payload):
     provider=flow['provider']
     if flow.get('engine')=='go':
+        if provider=='freebuff':
+            return await request('POST','/api/oauth/freebuff/poll',{k:flow['data'].get(k) for k in ('fingerprintId','fingerprintHash','expiresAt')})
         if flow['device']:
             return await request('POST','/api/oauth/device/poll',{'provider':provider,'device_code':flow['data'].get('device_code'),'session':flow['data'].get('session',{})})
         return await request('POST','/api/oauth/'+GO_CODE_ROUTES[provider]+'/exchange',{'provider':provider,**payload})

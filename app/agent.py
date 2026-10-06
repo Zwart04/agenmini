@@ -81,7 +81,7 @@ INTENTS = [
     ("web_search", r"\b(harga|kurs|nilai tukar|cuaca|berita|kabar|terbaru|terkini|jadwal (kereta|krl|kapal|pesawat|sholat|bola)|"
                    r"skor|klasemen|promo|lowongan|trending|viral|resep)\b",
      "Ini butuh data terkini: panggil web_search dulu, jangan menjawab dari ingatan."),
-    ("run_python", r"\b(hitung(kan|lah)?|kalkulasi|cicilan|angsuran|bunga|persen|diskon)\b|\d[\d.,]*\s*[x×*/]\s*\d",
+    ("run_python", r"\b(hitung(kan|lah)?|kalkulasi|cicilan|angsuran|bunga|persen|diskon)\b|\d[\d.,]*\s*(?:[x×*/+−-]|dikali|kali|dibagi|ditambah|dikurangi|multiplied by|times|divided by)\s*\d",
      "Ada hitungan: kerjakan dengan run_python dan print hasilnya, jangan menghitung di kepala."),
     ("run_python", r"\b(grafik|chart|diagram|plot|infografis)\b",
      "Ini permintaan grafik: buat dengan run_python (matplotlib), simpan sebagai .png; berkasnya otomatis dikirim."),
@@ -90,8 +90,10 @@ INTENTS = [
     ("schedule", r"\b(ingatkan|reminder|jadwalkan|(setiap|tiap) (hari|pagi|siang|sore|malam|minggu|bulan|jam))\b",
      "Ini permintaan pengingat/jadwal: pakai schedule dengan waktu pasti (YYYY-MM-DD HH:MM)."),
     ('build_website', r'\b(buat(?:kan|in)?|bikin(?:kan)?|desain|create|build)\b.{0,80}\b(website|landing\s?page|halaman\s+(web|html)|situs\s+web)\b', 'Buat HTML dengan build_website berisi brief singkat. Alat menyimpan, memeriksa dan mengirim berkas otomatis.'),
-    ("write_file", r"\b(simpan|save)\b.{0,40}\b(berkas|file|\.txt|\.md|\.csv)",
+    ("write_file", r"\b(simpan|save|buat(?:kan)?|create)\b.{0,40}\b(berkas|file|\.txt|\.md|\.csv)",
      "Setelah informasinya didapat, simpan dengan write_file."),
+    ("read_file", r"\bbaca\s+ulang\b|\b(?:baca|read)\b.{0,30}\b(?:berkas|file)\b",
+     "Pengguna meminta membaca berkas: pakai read_file pada berkas yang benar-benar ada; jika baru dibuat, baca setelah menyimpan."),
     ("create_bot", r"\bbuat(kan|in)? (sebuah |satu )?bot\b", "Ini permintaan membuat bot: pakai create_bot."),
     ("generate_image", r"\b(buat(kan|in)?|bikin(kan)?|gambar(kan|in)|lukis(kan)?|desain(kan)?|generate)\b.{0,30}"
                        r"\b(gambar|foto|ilustrasi|poster|logo|lukisan|wallpaper|image|picture)\b",
@@ -457,8 +459,80 @@ class Turn:
         if getattr(self,'review_only',False):
             msgs[0]['content']+='\nReview only the supplied work and actual files. Do not perform web research or unrelated tasks. If no files require tools, a reasoned textual review is sufficient.'
         from . import coding, office
-        if profiles.assisted() and bot['id']=='orchestrator' and 'delegate_task' in bot.get('tools',[]) and not getattr(self,'delegated',False) and not extra_msgs and (not is_light(text,bot.get('tools',[])) or re.search(r'^\s*lanjut',text,re.I)):
-            from . import workflow
+        arithmetic=list(re.finditer(r'(?<![\w.])(\d+(?:\.\d+)?)\s*(dikali|kali|dibagi|ditambah|dikurangi|times|[×*/+−-])\s*(\d+(?:\.\d+)?)(?![\w]|\.\d)',text,re.I))
+        chained=bool(arithmetic and (re.search(r'[+*/×−-]\s*$',text[:arithmetic[0].start()]) or re.match(r'\s*(?:[+*/×−-]|dikali|kali|dibagi|ditambah|dikurangi)\s*\d',text[arithmetic[0].end():],re.I)))
+        if profiles.assisted() and llm.active_backend()=='local' and len(arithmetic)==1 and not chained and 'run_python' in bot['tools'] and not extra_msgs and not re.search(r'\b(file|berkas|fungsi|function|kode python|program)\b',text,re.I):
+            a,op,b=arithmetic[0].groups();op={'dikali':'*','kali':'*','times':'*','×':'*','dibagi':'/','ditambah':'+','dikurangi':'-','−':'-'}.get(op.lower(),op)
+            if len(a)+len(b)<=32:
+                await self.on_event('status','Memeriksa hitungan dengan Python…')
+                calculation=await tools.run_python(ctx,code='print('+a+op+b+')')
+                reply=await llm.chat([{'role':'system','content':'Jawab SATU baris dalam bahasa Indonesia, tanpa salam. Sertakan kode acuan yang diminta pengguna dan hasil Python yang benar. Jangan menghitung ulang, mengubah angka atau mengarang satuan.'},{'role':'user','content':text+'\nActual Python calculation '+a+op+b+':\n'+calculation}],max_tokens=160)
+                answer=reply['content'];value=calculation.splitlines()[-1]
+                ok=calculation.startswith('[kode keluar 0]') and value in answer
+                reference=re.search(r'\bkode\s+([\w-]+)',text,re.I)
+                if reference and reference.group(1) not in answer:ok=False
+                if not ok:answer='Jawaban model belum sesuai hasil alat. Hasil Python:\n'+calculation
+                meta={'tools':['run_python'],'trace':[{'alat':'run_python','hasil':calculation}],'files':[],'status':'done' if ok else 'failed','stats':reply.get('stats',{}),'model':llm.default_model(),'seconds':round(time.time()-t0,1)}
+                mid=db.add_message(chat['id'],'assistant',answer,meta);result={'text':answer,'message_id':mid,'meta':meta}
+                await self.on_event('done',result);return result
+        code_file=re.search(r'\b(?:buat(?:kan)?|create)\s+(?:berkas|file)\s+[`\"\']?([\w-]+\.py)\b',text,re.I)
+        if profiles.assisted() and llm.active_backend()=='local' and code_file and 'edit_project_file' in bot['tools'] and not extra_msgs and not getattr(self,'project_folder',None):
+            from . import config
+            filename=code_file.group(1)
+            if not (config.WORK_DIR/filename).exists():
+                await self.on_event('status','Menulis kode asli dari model…')
+                try:
+                    output=await tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nWrite only real standalone Python source. Do not call agent tools inside the program. Add executable assertion tests for the exact input/output cases requested by the user under if __name__ == "__main__". No print-only checks.')
+                    if output.startswith('Error:'):raise ValueError(output)
+                    check='Belum dijalankan; pemeriksaan sintaks saja.'
+                    needs_test=bool(re.search(r'\b(uji|test|tes|jalankan)\b',text,re.I))
+                    if needs_test and 'run_python' in bot['tools']:
+                        import ast
+                        if not any(isinstance(n,ast.Assert) for n in ast.walk(ast.parse((config.WORK_DIR/filename).read_text(encoding='utf-8')))):
+                            raise ValueError('Model belum menambahkan assertion yang diminta; hasil tidak ditandai lulus.')
+                        # Execute assertions independently: a model can put tests inside an
+                        # uncalled function, making run_path appear to pass without testing.
+                        code=('import runpy, ast\nfrom pathlib import Path\n'
+                              'ns=runpy.run_path('+repr(filename)+',run_name="__main__")\n'
+                              'tree=ast.parse(Path('+repr(filename)+').read_text(encoding="utf-8"))\n'
+                              'checks=[n for n in ast.walk(tree) if isinstance(n,ast.Assert)]\n'
+                              'for node in checks:\n'
+                              '    exec(compile(ast.fix_missing_locations(ast.Module(body=[node],type_ignores=[])),"assertion-check","exec"),ns)\n'
+                              'print("Program dan",len(checks),"assertion diperiksa tanpa galat")')
+                        reason='menjalankan berkas kode yang dihasilkan model; tinjau source sebelum memberi izin' if db.setting('full_access')!='1' else None
+                        if reason:
+                            aid=db.run('INSERT INTO approvals(chat_id,bot_id,tool,args,reason,created_at) VALUES(?,?,?,?,?,?)',(chat['id'],bot['id'],'run_python',json.dumps({'code':code}),reason,time.time()))
+                            await self.on_event('approval',{'id':aid,'tool':'Menjalankan Python','args':{'code':code},'reason':reason})
+                            check='Kode tersimpan; menunggu izin untuk menjalankan pemeriksaan.'
+                        else:
+                            await self.on_event('status','Menjalankan kode dan assertion…')
+                            check=await tools.run_python(ctx,code=code)
+                            assertions=[ast.dump(n) for n in ast.walk(ast.parse((config.WORK_DIR/filename).read_text(encoding='utf-8'))) if isinstance(n,ast.Assert)]
+                            for repair_attempt in range(2):
+                                if check.startswith('[kode keluar 0]'):break
+                                previous=(config.WORK_DIR/filename).read_text(encoding='utf-8')
+                                await self.on_event('status','Memperbaiki kode dari galat uji nyata…')
+                                repair=await tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nFix the actual execution failure below. Preserve every existing assertion expression exactly; fix the implementation, never weaken or delete tests. No agent tool calls or unrelated file writes.\n'+check[-2000:])
+                                if repair.startswith('Error:'):break
+                                current_assertions=[ast.dump(n) for n in ast.walk(ast.parse((config.WORK_DIR/filename).read_text(encoding='utf-8'))) if isinstance(n,ast.Assert)]
+                                if current_assertions!=assertions:
+                                    await tools.write_file(ctx,filename,previous)
+                                    check='Error: model mengubah assertion saat memperbaiki. Source sebelumnya dipulihkan; uji belum lulus.'
+                                    break
+                                check=await tools.run_python(ctx,code=code)
+                    if filename not in ctx.attachments:ctx.attachments.append(filename)
+                    ok=not check.startswith('Error:') and not re.search(r'\[kode keluar (?!0\])',check)
+                    answer=('Kode tersimpan: ' if ok else 'Kode belum lulus uji: ')+filename+'\n'+check
+                    meta={'tools':['edit_project_file']+(['run_python'] if check.startswith('[kode keluar') else []),'files':ctx.attachments,'seconds':round(time.time()-t0,1),'status':'paused' if 'aid' in locals() else 'done' if ok else 'failed','validation':check,'model':llm.default_model()}
+                    if 'aid' in locals():meta['approval']=aid
+                except (ValueError,llm.LLMError,OSError,SyntaxError) as exc:
+                    answer='Kode belum berhasil: '+str(exc);meta={'status':'failed','files':[],'tools':['edit_project_file']}
+                mid=db.add_message(chat['id'],'assistant',answer,meta)
+                result={'text':answer,'message_id':mid,'meta':meta}
+                if 'aid' in locals():result['approval']=aid
+                await self.on_event('done',result);return result
+        from . import workflow
+        if profiles.assisted() and bot['id']=='orchestrator' and 'delegate_task' in bot.get('tools',[]) and workflow.team_available(text) and not (llm.active_backend()=='local' and (coding.website_request(text) or {name for name,_ in intents(text,bot.get('tools',[]))}=={'run_python'})) and not getattr(self,'delegated',False) and not extra_msgs and (not is_light(text,bot.get('tools',[])) or re.search(r'^\s*lanjut',text,re.I)):
             try:
                 result=await workflow.run(ctx,text,self.on_event)
             except (llm.LLMError,ValueError,OSError) as exc:
@@ -494,6 +568,7 @@ class Turn:
             except (ValueError, llm.LLMError, OSError) as exc:
                 answer = 'Pembuatan halaman belum berhasil: ' + str(exc)
             meta = {'tools': ['build_website'], 'skills': skill_ids, 'seconds': round(time.time()-t0,1), 'files':ctx.attachments,
+                    'status':'failed' if answer.startswith(('Error:', 'Pembuatan halaman belum berhasil:')) else 'done',
                     'trace':[{'alat':'build_website','hasil':answer}], 'model':self.bot.get('model') or llm.default_model(),
                     'stats': {'served_model': getattr(ctx, 'served_model', '')}}
             mid = db.add_message(chat['id'], 'assistant', answer, meta)

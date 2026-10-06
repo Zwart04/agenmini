@@ -1,0 +1,60 @@
+{
+  "model": "qwen35-08b",
+  "gguf_bytes": 579615840,
+  "nonce": "391ac114",
+  "rows": [
+    {
+      "case": "note",
+      "channel": "web",
+      "prompt": "Buat file catatan_391ac114.txt berisi persis \"uji asli 391ac114\". Baca ulang dengan alat untuk memastikan isi yang sama.",
+      "seconds": 31.41,
+      "checks": {
+        "exact_content": true
+      },
+      "result": {
+        "text": "uji asli 391ac114",
+        "message_id": 2,
+        "meta": {
+          "tools": [
+            "write_file",
+            "read_file"
+          ],
+          "skills": [],
+          "seconds": 31.2,
+          "stats": {
+            "usage_reported": true,
+            "tokens": 21,
+            "prompt_tokens": 1515,
+            "seconds": 2.4,
+            "served_model": "qwen35-08b",
+            "finish_reason": "stop",
+            "cost_usd": null
+          },
+          "model": "qwen35-08b",
+          "mode": "lengkap",
+          "files": [
+            "catatan_391ac114.txt"
+          ],
+          "trace": [
+            {
+              "alat": "write_file",
+              "arg": "{\"path\": \"catatan_391ac114.txt\", \"content\": \"uji asli 391ac114\"}",
+              "hasil": "Tersimpan dan otomatis dikirim: catatan_391ac114.txt (17 karakter)",
+              "cached": false
+            },
+            {
+              "alat": "read_file",
+              "arg": "{\"path\": \"catatan_391ac114.txt\", \"start_line\": 1, \"max_lines\": 1}",
+              "hasil": "uji asli 391ac114",
+              "cached": false
+            }
+          ],
+          "tool_failures": [],
+          "recovered_tools": [],
+          "status": "done"
+        }
+      }
+    }
+  ],
+  "limitations": "No Telegram network delivery or model weight training. HTML behavior requires browser testing."
+}

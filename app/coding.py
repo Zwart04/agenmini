@@ -104,6 +104,22 @@ async def repair_html(html,brief,problems,model=None,prio=0):
     return html,result.get('stats',{})
 
 
+def brief_checks(html, brief):
+    """Grounded omissions, not a claim that static checks prove UI behavior."""
+    errors=[]
+    if re.search(r'\b(?:alert|confirm|prompt)\s*\(',html):
+        errors.append('Use inline custom feedback instead of native alert/confirm/prompt dialogs.')
+    if re.search(r'tambah\s*/\s*kurang|quantity|jumlah pembelian',brief,re.I):
+        if not re.search(r'<(?:button|input)\b[^>]*>.*?(?:−|-|kurang|minus|decrease)',html,re.I|re.S):
+            errors.append('Missing a decrease quantity control requested in the brief.')
+        if not re.search(r'\btotal\b',html,re.I):
+            errors.append('Missing visible total price requested in the brief.')
+    for amount in re.findall(r'\b\d{4,9}\b',brief):
+        digits=re.sub(r'[.,\s]','',html)
+        if amount not in digits:errors.append('Missing requested value '+amount+'.')
+    return errors
+
+
 async def generate(brief, model=None, on_token=None, prio=0):
     local=llm.active_backend()=='local'
     budget=3200 if local else 8000
@@ -114,7 +130,7 @@ async def generate(brief, model=None, on_token=None, prio=0):
             'Use meaningful product copy in the requested language. Complete all tags/scripts. '
             'Fit desktop and mobile down to 320px, provide accessible controls, readable contrast and reduced motion. '
             'Never use href="#" or missing fragment targets. Use buttons for actions and existing element IDs for navigation. '
-            'Implement the controls you display; do not invent testimonials, prices, connected AI/payments/WhatsApp or credentials. '
+            'Implement every interaction in the brief. Use inline custom feedback, never alert/confirm/prompt. Do not invent testimonials, discounts, prices, connected AI/payments/WhatsApp or credentials. '
             'External assets are optional and must degrade gracefully. Clearly distinguish an offline demo from a connected backend. '
             'Keep the document complete within the output budget; you choose the level of detail and layout.')
     if local:prompt+=' This CPU model has a small context: prefer concise original CSS/SVG and focused interactions, not a framework.'
@@ -127,8 +143,13 @@ async def generate(brief, model=None, on_token=None, prio=0):
         try:
             if result.get('stats',{}).get('finish_reason')=='length':raise ValueError('Dokumen terpotong pada batas keluaran.')
             html=extract_html(raw);check=inspect_html(html)
-            if not check['ok']:
-                try:return await repair_html(html,brief,check['errors'],model,prio)
+            problems=check['errors']+brief_checks(html,brief)
+            if problems:
+                try:
+                    fixed,stats=await repair_html(html,brief,problems,model,prio)
+                    remaining=brief_checks(fixed,brief)
+                    if remaining:raise ValueError(' '.join(remaining))
+                    return fixed,stats
                 except ValueError as repair_error:raise ValueError(str(repair_error))
             from .projects import inspect_inline_js
             errors=await inspect_inline_js(html)

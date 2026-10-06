@@ -345,7 +345,17 @@ async def add_provider(request):
     keyless = any(p['id']==data['provider'] and p.get('noAuth') for p in router.PROVIDER_CATALOG)
     if not keyless and (not isinstance(payload.get('apiKey'),str) or not payload['apiKey'].strip()): raise ValueError('Isi API key provider.')
     if keyless: payload['apiKey']=''
-    payload['authType']='apikey'
+    meta=next((p for p in router.PROVIDER_CATALOG if p['id']==data['provider']),{})
+    payload['authType']=meta.get('authType') or 'apikey'
+    if data['provider']=='cursor':
+        machine=str(data.get('machineId') or '').strip()
+        if not machine: raise ValueError('Isi machine ID dari Cursor untuk impor token.')
+        await router.request('POST','/api/oauth/cursor/import',{'accessToken':payload['apiKey'],'machineId':machine,'name':payload.get('name','')})
+        return web.json_response({'ok':True})
+    extra=data.get('providerSpecificData')
+    if extra:
+        if not isinstance(extra,dict) or len(json.dumps(extra))>4000:raise ValueError('Konfigurasi provider harus objek JSON maksimal 4 KB.')
+        payload['providerSpecificData']=extra
     result = await router.request('POST', '/api/connections' if await router.engine()=='go' else '/api/providers', payload)
     return web.json_response({'ok': True})
 
@@ -399,7 +409,7 @@ async def oauth_start(request):
     _oauth[flow_id] = {'provider': provider, 'device': device, 'engine':kind, 'data': result, 'redirect': result.get('redirectUri') or redirect,
                        'owner': request.cookies.get('agen_sesi'), 'expires': time.time() + max(1, min(int(result.get('expires_in') or 600), 900))}
     return web.json_response({'flow': flow_id, 'device': device, 'user_code': result.get('user_code'),
-        'url': result.get('verification_uri_complete') or result.get('verification_uri') or result.get('authUrl'),
+        'url': result.get('verification_uri_complete') or result.get('verification_uri') or result.get('authUrl') or result.get('loginUrl'),
         'interval': max(5, int(result.get('interval') or 5))})
 
 

@@ -2,6 +2,22 @@
 
 ## Gateway koneksi
 
+Pembaruan evaluasi 6 Oktober 2026: katalog memuat 90 provider chat. Browser nyata memeriksa logo OpenCode, kartu tanpa key, aktivasi sumber, pemilih model custom dan respons Uji koneksi OpenCode Free (`oc/muse-spark-1.3-contributor-free`, 23,4 detik). Ini bukti satu permintaan gratis, bukan jaminan kuota. Tampilan diuji pada 390×844 dan 1440×900: tidak ada overflow horizontal/galat console. Google OAuth memakai konfigurasi client aplikasi milik operator, tanpa client secret upstream di repository.
+
+## Model CPU nyata, bukan fixture
+
+Qwen3.5 0.8B Q4_K_M (579.615.840 byte; SHA256 `fb044e93939a70469c905781334f5de1e6c8b608ced6cbc8c9249bd4127d9526`) dan LiquidAI LFM2.5 1.2B Instruct QAD Q4_0 (695.755.488 byte; SHA256 `bb741ebb106d543e9de114b843a3d3d73d51c74b5801e69da2abde821a0cb3e1`) dijalankan melalui llama.cpp CPU b11443, 4 thread, konteks 8192, satu slot. Binary/model diunduh dari rilis/repository resminya dan disimpan terpisah dari data aplikasi. RSS LFM sekitar 1,4 GB saat uji; bukan jaminan RAM VPS.
+
+Permintaan menggunakan nonce baru untuk berkas/produk. Jalur asli `agent.Turn` diuji untuk web dan Telegram, termasuk eksekusi Python nyata. **Tidak melatih bobot, tidak memakai hasil LLM mock, tidak mengganti HTML dengan template.** Perbandingan menunjukkan kegagalan aritmetika/format, count alih-alih sum, keluaran terpotong dan HTML dengan kontrol yang tidak sesuai brief. Percobaan yang awalnya tampak lulus ditemukan memiliki assertion di fungsi yang tidak dipanggil: pemeriksa kini mengeksekusi assertion secara terpisah, mempertahankan ekspresi saat repair, dan menolak perubahan tes. Hasil ini belum memenuhi standar coding otomatis yang andal; jangan menyebut model 1B setara model besar.
+
+Perbaikan tambahan: JSON tool lokal dibatasi schema dan keluaran terpotong tidak dieksekusi; tes print-only tidak dianggap lulus; program baru memerlukan tinjauan sebelum eksekusi pada mode biasa; perbaikan dibatasi dua kali. HTML memeriksa beberapa kelalaian brief dan dialog bawaan, tetapi validasi struktur/sintaks diberi label berbeda dari uji interaksi. Setup satu bot tidak mendelegasikan ke spesialis template yang belum dipasang. Script `scripts/evaluate_local.py` merekam uji nyata dan menjalankan enam assertion evaluator untuk fungsi contoh, termasuk input yang tidak ada pada brief model. Tidak menguji pengiriman jaringan Telegram atau autentikasi setiap provider.
+
+Satu alur berkas sederhana Qwen 0.8B lulus dengan nonce baru: `write_file` membuat isi persis yang diminta dan `read_file` membaca ulang, 31,4 detik. Berkas juga diperiksa langsung oleh evaluator. Argumen nama berkas digrounding ke nama eksplisit pada permintaan dan penulisan dilakukan sebelum baca ulang. Ini membuktikan alur tersebut, bukan seluruh alat atau kualitas coding kompleks. [Laporan aktual](docs/qa/local-qwen08-real.json) mencantumkan trace dan keluaran model; laporan coding gagal disertakan agar hasil tidak dipilih hanya yang berhasil.
+
+65 tes agent/backend/bridge/kontrol/frontend/arsip lulus pada Windows setelah perbaikan guard awal. Suite coding tambahan: 75 lulus, satu asumsi shell POSIX (`false | tail`) gagal di Windows dan diuji pada Linux Actions. Tes baru mencakup assertion tersembunyi, isolasi data evaluasi dan JSON terpotong. Hasil CI pada commit rilis menjadi acuan pemeriksaan Linux, installer Windows dan matriks runtime.
+
+## Kontrak gateway dan pemasangan
+
 Fork Go dijalankan sebagai proses nyata dengan direktori dan kredensial disposable. Pemeriksaan mencakup autentikasi admin/API, pembuatan key, daftar koneksi tanpa key privat, katalog model, awal PKCE, dan penolakan endpoint fitur yang dibuang. Tes bridge memeriksa session device login tetap di server dan akun API dibaca dari endpoint koneksi lengkap. Tes installer memastikan byte PNG logo tidak rusak oleh normalisasi baris.
 
 30 tes kontrol/bridge/frontend/arsip lulus di Windows lokal. Seluruh suite juga dicoba: 257 lulus, 10 gagal pada asumsi shell, izin POSIX, discovery atau supervisor Linux di Windows. Pemeriksaan Linux wajib menggunakan Actions sebelum publikasi. Keberhasilan fixture bukan bukti login atau kuota semua provider. Binary Windows diuji mandiri; pengelolaan gateway otomatis dari wizard Windows belum tersedia, gunakan endpoint gateway yang sudah berjalan.

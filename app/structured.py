@@ -11,7 +11,8 @@ async def request(messages, *, label, max_tokens, schema=None, fmt='json', on_ev
         if attempt:
             if on_event:await on_event('status','Mengulang '+label+': keluaran model belum lengkap/valid…')
             prompt.append({'role':'user','content':'Previous response was not a complete valid JSON object. Return ONE compact complete object matching the requested schema. Short strings, no markdown or commentary. Do not omit required keys. Do not repeat a partial response.'})
-        result=await llm.chat(prompt,max_tokens=max_tokens if not attempt else min(max_tokens*2,3600),fmt=fmt,temperature=.2,model=model,prio=prio)
+        output_format={'type':'json_schema','json_schema':{'name':'agent_structure','strict':True,'schema':schema}} if schema and llm.active_backend()=='local' and fmt=='json' else fmt
+        result=await llm.chat(prompt,max_tokens=max_tokens if not attempt else min(max_tokens*2,3600),fmt=output_format,temperature=.2,model=model,prio=prio)
         content=result.get('content') or ''
         reason=result.get('stats',{}).get('finish_reason')
         try:

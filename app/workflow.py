@@ -13,6 +13,14 @@ def target_for(text):
     return 'asisten'
 
 
+def team_available(text):
+    """A blank setup must work with its one orchestrator, not phantom peers."""
+    active={b['id'] for b in db.bots(active_only=True)}-{'orchestrator'}
+    if coding.website_request(text):return {'copywriter','desainer'}.issubset(active)
+    target=target_for(text)
+    return bool(active) if target=='asisten' else target in active
+
+
 def previous_project(ctx,text):
     if not re.search(r'^\s*(?:tolong\s+)?lanjut(?:kan)?(?:\s|$)',text,re.I):return None
     from . import project_jobs

@@ -574,6 +574,41 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     text_tools = local and backend not in ("router", "freellmapi") and db.setting("tool_mode") != "native"
     if text_tools:
         msgs = to_text_mode(messages, tools)
+    constrained_tools = bool(text_tools and backend == 'local' and tools and not fmt)
+    if constrained_tools:
+        from . import agent
+        initial = not any(m['role']=='tool' for m in messages)
+        wanted={name for name,_ in agent.intents(messages[-1].get('content',''),[t['function']['name'] for t in tools])} if initial else set()
+        request=next((m.get('content','') for m in reversed(messages) if m['role']=='user' and agent.FILE_RE.search(m.get('content',''))),messages[-1].get('content',''))
+        reread=bool(re.search(r'\bbaca\s+ulang\b',request,re.I))
+        if not initial and reread:
+            completed={m.get('tool_name') for m in messages if m['role']=='tool' and not m.get('content','').startswith(('Error:','Tool ','Wrong arguments'))}
+            required={name for name,_ in agent.intents(request,[t['function']['name'] for t in tools])} & {'write_file','read_file'}
+            missing=required-completed
+            wanted={'write_file'} if 'write_file' in missing else missing
+        if initial and {'write_file','read_file'} <= wanted and re.search(r'\bbaca\s+ulang\b',messages[-1].get('content',''),re.I):
+            wanted.discard('read_file')  # create before rereading a new artifact
+        selected=[t for t in tools if t['function']['name'] in wanted] if wanted else tools
+        selected=json.loads(json.dumps(selected))
+        user_request=request
+        filenames=list(dict.fromkeys(m.group(0) for m in agent.FILE_RE.finditer(user_request)))
+        if len(filenames)==1 and not re.search(r'[/\\]',user_request):
+            for schema in selected:
+                if schema['function']['name'] in ('write_file','read_file','send_file'):
+                    path=schema['function']['parameters'].get('properties',{}).get('path')
+                    if path is not None:path['enum']=filenames
+        choices=[{'type':'object','properties':{'tool':{'const':t['function']['name']},'arguments':t['function']['parameters']},'required':['tool','arguments'],'additionalProperties':False} for t in selected]
+        if not wanted: choices.append({'type':'object','properties':{'answer':{'type':'string'}},'required':['answer'],'additionalProperties':False})
+        fmt={'type':'json_schema','json_schema':{'name':'agent_action','strict':True,'schema':{'oneOf':choices}}}
+        instruction='Return ONE JSON object: {"tool":"available_tool_name","arguments":{...}} to perform an action, or {"answer":"final user-facing reply"} after actual tool evidence. No XML, markdown or extra fields. Workspace paths are relative; never invent a drive, username or absolute path. Prefer a short tool action, not long file content; run_python can write and verify files.'
+        if msgs and msgs[0]['role']=='system':msgs[0]={**msgs[0],'content':msgs[0]['content']+'\n'+instruction}
+        else:msgs.insert(0,{'role':'system','content':instruction})
+        # Keep history and current output in the same JSON dialect; small models
+        # otherwise copy XML examples even when the decoder requires JSON.
+        msgs[0]['content']=msgs[0]['content'].split('\n\n# Tools')[0]+'\n'+instruction+'\nAvailable tools: '+json.dumps([t['function'] for t in selected],ensure_ascii=False)
+        for i,m in enumerate(messages):
+            if m['role']=='assistant' and m.get('tool_calls'):
+                msgs[i]={'role':'assistant','content':json.dumps({'tool':m['tool_calls'][0]['function']['name'],'arguments':m['tool_calls'][0]['function']['arguments']},ensure_ascii=False)}
     body = {"model": model, "messages": msgs, "temperature": temperature,
             "max_tokens": int(max_tokens or db.setting("max_tokens") or 900)}
     if local and backend == "local":
@@ -632,6 +667,19 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
         raise LLMError(f"API online menolak: {str(data)[:300]}")
     msg = data["choices"][0]["message"]
     calls = []
+    if constrained_tools:
+        try:
+            action=json.loads(msg.get('content') or '')
+            if not isinstance(action,dict):raise ValueError('Action must be an object')
+            if 'tool' in action:
+                if set(action)!={'tool','arguments'} or action['tool'] not in {t['function']['name'] for t in selected} or not isinstance(action['arguments'],dict):raise ValueError('Invalid tool action')
+                calls.append({'name':action['tool'],'arguments':action['arguments']})
+                msg['content']=''
+            else:
+                if set(action)!={'answer'} or not isinstance(action['answer'],str):raise ValueError('Invalid answer')
+                msg['content']=action['answer']
+        except (ValueError,KeyError,TypeError):
+            raise LLMError('Aksi JSON model lokal tidak lengkap atau tidak valid; alat tidak dijalankan.')
     for c in msg.get("tool_calls") or []:
         arguments=c["function"].get("arguments") or {}
         calls.append({"name": c["function"]["name"], "arguments": arguments if isinstance(arguments,dict) else _loads(arguments)})

@@ -342,7 +342,7 @@ async def build_website(ctx: Ctx, brief: str = '', on_token=None, **_):
     await write_file(ctx, path, html)
     saved = _workpath(path)
     if saved.read_text(encoding='utf-8') != html: return 'Error: verifikasi berkas gagal.'
-    return f'Landing page HTML lengkap terverifikasi dan otomatis dikirim: {path}. Belum dipublikasikan; fitur AI/pembayaran membutuhkan backend nyata.'
+    return f'HTML tersimpan dan otomatis dikirim: {path}. Struktur dan sintaks diperiksa; interaksi perlu uji browser. Belum dipublikasikan; fitur AI/pembayaran membutuhkan backend nyata.'
 
 
 # ---------- gambar & kiriman berkas ----------
@@ -670,12 +670,25 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
     for source in candidates:
         source=source.resolve()
         if source==target or not source.is_relative_to(root) or not source.is_file() or not remaining:continue
-        name=str(source.relative_to(root))
+        name=source.relative_to(root).as_posix()
         if name in related:continue
         text=source.read_text(errors='replace')[:min(remaining,6000)];related[name]=text;remaining-=len(text)
     context['related_source']=related
-    result=await llm.chat([{'role':'system','content':'Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. Use the actual imported interfaces and SQL columns in related_source; never invent them. Authentication must validate an opaque session on the server, never trust a seller_id cookie/header as identity. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'},
-                          {'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}],max_tokens=2400 if llm.active_backend()=='local' else 6000,temperature=.2)
+    source_prompt='Implement ONE COMPLETE source file. Return raw file text only, no markdown fences. Preserve existing behavior, conventions, interfaces and project AGENTS instructions; change only requested functionality. Use the actual imported interfaces and SQL columns in related_source; never invent them. Authentication must validate an opaque session on the server, never trust a seller_id cookie/header as identity. No TODO placeholders, fake APIs, secrets, or unsupported success claims. Finish the whole file.'
+    local=llm.active_backend()=='local'
+    if local:source_prompt+=' Keep code concise: no explanatory prose, long docstrings, repeated examples or agent tool calls inside source. For a short new Python function, prefer under 60 lines including requested assert tests.'
+    if local and target.suffix=='.py' and folder=='.':
+        source_prompt=('Write a concise standalone Python module for the user request. Output raw source only. '
+                       'Define the requested function. No file writes, imports of agent tools, fake results or unrelated helpers. '
+                       'Indonesian menjumlahkan means SUM THE NUMERIC VALUES, not count items. Bilangan prima means prime numbers. '
+                       'Read expected outputs carefully. When repairing, compare the actual result to the expected result and correct the algorithm; preserve assertion expressions. '
+                       'Place exact requested input/output assertions at module scope so they execute. '
+                       'Tool names in the request refer to the surrounding agent, never functions to implement. Finish the source.')
+    source_messages=[{'role':'system','content':source_prompt},{'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}]
+    result=await llm.chat(source_messages,max_tokens=2400 if local else 6000,temperature=.2)
+    if local and result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):
+        source_messages[0]['content']+=' The preceding attempt exceeded the output budget. Regenerate a shorter COMPLETE file from the brief, never continue partial source. Remove optional comments and repetition.'
+        result=await llm.chat(source_messages,max_tokens=2400,temperature=.1)
     if result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):
         return 'Error: keluaran model terpotong oleh batas token. Berkas asli dipertahankan; lakukan perubahan lebih kecil melalui perintah proyek.'
     content=re.sub(r'^```[^\n]*\n','',result['content'].strip());content=re.sub(r'\n```\s*$','',content)

@@ -58,3 +58,21 @@ async def test_api_accounts_not_hidden_by_usage_only_endpoint(isolated,go_engine
     result=await router.state()
     assert result['models'][0]['id']=='openai/fixture' and len(result['connections'])==1
     assert 'PRIVATE_KEY' not in json.dumps(result)
+
+@pytest.mark.asyncio
+async def test_opencode_keyless_connection_without_fake_key(isolated,go_engine,monkeypatch):
+    calls=[]
+    async def upstream(method,path,body=None):
+        calls.append((method,path,body))
+        return {'goVersion':'native'} if path=='/api/version' else {'id':'fixture'}
+    monkeypatch.setattr(router,'request',upstream)
+    app=aiohttp_web.Application(middlewares=[control.errors,web.auth_mw]);app.add_routes(control.routes)
+    async with TestClient(TestServer(app)) as client:
+        r=await client.post('/api/router/provider',headers={'Cookie':'agen_sesi='+web.make_token()},json={'provider':'opencode'})
+        assert r.status==200 and calls[-1][1]=='/api/connections'
+        assert calls[-1][2]['apiKey']==''
+
+def test_arithmetic_words_require_actual_tool():
+    from app import agent
+    assert not agent.is_light('37 dikali 19',['run_python'])
+    assert agent.intents('37 dikali 19',['run_python'])[0][0]=='run_python'

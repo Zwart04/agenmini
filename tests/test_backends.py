@@ -5,6 +5,35 @@ import pytest
 from aiohttp import web
 from app import db, llm, tools
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('content,valid', [('{' ,False), ('{"tool":"write_file","arguments":{"path":"a.txt","content":"hello"}}',True)])
+async def test_local_constrained_action_never_executes_truncated_json(monkeypatch,content,valid):
+    from app import runtime_status
+    bodies=[]
+    async def ready():return {'ready':True}
+    async def handler(request):
+        bodies.append(await request.json())
+        return web.json_response({'choices':[{'message':{'content':content}}]})
+    server=web.Application();server.router.add_post('/v1/chat/completions',handler)
+    runner=web.AppRunner(server);await runner.setup();site=web.TCPSite(runner,'127.0.0.1',0);await site.start()
+    port=site._server.sockets[0].getsockname()[1]
+    monkeypatch.setenv('LOCAL_API_BASE',f'http://127.0.0.1:{port}/v1')
+    monkeypatch.setattr(llm,'active_backend',lambda:'local');monkeypatch.setattr(runtime_status,'state',ready)
+    prior=db.setting;monkeypatch.setattr(db,'setting',lambda key:{'tool_mode':'text','local_model_id':'test-local'}.get(key,prior(key)))
+    try:
+        coro=llm._chat_online([{'role':'system','content':'Use tools'},{'role':'user','content':'Buat file a.txt berisi hello. Baca ulang.'}],[tools.REGISTRY['write_file'].schema(),tools.REGISTRY['read_file'].schema()],.1,None,local=True,model_override='test-local')
+        if valid:
+            result=await coro;assert result['tool_calls'][0]['arguments']=={'path':'a.txt','content':'hello'}
+        else:
+            with pytest.raises(llm.LLMError,match='tidak valid'):await coro
+        body=bodies[0]
+        assert body['response_format']['type']=='json_schema' and 'tools' not in body
+        choices=body['response_format']['json_schema']['schema']['oneOf']
+        assert len(choices)==1 and choices[0]['properties']['tool']['const']=='write_file'
+        assert choices[0]['properties']['arguments']['properties']['path']['enum']==['a.txt']
+        assert [m['role'] for m in body['messages']].count('system')==1
+    finally:await runner.cleanup()
+
 
 @pytest.mark.asyncio
 async def test_ollama_invalid_json_retries_text_mode(monkeypatch):

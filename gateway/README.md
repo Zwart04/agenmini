@@ -8,4 +8,6 @@ Build: `go build -trimpath -ldflags="-s -w" -o agenmini-gateway ./cmd/agenmini-g
 
 Native provider logos and the safe display catalog are included in Agen Mini. Trademark ownership remains with each provider. Displayed provider support is not proof of a successful account login or available quota.
 
+Google OAuth app credentials are not embedded. Set GEMINI_CLI_OAUTH_CLIENT_ID/GEMINI_CLI_OAUTH_CLIENT_SECRET or ANTIGRAVITY_OAUTH_CLIENT_ID/ANTIGRAVITY_OAUTH_CLIENT_SECRET privately in the installation .env before using those login flows. API-key Gemini and other provider flows remain separate. Never commit OAuth credentials.
+
 Run `python ../tests/check_gateway.py ./agenmini-gateway` to verify the real connection surface with disposable credentials. No paid provider call is made by that check.

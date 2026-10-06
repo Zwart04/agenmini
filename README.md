@@ -16,6 +16,24 @@ Agen Mini Gateway adalah fork koneksi dari [9router-go](https://github.com/luqma
 
 Gateway memakai binary Go; pemasang Linux mengambil binary sesuai arsitektur dan memeriksa SHA256. Tidak perlu memasang Node atau compiler Go untuk menjalankan gateway. Batas container gateway tetap 256 MB; pemakaian nyata bergantung provider dan jumlah permintaan. [Sumber dan lisensi fork](gateway/README.md). Akun dan kuota setiap provider tetap mengikuti layanannya.
 
+Katalog mencakup **90 provider chat**, termasuk OpenCode Free, MiMo Free dan Devin CLI tanpa key. Pilih kartu **Tanpa login**, lalu pilih model dan **Uji koneksi**. Gratis mengikuti kuota/ketersediaan layanan. OpenCode Free telah menjawab tes koneksi nyata; provider lain belum semuanya diuji dengan akun nyata. OAuth Gemini CLI/Antigravity membutuhkan client aplikasi Google pada `.env`; panduan ada di dokumentasi gateway.
+
+![Provider terintegrasi, data pengujian terpisah](docs/screenshots/providers-desktop-v090.png)
+
+[Tampilan provider mobile](docs/screenshots/providers-mobile-v090.png)
+
+### Kualitas model lokal
+
+Model kecil diuji **nyata di CPU Windows**, termasuk Qwen3.5 0.8B dan LFM2.5 1.2B. Hasil coding masih tidak konsisten: model dapat menghitung jumlah item ketika diminta jumlah nilainya, membuat tes yang tidak dipanggil, atau menghasilkan HTML yang tidak memenuhi interaksi. Pemeriksaan menolak keberhasilan palsu dan mencoba perbaikan terbatas; **model kecil belum direkomendasikan untuk coding otomatis tanpa pengawasan**. Harness/skill tidak mengubah bobot model menjadi setara model besar.
+
+Pengujian dapat diulang dengan binary llama.cpp dan GGUF sendiri:
+
+```sh
+python scripts/evaluate_local.py --server-exe /path/llama-server --gguf /path/model.gguf --model local-test
+```
+
+Evaluasi memakai data baru terpisah dan menjalankan kode model dalam ruang kerja uji. Tidak memakai akun atau riwayat pengguna; laporan mencatat keluaran, waktu, alat dan pemeriksaan independen. Kanal Telegram memakai alur agent yang sama, tanpa mengirim pesan ke Telegram nyata. Interaksi HTML tetap perlu pengujian browser. [Bukti dan batas pengujian](VALIDATION.md).
+
 ## Tampilan baru
 
 ![Workspace desktop dengan paket tim bawaan](docs/screenshots/workspace-desktop.jpg)
