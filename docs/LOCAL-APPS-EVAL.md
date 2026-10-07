@@ -407,8 +407,8 @@ diuji. Kelulusan guard bukan bukti layout atau fungsi; pemeriksaan sumber awal
 `v18` masih menemukan pesan kosong yang ditulis sebagai atribut, bukan teks
 terlihat. Aplikasi belum dinyatakan layak.
 
-`v18` menyelesaikan HTML, seluruh 41 bagian CSS, state dan referensi DOM,
-kemudian berhenti pada batas harness setelah **900,11 detik**. Review browser
+`v18` menyelesaikan HTML, seluruh 41 bagian CSS dan state; referensi DOM belum
+selesai ketika batas harness tercapai setelah **900,11 detik**. Review browser
 parsial: desktop 1280px memiliki scroll width 1280px, font sistem, dan transport
 di luar permukaan video. Mobile 390px memiliki scroll width 375px (scrollbar
 vertikal), tanpa overflow horizontal. Pesan awal timeline masih kosong karena
