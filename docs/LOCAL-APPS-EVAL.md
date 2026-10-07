@@ -260,6 +260,20 @@ merujuk helper di luar fragment terpilih. Guard HTML kini menolak handler inline
 agar event listener tetap berasal dari app.js yang lengkap dan diperiksa.
 Ini masih belum menjadi keberhasilan benchmark model sekitar 1B.
 
+Uji Qwen 0.8B Q8 dengan penalaran dibatasi 256 token menemukan galat anggaran:
+diagnosis memiliki batas keluaran 220 token, sehingga log llama.cpp menunjukkan
+220 token terpakai tanpa teks jawaban. Panggilan diagnosis dan patch kini
+menyediakan tambahan anggaran maksimum 512 token hanya ketika penalaran lokal
+aktif; anggaran jawaban API online/router tidak diubah. Batas penalaran server,
+jumlah percobaan serta batas waktu turn tetap berlaku.
+
+Pada `video-qwen08q8-parts-thinking256-v2`, model benar-benar memperbaiki atribut
+header menggunakan patch nomor baris. Uji berhenti pada panel media yang tidak
+memiliki input unggah. Bagian dengan elemen/fungsi wajib yang hilang sekarang
+diminta ulang secara lengkap, dan patch yang menghapus struktur wajib ditolak.
+Namun putaran `v3` tetap **gagal**: model masih tidak menulis input file yang
+diminta. Ini tidak dipublikasikan sebagai aplikasi atau demo sukses.
+
 Pemeriksaan routing mencakup model lokal/API online/router. Tes respons stub
 tidak membuktikan mutu model online, dan putaran CPU nyata ini tidak membuktikan
 model sekitar 1B dapat menghasilkan aplikasi setara CapCut. Jalur source-parts

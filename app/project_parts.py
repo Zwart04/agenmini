@@ -226,12 +226,12 @@ async def generate(brief,ctx,on_event=None):
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source='';repair_chain=[];origin_raw=None;errors=[];source_syntax_valid=False
+        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False
         for attempt in range(3):
             response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
             patch_error='';patch_base=None;previous_errors=list(errors)
             if response is None:
-                if attempt and source_syntax_valid and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
+                if attempt and source_patchable and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
                         contracts=(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else json.dumps({key:value for key,value in item.items() if key not in ('task','tokens')}))+'\n'+system,
@@ -267,6 +267,7 @@ async def generate(brief,ctx,on_event=None):
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
             syntax_bad=bool(extraction_error)
+            missing_structure=False
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
             if extraction_error:errors.append(extraction_error)
@@ -283,6 +284,7 @@ async def generate(brief,ctx,on_event=None):
                 d=projects.Document();d.feed(source)
                 if kind=='document' and not {'style.css','app.js'}<=set(d.resources):errors.append('Include stylesheet link href="style.css" and deferred script src="app.js" in the head.')
                 for ident,expected in item.get('controls',{}).items():
+                    if ident not in d.ids:missing_structure=True
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required shell control '+ident+' must be '+json.dumps(expected)+'.')
                 for resource in d.resources:
                     if resource not in ('style.css','app.js'):errors.append('Only link style.css and deferred app.js; remove '+resource)
@@ -292,6 +294,7 @@ async def generate(brief,ctx,on_event=None):
                 if d.duplicate_ids:errors.append('Remove duplicate IDs.')
                 if d.resources:errors.append('Imported media must start empty, with no sample src or remote assets: '+str(d.resources))
                 for ident,expected in item.get('controls',{}).items():
+                    if ident not in d.ids:missing_structure=True
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required control '+ident+' must be '+json.dumps(expected)+'.')
             elif kind=='css':
                 if source.count('{')!=source.count('}') or re.search(r'<[a-z!/]',source,re.I):
@@ -302,7 +305,8 @@ async def generate(brief,ctx,on_event=None):
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=(prior+'\n'+source).encode(),project=True)
                 if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:]);syntax_bad=True
                 for fn in item.get('functions',[]):
-                    if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):errors.append('Define complete named function '+fn+'.')
+                    if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):
+                        errors.append('Define complete named function '+fn+'.');missing_structure=True
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
                 if not errors:
                     for check in item.get('behavior_checks',[]):
@@ -313,7 +317,7 @@ async def generate(brief,ctx,on_event=None):
             regression=bool(patch_base is not None and old_cases and new_cases-old_cases)
             await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
-            if (syntax_bad or regression) and patch_base is not None and not patch_error:
+            if (syntax_bad or missing_structure or regression) and patch_base is not None and not patch_error:
                 repair_chain.pop();source=patch_base
                 if regression:errors=previous_errors+['The patch introduced new failing behavior cases. Original source restored; fix existing failures without breaking passing cases.']
                 else:errors.append('The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.')
@@ -322,7 +326,7 @@ async def generate(brief,ctx,on_event=None):
                 # Exact edits are useful for a valid source with a failing
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
-                source_syntax_valid=not syntax_bad and bool(source)
+                source_patchable=not syntax_bad and not missing_structure and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')

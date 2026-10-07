@@ -99,18 +99,19 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         schema['properties']['edits']['maxItems']=min(8,len(targets))
     else:schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
     fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+    reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
     diagnosis=None
     if diagnose:
         diagnosis=await llm.chat([
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
             {'role':'user','content':json.dumps({'errors':errors,'task':task,'source':source},ensure_ascii=False)}
-        ],max_tokens=220,temperature=.2)
+        ],max_tokens=220+reasoning_allowance,temperature=.2)
     plan=(diagnosis or {}).get('content','')[:1800]
     result=await llm.chat([
         {'role':'system','content':('You repair existing source using numbered lines. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (complete corrected line text). Edit only the listed failing lines; change their logic to satisfy the check. Do not just copy their old text. Do not copy line numbers into replacement code. Leave every correct line untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
         {'role':'user','content':json.dumps({'source':source,'errors':errors,'contracts':contracts,'task':task,
             **({'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':plan} if plan else {})},ensure_ascii=False)}
-    ],fmt=fmt,max_tokens=max_tokens,temperature=.2)
+    ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
     if diagnosis:
         result['repair_plan']={'text':plan,'sha256':digest(plan),'model':diagnosis.get('stats',{}).get('served_model',''),
                                'finish_reason':diagnosis.get('stats',{}).get('finish_reason')}

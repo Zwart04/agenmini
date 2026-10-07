@@ -149,6 +149,24 @@ async def test_repair_diagnosis_is_model_authored_and_never_applied_as_source(mo
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('reasoning',[False,True])
+async def test_patch_and_diagnosis_reserve_answer_tokens_for_bounded_local_reasoning(monkeypatch,backend,reasoning):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    token=llm.coding_reasoning.set(reasoning);limits=[]
+    async def model(messages,**options):
+        limits.append(options['max_tokens'])
+        return {'content':'model diagnosis' if len(limits)==1 else json.dumps({'edits':[{'line':1,'replace':'model correction'}]}),'stats':{'served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    try:
+        result=await project_patches.request('original',task='actual task',errors=['actual failure'],contracts='actual contracts',diagnose=True,indexed=True,max_tokens=450)
+        extra=512 if backend=='local' and reasoning else 0
+        assert limits==[220+extra,450+extra]
+        assert result['repair_plan']['text']=='model diagnosis'
+    finally:llm.coding_reasoning.reset(token)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
 async def test_incomplete_source_is_regenerated_by_selected_model_instead_of_patched(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     item={'name':'Visibility','file':'style.css','kind':'css','task':'Write the required visibility rule','css_selectors':['[hidden]']}
@@ -183,6 +201,32 @@ def test_cached_patch_rejects_tampered_model_diagnosis():
     assert project_patches.replay(original,chain,'app.js')=='model repair'
     chain[0]['repair_plan']['text']='changed diagnosis'
     with pytest.raises(ValueError,match='diagnosis changed'):project_patches.replay(original,chain,'app.js')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_missing_import_element_is_regenerated_instead_of_copying_incomplete_panel(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Library','file':'index.html','kind':'panel','task':'Include a real video file input','slot':'library','root_class':'library','controls':{'fileInput':{'tag':'input','type':'file'}}}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':['library'],'required_ids':['fileInput']}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[]
+    complete='<aside class="library"><label for="fileInput">Import</label><input id="fileInput" type="file"></aside>'
+    async def model(messages,**options):
+        calls.append(messages)
+        assert 'fmt' not in options
+        if len(calls)==1:return {'content':'<aside class="library"><label for="fileInput">Import</label></aside>','stats':{'finish_reason':'stop'}}
+        assert 'Required control fileInput' in messages[1]['content']
+        return {'content':complete,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==complete and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested video editor',object(),event)
+    assert len(calls)==2
 
 
 def test_indexed_patch_addresses_original_lines_atomically_and_preserves_endings():
