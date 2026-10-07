@@ -406,3 +406,40 @@ memakai `section`; isi implementasi tetap ditulis model. Putaran `v18` sedang
 diuji. Kelulusan guard bukan bukti layout atau fungsi; pemeriksaan sumber awal
 `v18` masih menemukan pesan kosong yang ditulis sebagai atribut, bukan teks
 terlihat. Aplikasi belum dinyatakan layak.
+
+`v18` menyelesaikan HTML, seluruh 41 bagian CSS, state dan referensi DOM,
+kemudian berhenti pada batas harness setelah **900,11 detik**. Review browser
+parsial: desktop 1280px memiliki scroll width 1280px, font sistem, dan transport
+di luar permukaan video. Mobile 390px memiliki scroll width 375px (scrollbar
+vertikal), tanpa overflow horizontal. Pesan awal timeline masih kosong karena
+model menulisnya sebagai atribut. Screenshot `browser-desktop-ui-review.jpg`
+dan `browser-mobile-ui-review.jpg` serta `browser-ui-review.json` disimpan pada
+direktori evaluasi privat. Ini bukti layout parsial, bukan impor/trim/ekspor.
+
+Guard sekarang memeriksa teks node DOM, sehingga kata dalam atribut atau
+elemen lain tidak dapat memenuhi pesan yang diminta. Format JSON CSS juga
+mendukung satu aturan di dalam media query, dan prompt selector memakai teks
+CSS biasa untuk menghindari array JSON yang disalin menjadi selector.
+
+`v19` gagal pada timeline setelah 51,4 detik. Timeline lalu dipecah menjadi
+wadah, heading dan track; markup setiap bagian tetap ditulis model dan
+assembler hanya menyambung tag/isi tersebut dengan whitespace. Jumlah bagian
+menjadi **64**. Cache mencari hash tugas/sumber identik walaupun nomor bagian
+bergeser; evaluator tetap mensyaratkan GGUF dan konfigurasi inferensi sama.
+Bagian tidak cocok atau berubah tidak dipakai, dan sumber yang dipakai kembali
+tetap menjalani guard terbaru.
+
+`v20` gagal setelah 79,4 detik karena bug extractor: model menulis heading h2
+yang benar, tetapi extractor hanya mengenali container. Dukungan h2 diperbaiki
+dan diuji. Pada `v21`, model berhasil menulis seluruh timeline dengan pesan
+aktual dan memakai kembali CSS tervalidasi. Putaran tetap gagal pada formatter
+waktu setelah 213,2 detik: output salah untuk pecahan/negatif/Infinity, patch
+tidak mengubah perilaku, dan regenerasi mencoba import modul.
+
+Fungsi tunggal sekarang dapat memakai schema JSON yang membatasi nama dan
+batas fungsi, tanpa menyediakan logika di dalamnya. Node dan tes perilaku
+tetap memeriksa sumber. Prompt koreksi memakai sampai tiga contoh galat helper
+serta jumlah diagnostik; jurnal mempertahankan diagnostik guard yang diterima
+(hingga 12 contoh), dan seluruh kasus uji tetap dijalankan. `v22` masih gagal
+setelah 108,9 detik pada sintaks/aritmetika formatter. **151 tes terkait
+harness/proyek lolos di Windows**; belum ada editor lengkap yang lulus browser.

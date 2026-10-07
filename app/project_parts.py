@@ -21,9 +21,11 @@ part_cache = contextvars.ContextVar('model_source_part_cache', default={})
 def css_source_schema(item):
     """Constrain one rule's syntax/selector, never supply declaration code."""
     selectors=item.get('css_selectors',[])
-    if item.get('kind')!='css' or item.get('media_query') or len(selectors)!=1:return None
+    if item.get('kind')!='css' or len(selectors)!=1:return None
     whitespace=r'[ \t\r\n]*'
     pattern='^'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+'$'
+    if item.get('media_query'):
+        pattern='^'+whitespace+r'@media\s+'+re.escape(item['media_query'])+whitespace+r'\{'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+r'\}'+whitespace+'$'
     return {'type':'object','properties':{'source':{'type':'string','pattern':pattern}},
             'required':['source'],'additionalProperties':False}
 
@@ -35,11 +37,21 @@ def html_source_schema(item):
     classname=re.escape(root)
     attribute='(?:"'+classname+'(?: [^"<>]*)?"|\''+classname+'(?: [^\'<>]*)?\')'
     allowed_tags=('section','div','aside','header','footer','main')
-    tags=(item['root_tag'],) if item.get('root_tag') in allowed_tags else allowed_tags
-    alternatives=[r'<'+tag+r' class='+attribute+r'[^>]*>[\s\S]*</'+tag+r'>' for tag in tags]
+    tags=(item['root_tag'],) if item.get('root_tag') in (*allowed_tags,'h2') else allowed_tags
+    extra='' if item.get('root_only_class') else r'[^>]*'
+    body=r'[ \t\r\n]*' if item.get('empty_container') else r'[\s\S]*'
+    alternatives=[r'<'+tag+r' class='+attribute+extra+r'>'+body+r'</'+tag+r'>' for tag in tags]
     schema={'type':'object','properties':{'source':{'type':'string','pattern':'^(?:'+'|'.join(alternatives)+')$'}},
             'required':['source'],'additionalProperties':False}
     return schema
+
+
+def js_source_schema(item):
+    """Constrain a requested function boundary, never provide its implementation."""
+    names=item.get('functions',[])
+    if item.get('kind')!='js' or len(names)!=1:return None
+    pattern=r'^[ \t\r\n]*(?:async\s+)?function\s+'+re.escape(names[0])+r'\s*\([^)]*\)\s*\{[\s\S]+\}[ \t\r\n]*$'
+    return {'type':'object','properties':{'source':{'type':'string','pattern':pattern}},'required':['source'],'additionalProperties':False}
 
 
 def decode_source(raw,path,source_format='raw'):
@@ -90,6 +102,9 @@ def part_contract_errors(source, item):
     errors=[]
     if item.get('kind') in ('document','node','panel','shell','shellchunk'):
         doc=projects.Document();doc.feed(source)
+        if item.get('empty_container') and not re.fullmatch(r'\s*<(?P<tag>[a-z][\w-]*)\b[^>]*>\s*</(?P=tag)\s*>\s*',source,re.I):
+            errors.append('Fragment must be an empty container; write its opening and matching closing tag only.')
+        if item.get('kind')=='node' and doc.duplicate_ids:errors.append('Remove duplicate IDs.')
         strict_fragment=item.get('kind') in ('node','panel') and bool(item.get('root_class'))
         if strict_fragment or item.get('direct_parent_classes') or re.search(r'/\s*>',source):
             parents=item.get('direct_parent_classes',{})
@@ -101,6 +116,8 @@ def part_contract_errors(source, item):
                     if strict_fragment and item['root_class'] in classes:self.roots+=1
                     if strict_fragment and item['root_class'] in classes and item.get('root_tag') and tag!=item['root_tag']:
                         errors.append('Root class '+item['root_class']+' must use tag '+item['root_tag']+'.')
+                    if strict_fragment and item['root_class'] in classes and item.get('root_only_class') and set(attributes)!={'class'}:
+                        errors.append('Root class '+item['root_class']+' must have only the class attribute; remove extra attributes from the container.')
                     if strict_fragment and len(attrs)!=len(attributes):errors.append('Duplicate HTML attributes are not allowed in the fragment.')
                     parent_classes=self.stack[-1][1] if self.stack else []
                     for selector,required in parents.items():
@@ -130,6 +147,22 @@ def part_contract_errors(source, item):
                 if attr in doc.attributes.get(ident,{}):errors.append(ident+' must not have HTML attribute '+attr+'.')
         for tag in item.get('required_tags',[]):
             if not doc.tags.get(tag):errors.append('Required HTML tag '+tag+' is missing; it is used by the stylesheet.')
+        if item.get('required_text'):
+            texts={};stack=[]
+            class ElementText(HTMLParser):
+                def handle_starttag(self,tag,attrs):
+                    ident=dict(attrs).get('id')
+                    if tag not in {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}:stack.append((tag,ident))
+                def handle_endtag(self,tag):
+                    for index in range(len(stack)-1,-1,-1):
+                        if stack[index][0]==tag:del stack[index:];break
+                def handle_data(self,data):
+                    for _,ident in stack:
+                        if ident:texts[ident]=texts.get(ident,'')+data
+            ElementText().feed(source)
+            for ident,expected in item['required_text'].items():
+                actual=' '.join(texts.get(ident,'').split())
+                if ' '.join(expected.split()).casefold() not in actual.casefold():errors.append(ident+' must contain actual text '+json.dumps(expected)+', not text in attributes; observed '+json.dumps(actual)+'.')
     if item.get('media_query'):
         import tinycss2
         rules=[r for r in tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True)]
@@ -273,7 +306,7 @@ def extract_node(source,root_class):
         def handle_starttag(self,tag,attrs):
             if self.end is not None:return
             if self.start is None:
-                if tag not in ('div','main','section','aside','header','footer'):return
+                if tag not in ('div','main','section','aside','header','footer','h2'):return
                 if root_class not in dict(attrs).get('class','').split():return
                 self.start=self.source_offset();self.tag=tag;self.depth=1
             elif tag==self.tag:self.depth+=1
@@ -311,13 +344,21 @@ def assemble(shell,panels):
     return shell
 
 
+def fill_model_container(source,children):
+    """Keep the model's exact empty tags and insert only model-written children."""
+    match=re.fullmatch(r'\s*(<(?P<tag>[a-z][\w-]*)\b[^>]*>)\s*(</(?P=tag)\s*>)\s*',source,re.I)
+    if not match:raise ValueError('Model container must have empty content and matching closing tags.')
+    return match[1]+'\n'+'\n'.join(children)+'\n'+match[3]
+
+
 def compose_document(shell,nodes,panels):
     """Insert model-written nodes into model-written empty containers, no tags added."""
     body=re.search(r'(<body\b[^>]*>)\s*(</body\s*>)',shell,re.I)
     stage=re.fullmatch(r'\s*(<(?:div|main)\b[^>]*>)\s*(</(?:div|main)\s*>)\s*',nodes['stage'],re.I)
     if not body or not stage:raise ValueError('Model document/body and stage must be empty containers.')
     inner='\n'.join(panels[key] for key in ('library','viewer','inspector'))
-    markup='\n'.join((nodes['header'],stage[1]+'\n'+inner+'\n'+stage[2],panels['timeline'],nodes['footer']))
+    timeline=fill_model_container(nodes['timeline'],[nodes['timeline-heading'],nodes['timeline-content']]) if 'timeline' in nodes else panels['timeline']
+    markup='\n'.join((nodes['header'],fill_model_container(nodes['stage'],[inner]),timeline,nodes['footer']))
     return shell[:body.start()]+body[1]+'\n'+markup+'\n'+body[2]+shell[body.end():]
 
 
@@ -329,7 +370,7 @@ async def generate(brief,ctx,on_event=None):
     for step,item in enumerate(recipe['parts']):
         if item['kind']=='js':item={**item,'generation_contract_revision':2}
         path=item['file'];kind=item['kind'];name=item['name']
-        await emit('status',f'Menyusun {name} ({step+1}/{len(recipe["parts"])})…')
+        await emit('status',f'Menyusun {name} ({step+1}/{len(recipe["parts"])})â€¦')
         prior=contents.get(path,'')
         context={'owner_goal':brief.split('\n')[0][:250],'architecture':recipe['architecture'],
                  'current_html':contents.get('index.html',shell)[-6500:], 'previous_source':prior[-8500:], 'task':item['task']}
@@ -337,13 +378,13 @@ async def generate(brief,ctx,on_event=None):
             context.pop('architecture');context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
             context['required_controls']=item.get('controls',{})
-            for key in ('present_attributes','absent_attributes','direct_parent_classes'):
+            for key in ('present_attributes','absent_attributes','direct_parent_classes','required_text'):
                 if item.get(key):context[key]=item[key]
         elif kind in ('css','md'):context.pop('architecture')
         if kind=='css':
             context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
-            context['required_selectors']=item.get('css_selectors',[])
+            context['required_selectors']='\n'.join(item.get('css_selectors',[]))
             context['required_declarations']=item.get('css_declarations',{})
             # The part already names its exact selectors. Unrelated selectors
             # invite small models to style the whole application again.
@@ -366,7 +407,11 @@ async def generate(brief,ctx,on_event=None):
         if item.get('system_contract'):system+=' '+item['system_contract']
         source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw'
         for attempt in range(3):
-            response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
+            response=None
+            if attempt==0:
+                cache=part_cache.get()
+                candidates=[cache.get(step),*[saved for index,saved in cache.items() if index!=step]]
+                response=next((reused for saved in candidates if (reused:=reusable_part(saved,item)) is not None),None)
             patch_error='';patch_base=None;previous_errors=list(errors)
             if response is None:
                 if attempt and source_patchable and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
@@ -375,13 +420,13 @@ async def generate(brief,ctx,on_event=None):
                         contracts=(js_contract_context(prior,item.get('relevant_fields'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
-                    schema=css_source_schema(item) or html_source_schema(item)
+                    schema=css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
                     generation_system=system
                     options={}
                     if schema:
                         generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete source part as a string. No other keys, fences or explanations.')
                         generation_system+=' The source string must match this schema: '+json.dumps(schema,ensure_ascii=False)
-                        options['fmt']={'type':'json_schema','json_schema':{'name':'css_source' if kind=='css' else 'html_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+                        options['fmt']={'type':'json_schema','json_schema':{'name':kind+'_source' if kind in ('css','js') else 'html_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
                     response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
                     response['source_format']='json_source' if schema else 'raw'
             raw=response.get('content','');stats=response.get('stats',{})
@@ -420,7 +465,7 @@ async def generate(brief,ctx,on_event=None):
             missing_structure=False
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
-            if kind in ('node','panel') and any(error.startswith(('Fragment closing tag ','Fragment has unclosed HTML tags:','Root class ','Duplicate HTML attributes')) for error in errors):syntax_bad=True
+            if kind in ('node','panel') and any(error.startswith(('Fragment closing tag ','Fragment has unclosed HTML tags:','Fragment must be an empty container','Root class ','Duplicate HTML attributes')) for error in errors):syntax_bad=True
             if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
             if kind in ('shell','shellchunk','document','node'):
@@ -481,12 +526,12 @@ async def generate(brief,ctx,on_event=None):
                 source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors)) and not missing_structure and not patch_error and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
-            await emit('status','Memperbaiki bagian '+name+'…')
+            await emit('status','Memperbaiki bagian '+name+'â€¦')
             # Whole-part regeneration must not anchor the model to the very
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
@@ -497,8 +542,9 @@ async def generate(brief,ctx,on_event=None):
         elif kind=='shellchunk':shell+='\n'+source
         elif kind=='panel':
             panels[item['slot']]=source
-            if len(panels)==len(recipe['panels']):contents['index.html']=compose_document(shell,nodes,panels) if nodes else assemble(shell,panels)
         else:contents[path]=(prior+'\n'+source).strip()+'\n'
+        if kind in ('node','panel') and shell and all(part['slot'] in (nodes if part['kind']=='node' else panels) for part in recipe['parts'] if part['kind'] in ('node','panel')):
+            contents['index.html']=compose_document(shell,nodes,panels) if nodes else assemble(shell,panels)
         await emit('code',{'path':root+'/'+path,'content':contents.get(path,source),'draft':True})
     errors=projects.inspect_html(contents['index.html'],required_ids=recipe['required_ids'],strict=True)['errors']
     errors+=projects.project_errors(contents,brief)+await projects.inspect_browser_js(contents)

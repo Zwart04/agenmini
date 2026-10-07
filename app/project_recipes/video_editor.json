@@ -3,8 +3,7 @@
   "panels": [
     "library",
     "viewer",
-    "inspector",
-    "timeline"
+    "inspector"
   ],
   "required_ids": [
     "fileInput",
@@ -184,23 +183,43 @@
       "root_class": "inspector"
     },
     {
-      "name": "Timeline",
+      "name": "Timeline container",
       "file": "index.html",
-      "kind": "panel",
+      "kind": "node",
       "slot": "timeline",
-      "tokens": 600,
+      "tokens": 130,
+      "root_class": "timeline-panel",
+      "root_tag": "section",
+      "root_only_class": true,
+      "empty_container": true,
+      "task": "Write only one EMPTY section with class timeline-panel. No ID and no content. Explicit closing section tag. No other tags or attributes."
+    },
+    {
+      "name": "Timeline heading",
+      "file": "index.html",
+      "kind": "node",
+      "slot": "timeline-heading",
+      "tokens": 130,
+      "root_class": "timeline-heading",
+      "root_tag": "h2",
+      "root_only_class": true,
+      "required_patterns": [
+        "<h2\\b[^>]*>\\s*Timeline\\s*</h2\\s*>"
+      ],
+      "task": "Write one h2 with class timeline-heading and the literal text Timeline. No ID, no other tags, no extra attributes."
+    },
+    {
+      "name": "Timeline track",
+      "file": "index.html",
+      "kind": "node",
+      "slot": "timeline-content",
+      "tokens": 300,
+      "root_class": "timeline",
+      "root_tag": "div",
       "controls": {
         "timeline": {
           "tag": "div"
         }
-      },
-      "task": "Write one HTML section with class=\"timeline-panel\". Inside it, include h2 text Timeline. Then include a div with id=\"timeline\" and class=\"timeline\". The inner div must have tabindex=\"0\", role=\"region\", aria-label=\"Video timeline\" and initial text Import a clip to begin editing. End the inner div and outer section. No buttons, scripts, styles, sample media or extra panels. Use timeline-panel only on the outer section, timeline only on the inner div, and use explicit matching end tags. The outer section has no ID.",
-      "root_class": "timeline-panel",
-      "required_tags": [
-        "h2"
-      ],
-      "direct_parent_classes": {
-        "#timeline": "timeline-panel"
       },
       "present_attributes": {
         "timeline": [
@@ -209,7 +228,10 @@
           "aria-label"
         ]
       },
-      "root_tag": "section"
+      "required_text": {
+        "timeline": "Import a clip to begin editing"
+      },
+      "task": "Write ONE div: class timeline, id timeline, tabindex 0, role region, aria-label Video timeline. Put the literal words Import a clip to begin editing inside this div as text content. Close the div. No section, heading, wrapper, children, scripts, styles or extra attributes."
     },
     {
       "name": "Theme / *",

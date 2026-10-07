@@ -32,7 +32,10 @@ def test_css_schema_constrains_structure_without_providing_declarations():
     assert 'padding' not in json.dumps(schema) and 'mintcream' not in json.dumps(schema)
     for invalid in ['.selector {color:red;}','input[type="file"]','input[type="file"] {color:red;']:
         with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':invalid},schema)
-    assert project_parts.css_source_schema({**item,'media_query':'(max-width:700px)'}) is None
+    mobile_schema=project_parts.css_source_schema({**item,'media_query':'(max-width:700px)'})
+    jsonschema.validate({'source':'@media (max-width:700px) {input[type="file"] {padding: 11px;}}'},mobile_schema)
+    for invalid in ['input[type="file"] {padding:11px;}', '@media (max-width:700px) {["input[type=file]"] {padding:11px;}}', '@media (max-width:600px) {input[type="file"] {padding:11px;}}']:
+        with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':invalid},mobile_schema)
     assert project_parts.css_source_schema({**item,'kind':'js'}) is None
 
 
@@ -52,6 +55,24 @@ def test_html_schema_constrains_root_without_supplying_panel_implementation():
     with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':'<aside class="viewer"></aside>'},exact_schema)
     assert 'aside' not in json.dumps(exact_schema)
     assert project_parts.part_contract_errors('<aside class="viewer"></aside>',exact)==['Root class viewer must use tag section.']
+
+
+def test_javascript_schema_constrains_function_without_supplying_logic():
+    import jsonschema
+    schema=project_parts.js_source_schema({'kind':'js','functions':['modelHelper']})
+    jsonschema.validate({'source':'function modelHelper(input) { return input * 17; }'},schema)
+    jsonschema.validate({'source':'async function modelHelper(input) { return await input; }'},schema)
+    assert 'return' not in json.dumps(schema) and '17' not in json.dumps(schema)
+    for source in ['import { modelHelper } from "./app.js";','function wrongName(input) {return input;}','const modelHelper = input => input;']:
+        with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':source},schema)
+    assert project_parts.js_source_schema({'kind':'js','functions':['first','second']}) is None
+    assert project_parts.js_source_schema({'kind':'css','functions':['modelHelper']}) is None
+
+
+def test_repair_prompt_examples_do_not_discard_any_validation_results():
+    errors=[f'Helper behavior failed: actual case {index}' for index in range(12)]+['Actual syntax error']
+    assert project_patches.prompt_errors(errors)==errors[:3]+errors[-1:]
+    assert len(errors)==13
 
 
 @pytest.mark.asyncio
@@ -144,6 +165,62 @@ def test_fragment_checks_reject_real_nested_panel_and_mismatched_tag_failure():
     assert any('Duplicate HTML attributes' in error for error in project_parts.part_contract_errors(valid.replace('id="timeline"','id="timeline" role="region" role="alert"'),item))
 
 
+def test_required_element_text_cannot_be_satisfied_by_attributes_or_other_elements():
+    item={'kind':'panel','required_text':{'timeline':'Import a clip to begin editing'}}
+    invalid='<h2>Import a clip to begin editing</h2><div id="timeline" initial text="Import a clip to begin editing"></div>'
+    assert any('not text in attributes' in error for error in project_parts.part_contract_errors(invalid,item))
+    assert project_parts.part_contract_errors('<div id="timeline">Import a clip <span>to begin editing.</span></div>',item)==[]
+    assert project_parts.part_contract_errors('<div id="timeline">Import\n a clip to begin editing.</div>',item)==[]
+
+
+def test_empty_model_container_is_filled_without_new_markup():
+    wrapper='<section class="timeline-panel">\n</section>'
+    heading='<h2 class="timeline-heading">Model heading</h2>'
+    track='<div id="timeline">Actual model content</div>'
+    combined=project_parts.fill_model_container(wrapper,[heading,track])
+    assert combined=='<section class="timeline-panel">\n'+heading+'\n'+track+'\n</section>'
+    for invalid in ['<section></div>','<section>Unrequested model body</section>']:
+        with pytest.raises(ValueError):project_parts.fill_model_container(invalid,[track])
+    item={'kind':'node','root_class':'timeline-panel','empty_container':True}
+    assert project_parts.part_contract_errors(wrapper,item)==[]
+    assert any('empty container' in e for e in project_parts.part_contract_errors(combined,item))
+    restricted={**item,'root_tag':'section','root_only_class':True}
+    assert any('only the class attribute' in e for e in project_parts.part_contract_errors(wrapper.replace('class="timeline-panel"','class="timeline-panel" id="timeline"'),restricted))
+    import jsonschema
+    schema=project_parts.html_source_schema(restricted)
+    jsonschema.validate({'source':wrapper},schema)
+    with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':combined},schema)
+
+
+def test_model_heading_is_selected_verbatim_and_validated_as_a_real_element():
+    source='<h2 class="timeline-heading">Timeline</h2>'
+    assert project_parts.extract_node(source,'timeline-heading')==source
+    assert project_parts.extract_node('Prefix\n'+source+'\nUnrequested suffix','timeline-heading')==source
+    with pytest.raises(ValueError):project_parts.extract_node(source.replace('</h2>',''),'timeline-heading')
+
+
+@pytest.mark.asyncio
+async def test_reordered_recipe_reuses_only_identical_verified_model_task(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Rule','file':'style.css','kind':'css','task':'Write the actual selector','css_selectors':['.actual']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    source='.actual {color: red;}'
+    saved={'source':source,'raw_source':source,'evidence':{'model':'original-model','sha256':project_patches.digest(source),'raw_sha256':project_patches.digest(source),'task_sha256':project_patches.digest(json.dumps(item,sort_keys=True,ensure_ascii=False))}}
+    token=project_parts.part_cache.set({41:saved,0:{**saved,'source':'.wrong {color: blue;}'}})
+    async def model(*args,**kwargs):raise AssertionError('A verified identical model task should be reused.')
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==source and value['evidence']['reused']
+            assert value['evidence']['model']=='original-model'
+            raise Validated()
+    try:
+        with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)
+    finally:project_parts.part_cache.reset(token)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
 async def test_model_selects_duplicate_attribute_removal_without_replacement_code(monkeypatch,backend):
@@ -204,7 +281,10 @@ async def test_known_duplicate_declaration_is_repaired_by_model_and_rechecked(mo
     calls=[];events=[]
     async def model(messages,**options):
         calls.append(messages)
-        if len(calls)==1:return {'content':source,'stats':{'finish_reason':'stop','served_model':backend}}
+        if len(calls)==1:
+            if backend=='local':assert options['fmt']['json_schema']['name']=='js_source'
+            else:assert options['fmt']=='json'
+            return {'content':json.dumps({'source':source}),'stats':{'finish_reason':'stop','served_model':backend}}
         request=json.loads(messages[1]['content'])
         assert request['source']==source
         assert [line['line'] for line in request['numbered_lines']]==[2,3,4]
@@ -539,11 +619,11 @@ async def test_model_repair_cannot_fix_playback_by_breaking_initial_import(monke
     original=fixture_source('flag','flag')
     broken=fixture_source('flag||!app.loaded','flag||!app.loaded')
     corrected=fixture_source('flag','flag||!app.loaded')
-    responses=[original,json.dumps({'edits':[{'line':1,'replace':broken}]}),corrected]
+    responses=[json.dumps({'source':original}),json.dumps({'edits':[{'line':1,'replace':broken}]}),json.dumps({'source':corrected})]
     calls=[];events=[]
     async def model(messages,**options):
         if len(calls)>=2:
-            assert 'fmt' not in options
+            assert options['fmt']['json_schema']['name']=='js_source'
             assert original not in messages[1]['content'] and broken not in messages[1]['content']
             assert 'new failing behavior cases' in messages[1]['content']
         calls.append(messages)

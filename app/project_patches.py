@@ -31,6 +31,17 @@ def digest(source):
     return hashlib.sha256(source.encode()).hexdigest()
 
 
+def prompt_errors(errors):
+    """Keep real examples concise; validators/journals still retain all failures."""
+    helper=0;selected=[]
+    for error in errors:
+        if error.startswith('Helper behavior failed: '):
+            helper+=1
+            if helper>3:continue
+        selected.append(error)
+    return selected
+
+
 def forbidden_attribute_choices(source, errors):
     """Offer only unique spans already present on the IDs named by real checks."""
     forbidden={}
@@ -161,6 +172,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     # bounded model can select a line or the whole part without inventing find
     # strings. Exact-match application still validates online/plain JSON output.
     attribute_choices=forbidden_attribute_choices(source,errors)
+    examples=prompt_errors(errors)
     removal_choices=duplicate_id_choices(source,errors) if not attribute_choices else []
     if attribute_choices:indexed=False
     schema=json.loads(json.dumps(REMOVAL_SCHEMA if removal_choices else INDEXED_SCHEMA if indexed else SCHEMA))
@@ -183,7 +195,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     if diagnose and not attribute_choices and not removal_choices:
         diagnosis=await llm.chat([
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
-            {'role':'user','content':json.dumps({'errors':errors,'task':task,'source':source},ensure_ascii=False)}
+            {'role':'user','content':json.dumps({'errors':examples,'total_error_count':len(errors),'task':task,'source':source},ensure_ascii=False)}
         ],max_tokens=220+reasoning_allowance,temperature=.2)
     # A cut-off diagnosis is evidence of a failed reasoning attempt, not a
     # trustworthy plan to inject into the next request. Preserve it in logs.
@@ -195,7 +207,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         system=None
     result=await llm.chat([
         {'role':'system','content':system or ('Remove ALL listed forbidden attribute spans from the current source. Return one JSON object with edits, an array of find/replace strings. Copy each find exactly from find_choices and set replace to the empty string. Keep the element, its ID, every other attribute and surrounding source. No replacement markup or other changes. Other errors will be checked again afterwards.' if attribute_choices else 'You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
-        {'role':'user','content':json.dumps({'source':source,'errors':errors,'contracts':contracts,'task':task,
+        {'role':'user','content':json.dumps({'source':source,'errors':examples,'total_error_count':len(errors),'contracts':contracts,'task':task,
             **({'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
     if attribute_choices or removal_choices:
