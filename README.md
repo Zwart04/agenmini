@@ -26,6 +26,8 @@ Untuk agen yang hanya membaca web, unduhan HTML adalah pilihan paling ringan. Li
 
 Inti kontrol Agen Mini diadaptasi ke Python dari loop open-source [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), dengan atribusi MIT dan commit sumber tetap. Ada batas langkah/waktu, log tindakan dengan identitas call/result, serta hasil belum diketahui ketika tindakan terputus. Tindakan mutasi tidak otomatis diputar ulang. Web dan Telegram menggunakan `agent.Turn` yang sama.
 
+Harness bawaan berlaku untuk model lokal, API online dan gateway/router. Model kecil dipakai sebagai acuan uji, bukan batas dukungan. Kode hasil tugas berasal dari model yang dipilih; pemeriksaan dapat menolak hasil dan meminta model memperbaikinya. Bukti uji nyata dipisahkan dari tes respons stub, dan hasil yang gagal tidak dilabeli sukses. [Benchmark aplikasi dan batasnya](docs/LOCAL-APPS-EVAL.md)
+
 Ini adaptasi inti tertentu, bukan port penuh Cordis atau CLI DeepSeek. **DeepSeek eksternal asli tetap tersedia** dan dipasang hanya saat dipilih. Kosong, Agen Mini bawaan dan runtime eksternal tetap dibedakan. [Detail adaptasi](docs/DEEPSEEK-CORE.md) · [Runtime asli dan batas integrasi](docs/HARNESSES.md)
 
 Skill dan ingatan dapat dilihat, diedit dan dikosongkan. Self-improve menyimpan prosedur yang dibuktikan dan ditinjau; tidak melatih bobot model. Model kecil masih dapat salah. Harness tidak menjadikannya setara model frontier.

@@ -205,7 +205,8 @@
       "file": "style.css",
       "kind": "css",
       "tokens": 300,
-      "task": "Write exactly one complete CSS rule for selector \"body\". font should be 13px system-ui, sans-serif, background should be #0e1013, color should be #edf0f4. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "task": "Write exactly one complete CSS rule for selector \"body\". Use separate properties: font-size 13px; font-family a comma-separated list of system-ui and sans-serif; background #0e1013; color #edf0f4. Do not use the font shorthand. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_generic_font": true,
       "css_selectors": [
         "body"
       ]

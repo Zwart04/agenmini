@@ -274,6 +274,26 @@ diminta ulang secara lengkap, dan patch yang menghapus struktur wajib ditolak.
 Namun putaran `v3` tetap **gagal**: model masih tidak menulis input file yang
 diminta. Ini tidak dipublikasikan sebagai aplikasi atau demo sukses.
 
+Putaran Qwen 0.8B Q8 `v4` menyelesaikan delapan bagian HTML setelah permintaan
+ulang tidak lagi menyertakan sumber yang ditolak. Pada `v5`, model memperbaiki
+font sistem dan selector header/footer. Guard font menolak nama keluarga
+multi-kata yang tidak sengaja menggantikan font sistem. Semua kode pengganti
+tetap berasal dari respons model; harness tidak menyisipkan implementasi.
+
+Putaran `v6` gagal karena model memasukkan satu blok CSS lengkap ke patch satu
+baris, sehingga blok terduplikasi. Patch yang merusak sintaks/struktur atau
+kasus perilaku dikembalikan, lalu percobaan terakhir meminta bagian lengkap
+baru. Permintaan patch sekarang memuat kontrak semantik tanpa instruksi format
+raw source yang bertentangan dengan JSON patch. Baris selector yang gagal
+ditentukan dari posisi parser CSS, bukan kode jawaban buatan evaluator.
+
+Pada `v7`, model berhasil memperbaiki aturan judul, tetapi gagal di `.statusbar`.
+`v8` dengan selector literal di konteks/system juga **gagal**: respons terakhir
+menulis `.selector ".statusbar"` alih-alih selector yang diminta. Tidak ada
+aplikasi lengkap atau bukti browser impor/playback/trim/ekspor untuk putaran
+ini. Sebanyak **119 tes lokal** untuk jalur source-parts, proyek, inti harness
+dan workflow lolos; ini tidak mengubah hasil benchmark model nyata tersebut.
+
 Pemeriksaan routing mencakup model lokal/API online/router. Tes respons stub
 tidak membuktikan mutu model online, dan putaran CPU nyata ini tidak membuktikan
 model sekitar 1B dapat menghasilkan aplikasi setara CapCut. Jalur source-parts

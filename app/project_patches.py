@@ -28,8 +28,18 @@ def failing_lines(source, errors):
     """Locate identifiers named by real checks, without deciding replacements."""
     lines=source.splitlines()
     identifiers=set()
+    css_lines=set()
     for error in errors:
         if error.startswith(('Patch rejected:','The patch introduced')):continue
+        if error.startswith('Missing CSS selector '):
+            import tinycss2
+            def collect(rules):
+                for rule in rules:
+                    if rule.type=='qualified-rule':css_lines.add(rule.source_line)
+                    elif rule.type=='at-rule' and rule.content is not None:
+                        collect(tinycss2.parse_rule_list(rule.content,skip_comments=True,skip_whitespace=True))
+            collect(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
+            if css_lines:continue
         named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden)\s+expected',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
         # A generic structural error can concern another line. Do not prevent
@@ -37,7 +47,7 @@ def failing_lines(source, errors):
         if not named:return list(range(1,len(lines)+1))
         identifiers.update(named)
     matched=[i for i,line in enumerate(lines,1) if any(re.search(r'(?<![\w-])'+re.escape(name)+r'(?![\w-])',line) for name in identifiers)]
-    return matched or list(range(1,len(lines)+1))
+    return sorted(set(matched)|css_lines) or list(range(1,len(lines)+1))
 
 
 def apply(source, raw):
@@ -97,6 +107,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     if indexed:
         schema['properties']['edits']['items']['properties']['line']['enum']=targets
         schema['properties']['edits']['maxItems']=min(8,len(targets))
+        schema['properties']['edits']['items']['properties']['replace']['pattern']='^[^\r\n]*$'
     else:schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
     fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
     reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
@@ -108,7 +119,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         ],max_tokens=220+reasoning_allowance,temperature=.2)
     plan=(diagnosis or {}).get('content','')[:1800]
     result=await llm.chat([
-        {'role':'system','content':('You repair existing source using numbered lines. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (complete corrected line text). Edit only the listed failing lines; change their logic to satisfy the check. Do not just copy their old text. Do not copy line numbers into replacement code. Leave every correct line untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
+        {'role':'system','content':('You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
         {'role':'user','content':json.dumps({'source':source,'errors':errors,'contracts':contracts,'task':task,
             **({'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':plan} if plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)

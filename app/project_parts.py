@@ -86,6 +86,25 @@ def part_contract_errors(source, item):
         for required in item['css_selectors']:
             if not split_selector(required)<=selectors:
                 errors.append('Missing CSS selector '+required+'; preserve its exact punctuation, including IDs (#), classes (.), attribute brackets and descendant spaces.')
+        if item.get('css_generic_font'):
+            # A syntactically valid multiword custom family can silently fall
+            # back to Times. This task explicitly requests a system font.
+            families=[];shorthand=False
+            expected=set().union(*(split_selector(s) for s in item['css_selectors']))
+            for rule in tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True):
+                if rule.type!='qualified-rule' or not expected&split_selector(tinycss2.serialize(rule.prelude)):continue
+                for declaration in tinycss2.parse_declaration_list(rule.content,skip_comments=True,skip_whitespace=True):
+                    if declaration.type!='declaration':continue
+                    if declaration.lower_name=='font':shorthand=True
+                    if declaration.lower_name=='font-family':families.append(declaration.value)
+            def generic_family(tokens):
+                groups=[[]]
+                for token in tokens:
+                    if token.type=='literal' and token.value==',':groups.append([])
+                    elif token.type not in ('whitespace','comment'):groups[-1].append(token)
+                return any(len(group)==1 and group[0].type=='ident' and group[0].value.lower() in ('system-ui','sans-serif') for group in groups)
+            if shorthand or not families or not all(generic_family(tokens) for tokens in families):
+                errors.append('Use separate font-size and font-family declarations. font-family must include unquoted system-ui or sans-serif as a separate comma-delimited family, not a multiword custom font name.')
     return errors
 
 
@@ -210,6 +229,7 @@ async def generate(brief,ctx,on_event=None):
         if kind=='css':
             context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
+            context['required_selectors']=item.get('css_selectors',[])
             # The part already names its exact selectors. Unrelated selectors
             # invite small models to style the whole application again.
         if kind=='js':
@@ -223,6 +243,8 @@ async def generate(brief,ctx,on_event=None):
         context['task']=context.pop('task')
         request='\n\n'.join(key.upper()+':\n'+(value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)) for key,value in context.items())
         system=part_system(kind)
+        if kind=='css':
+            system+=' Required selectors are literal CSS selectors, not placeholders: '+json.dumps(item.get('css_selectors',[]))+'.'
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
@@ -234,7 +256,7 @@ async def generate(brief,ctx,on_event=None):
                 if attempt and source_patchable and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else json.dumps({key:value for key,value in item.items() if key not in ('task','tokens')}))+'\n'+system,
+                        contracts=(js_contract_context(prior,item.get('relevant_fields'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
                     response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
@@ -319,18 +341,23 @@ async def generate(brief,ctx,on_event=None):
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
             if (syntax_bad or missing_structure or regression) and patch_base is not None and not patch_error:
                 repair_chain.pop();source=patch_base
-                if regression:errors=previous_errors+['The patch introduced new failing behavior cases. Original source restored; fix existing failures without breaking passing cases.']
-                else:errors.append('The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.')
+                if regression:errors=list(dict.fromkeys(previous_errors+['The patch introduced new failing behavior cases. Original source restored; fix existing failures without breaking passing cases.']))
+                else:errors=list(dict.fromkeys(previous_errors+['The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.']))
+                source_patchable=False
                 await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip(),'draft':True,'part':name,'restored':True})
             else:
                 # Exact edits are useful for a valid source with a failing
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
-                source_patchable=not syntax_bad and not missing_structure and bool(source)
+                source_patchable=not syntax_bad and not missing_structure and not patch_error and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
-            request='EXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nMODEL SOURCE TO REPAIR:\n'+source[-9000:]+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nTASK:\n'+item['task']+'\nRepair the failed lines and preserve correct logic. Return this complete corrected part only. No other parts or explanations.'
+            # Whole-part regeneration must not anchor the model to the very
+            # fragment that omitted required structure. Keep that response in
+            # the journal, but supply the specification and actual failures.
+            # The separate exact-patch path still receives current source.
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Return raw source only, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],

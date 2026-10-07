@@ -108,14 +108,16 @@ async def test_invalid_syntax_patch_is_rolled_back_before_next_model_repair(monk
     monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
     monkeypatch.setattr(llm,'active_backend',lambda:'local')
     original='.wrong {color:red;}'
-    responses=[original,json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;'}]}),'Correct the selector while preserving the declaration and braces.',
-               json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;}'}]})]
+    responses=[original,json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;'}]}),'.correct {color:red;}']
     calls=[];events=[]
     async def model(messages,**options):
         if len(calls)>=2:
-            supplied=json.loads(messages[1]['content'])
-            assert supplied['source']==original
-            assert any('Original source restored' in error for error in supplied['errors'])
+            assert 'fmt' not in options
+            assert 'Original source restored' in messages[1]['content']
+            assert 'EOF reached' not in messages[1]['content']
+            assert original not in messages[1]['content']
+        if 'fmt' in options:
+            assert 'Output raw source only' not in json.loads(messages[1]['content'])['contracts']
         calls.append(messages)
         return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop','served_model':'fixture-model'}}
     monkeypatch.setattr(llm,'chat',model)
@@ -126,7 +128,7 @@ async def test_invalid_syntax_patch_is_rolled_back_before_next_model_repair(monk
     with pytest.raises(ReachedValidatedSource):await project_parts.generate('requested application',object(),event)
     accepted=next(value for kind,value in events if kind=='source_part')
     assert accepted['source']=='.correct {color:red;}'
-    assert len(accepted['repair_chain'])==1
+    assert not accepted.get('repair_chain')
     rejected=next(value for kind,value in events if kind=='source_check' and value['attempt']==1)
     assert not rejected['passed']
     assert any(kind=='code' and value.get('restored') for kind,value in events)
@@ -177,8 +179,11 @@ async def test_incomplete_source_is_regenerated_by_selected_model_instead_of_pat
     async def model(messages,**options):
         calls.append(messages)
         assert 'fmt' not in options
+        assert 'Required selectors are literal CSS selectors' in messages[0]['content']
+        assert '[hidden]' in messages[0]['content']
+        if len(calls)==1:assert 'REQUIRED_SELECTORS' in messages[1]['content']
         if len(calls)==1:return {'content':'[hidden]:','stats':{'finish_reason':'stop'}}
-        assert '[hidden]:' in messages[1]['content'] and 'CHECK ERRORS' in messages[1]['content']
+        assert '[hidden]:' not in messages[1]['content'] and 'CHECK ERRORS' in messages[1]['content']
         return {'content':'[hidden] {display:none!important;}','stats':{'finish_reason':'stop','served_model':backend}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
@@ -218,6 +223,7 @@ async def test_missing_import_element_is_regenerated_instead_of_copying_incomple
         assert 'fmt' not in options
         if len(calls)==1:return {'content':'<aside class="library"><label for="fileInput">Import</label></aside>','stats':{'finish_reason':'stop'}}
         assert 'Required control fileInput' in messages[1]['content']
+        assert '<aside' not in messages[1]['content']
         return {'content':complete,'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
@@ -249,6 +255,8 @@ def test_failing_line_selection_uses_check_identifiers_and_falls_back_for_unknow
     assert project_patches.failing_lines(source,['playBtn.disabled expected true','Missing helper declaration'])==[1,2,3,4,5]
     html='<header>\n<button id="cancelBtn">Cancel</button>\n</header>'
     assert project_patches.failing_lines(html,['cancelBtn must have HTML attribute hidden.'])==[2]
+    assert project_patches.failing_lines('.wrong {\n color:red;\n}', ['Missing CSS selector .correct; preserve punctuation.'])==[1]
+    assert project_patches.failing_lines('@media (max-width:700px){\n.wrong {color:red}\n}', ['Missing CSS selector .correct; preserve punctuation.'])==[2]
 
 
 @pytest.mark.asyncio
@@ -263,13 +271,13 @@ async def test_model_repair_cannot_fix_playback_by_breaking_initial_import(monke
     original=fixture_source('flag','flag')
     broken=fixture_source('flag||!app.loaded','flag||!app.loaded')
     corrected=fixture_source('flag','flag||!app.loaded')
-    responses=[original,json.dumps({'edits':[{'line':1,'replace':broken}]}),'Preserve import when unloaded; repair playback.',json.dumps({'edits':[{'line':1,'replace':corrected}]})]
+    responses=[original,json.dumps({'edits':[{'line':1,'replace':broken}]}),corrected]
     calls=[];events=[]
     async def model(messages,**options):
         if len(calls)>=2:
-            supplied=json.loads(messages[1]['content'])
-            assert supplied['source']==original
-            assert any('new failing behavior cases' in error for error in supplied['errors'])
+            assert 'fmt' not in options
+            assert original not in messages[1]['content'] and broken not in messages[1]['content']
+            assert 'new failing behavior cases' in messages[1]['content']
         calls.append(messages)
         return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
@@ -277,7 +285,7 @@ async def test_model_repair_cannot_fix_playback_by_breaking_initial_import(monke
     async def event(kind,value):
         events.append((kind,value))
         if kind=='source_part':
-            assert value['source']==corrected and len(value['repair_chain'])==1
+            assert value['source']==corrected and not value.get('repair_chain')
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('requested video editor',object(),event)
     rejected=next(value for kind,value in events if kind=='source_check' and value['attempt']==1)
@@ -294,7 +302,10 @@ async def test_indexed_repair_can_change_five_controls_without_copying_function(
         supplied=json.loads(messages[1]['content'])
         assert supplied['numbered_lines']==[{'line':i+1,'text':line} for i,line in enumerate(source.splitlines())]
         assert 'find_choices' not in supplied
-        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']['line']['enum']==[1,2,3,4,5]
+        if backend=='local':
+            fields=options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']
+            assert fields['line']['enum']==[1,2,3,4,5]
+            assert fields['replace']['pattern']=='^[^\r\n]*$'
         else:assert options['fmt']=='json'
         return {'content':json.dumps({'edits':[{'line':i+1,'replace':'control'+str(i)+'.disabled = busy || !loaded;'} for i in range(5)]})}
     monkeypatch.setattr(llm,'chat',model)
@@ -391,6 +402,15 @@ def test_css_contract_rejects_class_alias_for_actual_id():
     assert project_parts.part_contract_errors('.exportBtn{color:white}',{'css_selectors':['#exportBtn']})
     assert not project_parts.part_contract_errors('@media (max-width:700px){#exportBtn{color:white}}',{'css_selectors':['#exportBtn']})
     assert not project_parts.part_contract_errors('.library{padding:1px}.viewer{padding:1px}',{'css_selectors':['.library, .viewer']})
+
+
+def test_requested_system_font_does_not_accept_unknown_multiword_family():
+    item={'css_selectors':['body'],'css_generic_font':True}
+    assert project_parts.part_contract_errors('body{font:13px system-ui sans-serif;}',item)
+    assert project_parts.part_contract_errors('body{font-size:13px;font-family:system-ui sans-serif;}',item)
+    assert project_parts.part_contract_errors('body{font-family:"system-ui";} .other{font-family:sans-serif}',item)
+    assert not project_parts.part_contract_errors('body{font-size:13px;font-family:system-ui,sans-serif;}',item)
+    assert not project_parts.part_contract_errors('body{font-family:"Segoe UI", /* fallback */ sans-serif;}',item)
 
 
 def test_html_visibility_contract_rejects_inline_display_that_hidden_cannot_toggle():
