@@ -981,7 +981,7 @@
       "functions": [
         "setBusy"
       ],
-      "task": "Write only complete JavaScript function setBusy(flag). Update app.busy to the Boolean flag. Enable file import whenever idle, EVEN IF NO VIDEO IS LOADED: ui.fileInput.disabled follows busy ONLY. For ui.playBtn, seekInput, startInput, endInput, exportBtn: disable when busy or when no media is loaded. ui.cancelBtn.hidden is the inverse of busy. Assign these properties individually; do not loop over all ui fields. Leave app.loaded untouched. Do not add globals, classes or other functions. Return source only.",
+      "task": "Write only synchronous function setBusy(flag), at most 14 lines. Compute a busy Boolean from flag and store it in app.busy. ui.fileInput.disabled equals busy. Declare one local const blocked Boolean: busy OR NOT app.loaded. Assign blocked to disabled on ui.playBtn, ui.seekInput, ui.startInput, ui.endInput, ui.exportBtn. ui.cancelBtn.hidden is NOT busy. Do not change app.loaded. Use direct assignments, no comments, loops, early returns, additional functions or initialization code.",
       "behavior_checks": [
         "busy"
       ],
@@ -1003,7 +1003,9 @@
           "cancelBtn"
         ]
       },
-      "system_contract": "app.loaded is a read-only input controlled by video metadata. Busy=false does NOT imply loaded=true. Do not assign or reset app.loaded. Only update app.busy and the listed UI properties."
+      "system_contract": "app.loaded is a read-only input controlled by video metadata. Busy=false does NOT imply loaded=true. Do not assign or reset app.loaded. Only update app.busy and the listed UI properties.",
+      "context": "Synchronous UI state update. app.loaded is a boolean read-only input. No existing helper calls are needed.",
+      "relevant_functions": []
     },
     {
       "name": "Impor media asli",
@@ -1013,11 +1015,38 @@
       "functions": [
         "loadVideo"
       ],
-      "task": "Parameter file is a browser File object: file.type is its MIME string, file.name is its filename. Never call startsWith on the File itself. Define only complete function loadVideo(file). Use existing app/ui/helpers. If busy return. Validate file is present and MIME starts video/; reject without destroying old video on invalid input. Revoke previous objectURL/downloadURL safely; createObjectURL(file), set preview.src, loaded=false until loadedmetadata. Set preview.onloadedmetadata to update loaded/duration/start0/endduration, start/end/seek input values and seek.max in seconds, clipLabel.textContent filename, durationLabel formatTime(duration), hide downloadLink until new export, setBusy(false), setStatus Ready, call updateTimeline and updateText. Set onerror to clear ready flag and show error. Do not invent Media/File helper classes or read file text. Don't autoplay on import. Audio, mediaRecorder and export are handled elsewhere. No other functions, globals or init handlers.",
+      "task": "Write only complete loadVideo(file), at most 35 lines. file is a File, not a string. Return while app.busy. Reject absent file or MIME not starting video/ with setStatus error, keeping old video. Revoke existing app.objectURL and app.downloadURL if present. Set app.objectURL using URL.createObjectURL(file), app.filename=file.name, app.loaded=false; hide ui.downloadLink. Assign ui.preview.onloadedmetadata: set app.duration from ui.preview.duration, app.loaded=true, app.start=0, app.end=app.duration; copy bounds into ui.startInput.value and ui.endInput.value; set ui.seekInput.max=app.duration and value=0; ui.clipLabel.textContent=app.filename; ui.durationLabel.textContent=formatTime(app.duration); call setBusy(false), setStatus Ready, updateTimeline(), updateText(). Assign ui.preview.onerror to clear app.loaded, call setBusy(false), setStatus error. Set ui.preview.src=app.objectURL last. No autoplay, recorder, export, DOM creation, globals, other functions or initialization calls. Use only existing app/ui state and browser URL API. Functions updateTimeline() and updateText() are supplied later.",
       "required_patterns": [
         "URL\\.createObjectURL\\s*\\(",
         "\\b(?:onloadedmetadata|loadedmetadata)\\b",
         "\\bpreview\\.src\\s*="
+      ],
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "busy",
+          "loaded",
+          "duration",
+          "start",
+          "end",
+          "filename",
+          "objectURL",
+          "downloadURL"
+        ],
+        "ui": [
+          "preview",
+          "startInput",
+          "endInput",
+          "seekInput",
+          "clipLabel",
+          "durationLabel",
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "formatTime",
+        "setStatus",
+        "setBusy"
       ]
     },
     {

@@ -9,6 +9,7 @@ import hashlib
 import contextvars
 import json
 import re
+import subprocess
 import time
 import zipfile
 from pathlib import Path
@@ -16,6 +17,30 @@ from html.parser import HTMLParser
 from . import llm, projects, tools, project_checks, project_patches
 
 part_cache = contextvars.ContextVar('model_source_part_cache', default={})
+ACORN_PATH=Path(__file__).parent/'vendor'/'acorn.cjs'
+HELPER_SELECTOR=r'''
+const fs=require('node:fs'),acorn=require(process.argv[1]);
+const input=JSON.parse(fs.readFileSync(0,'utf8'));
+try{
+ const ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'script'});
+ if(input.mode==='contracts'){
+  const globals={},functions=[];
+  for(const node of ast.body){
+   if(node.type==='VariableDeclaration')for(const declaration of node.declarations){
+    if(['app','ui'].includes(declaration.id.name)&&declaration.init?.type==='ObjectExpression')
+     globals[declaration.id.name]=declaration.init.properties.filter(p=>p.type==='Property'&&!p.computed).map(p=>p.key.name??p.key.value).filter(k=>typeof k==='string');
+   }
+   if(node.type==='FunctionDeclaration')functions.push(input.source.slice(node.start,node.body.start).trim());
+  }
+  console.log(JSON.stringify({globals,existing_functions:functions}));
+ }else{
+ const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name);
+ const spans=choices.map(n=>input.source.slice(n.start,n.end));
+ if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
+ else console.log(JSON.stringify({source:spans[0]??input.source}));
+ }
+}catch(error){console.log(JSON.stringify({source:input.source}));}
+'''
 
 
 def css_source_schema(item):
@@ -25,7 +50,7 @@ def css_source_schema(item):
     whitespace=r'[ \t\r\n]*'
     pattern='^'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+'$'
     if item.get('media_query'):
-        pattern='^'+whitespace+r'@media\s+'+re.escape(item['media_query'])+whitespace+r'\{'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+r'\}'+whitespace+'$'
+        pattern='^'+whitespace+r'@media[ \t\r\n]+'+re.escape(item['media_query'])+whitespace+r'\{'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+r'\}'+whitespace+'$'
     return {'type':'object','properties':{'source':{'type':'string','pattern':pattern}},
             'required':['source'],'additionalProperties':False}
 
@@ -39,7 +64,7 @@ def html_source_schema(item):
     allowed_tags=('section','div','aside','header','footer','main')
     tags=(item['root_tag'],) if item.get('root_tag') in (*allowed_tags,'h2') else allowed_tags
     extra='' if item.get('root_only_class') else r'[^>]*'
-    body=r'[ \t\r\n]*' if item.get('empty_container') else r'[\s\S]*'
+    body=r'[ \t\r\n]*' if item.get('empty_container') else r'[\x00-\U0010FFFF]*'
     alternatives=[r'<'+tag+r' class='+attribute+extra+r'>'+body+r'</'+tag+r'>' for tag in tags]
     schema={'type':'object','properties':{'source':{'type':'string','pattern':'^(?:'+'|'.join(alternatives)+')$'}},
             'required':['source'],'additionalProperties':False}
@@ -50,8 +75,18 @@ def js_source_schema(item):
     """Constrain a requested function boundary, never provide its implementation."""
     names=item.get('functions',[])
     if item.get('kind')!='js' or len(names)!=1:return None
-    pattern=r'^[ \t\r\n]*(?:async\s+)?function\s+'+re.escape(names[0])+r'\s*\([^)]*\)\s*\{[\s\S]+\}[ \t\r\n]*$'
+    pattern=r'^[ \t\r\n]*(?:async[ \t\r\n]+)?function[ \t\r\n]+'+re.escape(names[0])+r'[ \t\r\n]*\([^)]*\)[ \t\r\n]*\{[\x00-\U0010FFFF]+\}[ \t\r\n]*$'
     return {'type':'object','properties':{'source':{'type':'string','pattern':pattern}},'required':['source'],'additionalProperties':False}
+
+
+def source_response_schema():
+    """Keep encoded JSON valid; code contracts are checked after decoding.
+
+    llama.cpp's pattern converter operates on grammar string bytes. A broad
+    multiline source pattern can consume JSON quotes/keys; unsupported regex
+    escapes also silently weaken it. Use the builtin escaped string grammar.
+    """
+    return {'type':'object','properties':{'source':{'type':'string'}},'required':['source'],'additionalProperties':False}
 
 
 def decode_source(raw,path,source_format='raw'):
@@ -69,6 +104,61 @@ def decode_source(raw,path,source_format='raw'):
         return value['source']
     if source_format!='raw':raise ValueError('Unknown model source format.')
     return projects.unwrap_file(raw,path)
+
+
+def select_repeated_function(source,item):
+    """Select one exact span only when the entire response repeats that span.
+
+    Different implementations, extra helpers or trailing statements stay
+    unchanged and fail normal guards. Syntax and behavior are checked later.
+    No braces are guessed and no function body bytes are rewritten.
+    """
+    names=item.get('functions',[])
+    if item.get('kind')!='js' or len(names)!=1:return source
+    text=source.strip()
+    starts=list(re.finditer(r'(?m)^[ \t]*(?:async\s+)?function\s+'+re.escape(names[0])+r'\s*\(',text))
+    if len(starts)<2 or starts[0].start()!=0:return source
+    for match in starts[1:]:
+        unit=text[:match.start()].rstrip()
+        if len(re.findall(r'\bfunction\s+\w+\s*\(',unit))!=1:continue
+        if re.fullmatch(re.escape(unit)+r'(?:\s*'+re.escape(unit)+r')+',text):return unit
+    return source
+
+
+def select_model_helper(source,item):
+    """Parse without executing model code; select an exact tested helper span."""
+    names=item.get('functions',[])
+    if item.get('kind')!='js' or len(names)!=1 or not item.get('behavior_checks'):
+        return select_repeated_function(source,item)
+    if len(source.encode())>65536:return source
+    try:
+        result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
+            input=json.dumps({'source':source,'name':names[0]}),text=True,encoding='utf-8',
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
+            **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
+        if result.returncode:return source
+        selected=json.loads(result.stdout)
+    except (OSError,subprocess.TimeoutExpired,ValueError):return source
+    if selected.get('ambiguous'):raise ValueError('Multiple different requested helper implementations; write a single '+names[0]+'.')
+    span=selected.get('source')
+    if not isinstance(span,str) or span not in source:return source
+    return span
+
+
+def parsed_js_contracts(source):
+    """Read top-level property names through syntax, never execute declarations."""
+    if not source.strip():return {'globals':{},'existing_functions':[]}
+    if len(source.encode())>65536:return None
+    try:
+        result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
+            input=json.dumps({'source':source,'mode':'contracts'}),text=True,encoding='utf-8',
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
+            **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
+        if result.returncode:return None
+        value=json.loads(result.stdout)
+        if set(value)=={'globals','existing_functions'}:return value
+    except (OSError,subprocess.TimeoutExpired,ValueError):pass
+    return None
 
 
 def duplicate_declaration_repairable(source,item,errors):
@@ -248,10 +338,11 @@ def part_contract_errors(source, item):
 
 def js_contract_context(prior, relevant=None, functions=None):
     """Supply actual declarations and function signatures, not implementations to copy."""
-    globals_=re.findall(r'\b(?:const|let|var)\s+(app|ui)\s*=\s*\{([^}]+)\}',prior,re.S)
-    fields={name:[quoted or plain for quoted,plain in re.findall(r'''(?:["'](\w+)["']|\b(\w+))\s*:''',body)] for name,body in globals_}
+    parsed=parsed_js_contracts(prior)
+    globals_=re.findall(r'\b(?:const|let|var)\s+(app|ui)\s*=\s*\{([^}]+)\}',prior,re.S) if parsed is None else []
+    fields=parsed['globals'] if parsed is not None else {name:[quoted or plain for quoted,plain in re.findall(r'''(?:["'](\w+)["']|\b(\w+))\s*:''',body)] for name,body in globals_}
     if relevant:fields={name:[key for key in keys if key in relevant.get(name,keys)] for name,keys in fields.items()}
-    signatures=re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
+    signatures=parsed['existing_functions'] if parsed is not None else re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
     if functions is not None:
         signatures=[signature for signature in signatures if re.search(r'\bfunction\s+(\w+)',signature)[1] in functions]
     return json.dumps({'globals':fields,'existing_functions':signatures},ensure_ascii=False)
@@ -284,19 +375,21 @@ def reusable_part(saved, item):
         try:
             def selector(value):
                 selected=decode_source(value,item['file'],source_format)
-                return extract_node(selected,item['root_class']) if item.get('root_class') else selected
+                return extract_node(selected,item['root_class']) if item.get('root_class') else select_model_helper(selected,item)
             if project_patches.replay(origin,chain,item['file'],selector)!=source:return None
         except (ValueError,KeyError,TypeError):return None
         if raw!=chain[-1]['raw_patch']:return None
     elif origin is not None:return None
-    elif source_format=='json_source':
+    elif source_format=='json_source' or item.get('kind')=='js':
         try:
             decoded=decode_source(raw,item['file'],source_format)
             if item.get('root_class'):decoded=extract_node(decoded,item['root_class'])
+            else:decoded=select_model_helper(decoded,item)
             if decoded!=source:return None
         except (ValueError,TypeError):return None
     return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True},
             'source_format':source_format,
+            'initial_selection':evidence.get('initial_selection',''),
             **({'patched_source':source,'repair_chain':chain,'origin_raw_source':origin} if chain else {})}
 
 
@@ -410,7 +503,7 @@ async def generate(brief,ctx,on_event=None):
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw'
+        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection=''
         for attempt in range(3):
             response=None
             if attempt==0:
@@ -430,13 +523,14 @@ async def generate(brief,ctx,on_event=None):
                     options={}
                     if schema:
                         generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete source part as a string. No other keys, fences or explanations.')
-                        generation_system+=' The source string must match this schema: '+json.dumps(schema,ensure_ascii=False)
-                        options['fmt']={'type':'json_schema','json_schema':{'name':kind+'_source' if kind in ('css','js') else 'html_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+                        generation_system+=' The source string must contain only the requested code part. Its structure, syntax and behavior will be checked after decoding.'
+                        options['fmt']={'type':'json_schema','json_schema':{'name':kind+'_source' if kind in ('css','js') else 'html_source','strict':True,'schema':source_response_schema()}} if llm.active_backend()=='local' else 'json'
                     response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
                     response['source_format']='json_source' if schema else 'raw'
             raw=response.get('content','');stats=response.get('stats',{})
             if response.get('patched_source') is not None:
                 source=response['patched_source'];repair_chain=response['repair_chain'];origin_raw=response['origin_raw_source'];source_format=response.get('source_format','raw')
+                initial_selection=response.get('initial_selection','')
             elif patch_base is not None:
                 try:
                     import jsonschema
@@ -450,7 +544,10 @@ async def generate(brief,ctx,on_event=None):
                     source=patch_base;patch_error='Patch rejected: '+str(exc)[:400]
             else:
                 source_format=response.get('source_format','raw')
-                try:source=decode_source(raw,path,source_format)
+                try:
+                    decoded=decode_source(raw,path,source_format)
+                    source=select_model_helper(decoded,item)
+                    initial_selection=('one exact parsed model-written helper span' if item.get('behavior_checks') else 'one exact function span from byte-identical whole-response repetition') if source!=decoded else ''
                 except (ValueError,TypeError) as exc:source='';patch_error='Source response rejected: '+str(exc)[:400]
                 repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel') else None
             extraction_error=''
@@ -463,6 +560,7 @@ async def generate(brief,ctx,on_event=None):
             await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name,
                 'response_kind':'model_patch' if patch_base is not None else 'reused_model_patch' if response.get('patched_source') is not None else 'source',
                 'patch_error':patch_error,'source_format':source_format,'repair_chain':[dict(entry) for entry in repair_chain],
+                **({'initial_selection':initial_selection} if initial_selection else {}),
                 **({'repair_plan':response['repair_plan']} if response.get('repair_plan') else {})})
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
@@ -545,6 +643,9 @@ async def generate(brief,ctx,on_event=None):
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
+        if initial_selection:
+            evidence[-1]['initial_selection']=initial_selection
+            if not repair_chain:evidence[-1]['selection']=initial_selection
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],
             **({'origin_raw_source':origin_raw,'repair_chain':repair_chain} if repair_chain else {})})
         if kind=='js':

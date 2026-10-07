@@ -479,3 +479,66 @@ Tidak ada ZIP editor berhasil dari putaran ini. **155 tes terkait lolos di
 Windows**. Impor, playback, trim, teks dan ekspor WebM editor lengkap belum
 terbukti. Eksperimen tetap opt-in; angka tes bukan bukti kualitas aplikasi
 atau kecerdasan setara model besar.
+
+### Perbaikan format respons dan pemilihan fungsi asli
+
+Log runtime `v28` membuktikan bahwa regex `\s` pada schema sumber tidak
+didukung konverter llama.cpp: konverter memperingatkan bahwa ia menerima
+string apa pun. Karena itu, deskripsi schema pada putaran sebelumnya bukan
+bukti bahwa batas pola benar-benar diterapkan saat sampling. Pemeriksaan
+sintaks/perilaku setelah respons tetap menolak kode yang salah.
+Rujukan: [konverter resmi llama.cpp](https://github.com/ggml-org/llama.cpp/blob/master/common/json-schema-to-grammar.cpp).
+
+Percobaan pola karakter eksplisit `v29` berhasil menulis formatter detik yang
+lolos 50 kasus, tetapi pola string kode yang luas juga mengizinkan batas kutip
+JSON tertelan. Respons formatter gabungan memiliki kunci ganda; backend
+akhirnya mengembalikan galat format 500 setelah 142,3 detik. Jalur sumber kini
+menggunakan schema sederhana: satu properti string `source`, tanpa regex kode
+di grammar. Schema tidak lagi disalin ke system prompt. Kontrak struktur,
+nama fungsi, sintaks, serta perilaku diperiksa setelah JSON diurai.
+
+Harness dapat memilih rentang fungsi yang benar-benar ditulis model untuk
+helper yang memiliki tes perilaku. Acorn 8.15.0 membaca AST tanpa menjalankan
+sumber model; fungsi dengan nama yang diminta dipilih menggunakan rentang
+aslinya. Dua implementasi dengan nama sama yang berbeda ditolak, sedangkan
+salinan yang persis identik dapat dipilih satu. Implementasi lain dan contoh
+pemanggilan tidak ditambahkan ke aplikasi. Ini pemilihan sumber, bukan perbaikan
+logika. Tes perilaku tetap harus lolos, dan replay cache/patch memeriksa sumber
+mentah serta hash yang disimpan.
+
+Parser juga membaca properti app/ui tingkat terluar, sehingga objek bersarang
+tidak menyembunyikan field setelahnya dan deklarasi lokal tidak menggantikan
+state global dalam konteks prompt. Acorn dibundel hanya untuk harness, bukan
+dimasukkan ke proyek video hasil model: 241.575 byte, MIT, versi dipin, unduhan
+diverifikasi dengan integrity npm dan hash berkas. Proses parser dibatasi
+heap 96 MB, input 64 KiB, dan waktu 3 detik; tidak ada layanan baru atau
+pemasangan npm saat aplikasi berjalan. Lisensi dan provenance ada di app/vendor.
+
+`v27` tetap gagal setelah 135,6 detik karena padStart yang tidak didefinisikan;
+`v28` gagal setelah 99,3 detik. Error identifier yang tidak didefinisikan kini
+mengarahkan patch ke baris yang menyebut identifier tersebut. `v30` gagal
+setelah 99,3 detik karena formatter menyalin helper lain dan respons terpotong.
+Pada `v31`, formatter gabungan lolos pemeriksaan waktu dan setStatus lolos
+pemeriksaan status. Putaran berhenti setelah 163,4 detik pada kontrol busy:
+guard regex kita salah membaca app yang memiliki properti bersarang, sehingga
+busy/loaded dianggap tidak didefinisikan. Pembacaan AST memperbaiki bug itu.
+**167 tes terkait lolos di Windows**. Editor lengkap tetap belum terverifikasi
+melalui impor, playback, trim dan ekspor WebM; eksperimen belum menjadi default.
+
+Putaran CPU berikutnya tetap dicatat sebagai gagal:
+
+- `v32`: 184,1 detik, kontrol busy tidak sesuai dan perbaikannya gagal.
+- `v33`: 79,0 detik, visibilitas tombol batal salah; patch tidak mengubah sumber.
+- `v34`: 329,4 detik, kontrol busy lolos matriks perilaku, tetapi impor media
+  terpotong pada ketiga respons. Pemeriksaan berikutnya menemukan variabel
+  tanpa deklarasi pada kontrol busy; kelulusan ini bukan bukti kode bebas galat.
+- `v35`: 136,2 detik, pemeriksaan helper sudah menjalankan strict mode agar
+  assignment ke variabel tanpa deklarasi ditolak. Model mengulang kode lalu
+  menulis deklarasi app ganda, sehingga gagal sebelum impor. Konteks impor
+  sudah dipersempit, tetapi perubahannya belum terbukti oleh inferensi berhasil.
+
+Pemeriksaan ini berlaku pada jalur sumber lokal, API langsung, dan router.
+Tes antar-backend memverifikasi jalur harness, bukan kualitas semua provider
+online atau kemampuan setara model besar. Web dan Telegram menggunakan
+agent.Turn yang sama. Tidak ada implementasi editor jadi yang disisipkan oleh
+evaluator, dan sumber hasil model tidak diperbaiki manual agar benchmark lolos.

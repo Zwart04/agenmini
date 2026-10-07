@@ -31,7 +31,7 @@ def main():
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
     repo_root=Path(__file__).resolve().parents[1]
     generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json']}
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))

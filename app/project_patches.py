@@ -98,8 +98,9 @@ def failing_lines(source, errors):
                         collect(tinycss2.parse_rule_list(rule.content,skip_comments=True,skip_whitespace=True))
             collect(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
             if css_lines:continue
-        named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden)\s+expected',error))
+        named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden|busy|loaded)\s+expected',error))
         named.update(re.findall(r"SyntaxError: Identifier '([A-Za-z_$][\w$]*)' has already been declared",error))
+        named.update(re.findall(r'(?:ReferenceError:|Helper behavior failed:)\s*([A-Za-z_$][\w$]*) is not defined\b',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must not use a self-closing HTML tag',error))
         # A generic structural error can concern another line. Do not prevent

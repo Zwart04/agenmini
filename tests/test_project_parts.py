@@ -92,7 +92,10 @@ async def test_json_html_patch_reuses_decoded_root_with_exact_model_provenance(m
         calls.append(messages)
         if len(calls)==1:
             assert 'ABSENT_ATTRIBUTES' in messages[1]['content']
-            if backend=='local':assert options['fmt']['json_schema']['name']=='html_source'
+            assert '"pattern"' not in messages[0]['content']
+            if backend=='local':
+                assert options['fmt']['json_schema']['name']=='html_source'
+                assert options['fmt']['json_schema']['schema']==project_parts.source_response_schema()
             else:assert options['fmt']=='json'
             return {'content':raw,'stats':{'finish_reason':'stop','served_model':backend}}
         request=json.loads(messages[1]['content'])
@@ -597,6 +600,10 @@ def test_indexed_patch_addresses_original_lines_atomically_and_preserves_endings
 
 
 def test_failing_line_selection_uses_check_identifiers_and_falls_back_for_unknown_errors():
+    source_missing='function clock(total){\n const minutes=Math.floor(total/60);\n const seconds=total%60;\n const m=padStart(minutes,2,"0");\n const s=padStart(seconds,2,"0");\n return m+":"+s;\n}'
+    assert project_patches.failing_lines(source_missing,['Helper behavior failed: padStart is not defined'])==[4,5]
+    assert project_patches.failing_lines(source_missing,['ReferenceError: padStart is not defined'])==[4,5]
+    assert project_patches.failing_lines(source_missing,['Helper behavior failed: padStart is not defined','Missing behavior'])==list(range(1,8))
     source='function f(){\n ui.playBtn.disabled=flag;\n ui.playBtnExtra.disabled=flag;\n ui.seekInput.disabled=flag;\n}'
     assert project_patches.failing_lines(source,['playBtn.disabled expected true; seekInput.disabled expected true'])==[2,4]
     assert project_patches.failing_lines(source,['Unexpected end of input'])==[1,2,3,4,5]
@@ -885,3 +892,124 @@ async def test_same_source_generation_path_for_all_backends(monkeypatch,backend)
         return sentinel
     monkeypatch.setattr(project_parts,'generate',generate)
     assert await projects.generate('Build video editor with export',object()) is sentinel
+
+
+def test_repeated_function_selection_preserves_exact_model_bytes_and_rejects_ambiguity():
+    item={'kind':'js','functions':['clock']}
+    unit='function clock(total) {\r\n  return String(total);\r\n}'
+    assert project_parts.select_repeated_function('\n'+unit+'\n\n'+unit+'\n'+unit+'\n',item)==unit
+    for response in (unit+'\n'+unit.replace('String(total)','total'),
+                     unit+'\nfunction other(){return 0;}\n'+unit,
+                     unit+'\n'+unit+'\nclock(5);',
+                     'const secret=1;\n'+unit+'\n'+unit):
+        assert project_parts.select_repeated_function(response,item)==response
+    assert project_parts.select_repeated_function(unit+'\n'+unit,{'kind':'js','functions':['clock','other']})==unit+'\n'+unit
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_identical_model_function_repetition_selects_one_span_with_replayable_provenance(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Status','file':'app.js','kind':'js','task':'Write status helper','functions':['setStatus'],'behavior_checks':['status']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='function setStatus(message,isError=false){ui.status.textContent=message;ui.status.classList.toggle("error",isError);}'
+    raw=json.dumps({'source':source+'\n\n'+source+'\n'+source})
+    async def model(messages,**options):return {'content':raw,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==source and value['raw_source']==raw
+            assert value['evidence']['initial_selection']=='one exact parsed model-written helper span'
+            assert project_parts.reusable_part(value,{**item,'generation_contract_revision':2})['content']==raw
+            assert project_parts.reusable_part({**value,'source':source.replace('message','changed')},{**item,'generation_contract_revision':2}) is None
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested editor',object(),event)
+
+
+def test_source_response_schema_keeps_json_strings_without_unsafe_code_patterns():
+    import jsonschema
+    schema=project_parts.source_response_schema()
+    source='function f(){\n const text="kutip \\\" dan 日本語";\n return text;\n}'
+    jsonschema.validate({'source':source},schema)
+    assert project_parts.decode_source(json.dumps({'source':source}),'app.js','json_source')==source
+    for invalid in ({'source':source,'type':'object'},{'source':None},{'source':{}},{}):
+        with pytest.raises(jsonschema.ValidationError):jsonschema.validate(invalid,schema)
+    assert 'pattern' not in schema['properties']['source']
+
+
+def test_repeated_function_selection_replays_model_patches_and_rejects_changed_origin():
+    item={'kind':'js','file':'app.js','functions':['f'],'task':'model task'}
+    unit='function f(){return 1;}'
+    corrected='function f(){return 2;}'
+    origin=json.dumps({'source':unit+'\n'+unit})
+    patch=json.dumps({'edits':[{'line':1,'replace':corrected}]})
+    chain=[{'base_sha256':project_patches.digest(unit),'raw_patch':patch,
+            'raw_sha256':project_patches.digest(patch),'source_sha256':project_patches.digest(corrected)}]
+    evidence={'task_sha256':project_patches.digest(json.dumps(item,sort_keys=True,ensure_ascii=False)),
+              'sha256':project_patches.digest(corrected),'raw_sha256':project_patches.digest(patch),'source_format':'json_source'}
+    saved={'source':corrected,'raw_source':patch,'origin_raw_source':origin,'repair_chain':chain,'evidence':evidence}
+    assert project_parts.reusable_part(saved,item)['patched_source']==corrected
+    changed=json.dumps({'source':unit+'\n'+corrected})
+    assert project_parts.reusable_part({**saved,'origin_raw_source':changed},item) is None
+    assert project_parts.reusable_part({**saved,'source':unit},item) is None
+
+
+def test_parsed_helper_selection_does_not_execute_source_and_preserves_unicode_spans(tmp_path):
+    item={'kind':'js','functions':['target'],'behavior_checks':['status']}
+    marker=tmp_path/'must-not-exist'
+    prefix='require("node:fs").writeFileSync('+json.dumps(str(marker))+',"executed");\nconst emoji="🎬";\n'
+    target='function target(value){const text="{}🎬";return `${value}:${text}`;}'
+    source=prefix+'function unrelated(){return 0;}\n'+target+'\nconsole.log("unsolicited example");'
+    assert project_parts.select_model_helper(source,item)==target
+    assert not marker.exists()
+    with pytest.raises(ValueError,match='Multiple different'):
+        project_parts.select_model_helper(target+'\n'+target.replace('return `${value}:${text}`','return "changed"'),item)
+    broken='function target(value){return'
+    assert project_parts.select_model_helper(broken,item)==broken
+
+
+@pytest.mark.asyncio
+async def test_selected_model_helper_still_fails_actual_behavior_check():
+    item={'kind':'js','functions':['formatTime'],'behavior_checks':['time_format']}
+    source='function fake(){return 9;} function formatTime(value){return "00:00";}'
+    selected=project_parts.select_model_helper(source,item)
+    assert selected=='function formatTime(value){return "00:00";}'
+    assert await project_checks.inspect_helper(selected,'time_format')
+
+
+def test_js_contracts_preserve_outer_fields_after_nested_objects_and_ignore_locals():
+    source='const app={globals:{hidden:1},loaded:false,busy:false,note:"}🎬",nested:{deep:{field:1}}};const ui={preview:document.getElementById("preview")};function f(){const app={fake:1};return 0;}'
+    context=json.loads(project_parts.js_contract_context(source))
+    assert context['globals']=={'app':['globals','loaded','busy','note','nested'],'ui':['preview']}
+    assert context['existing_functions']==['function f()']
+    assert not project_parts.js_shared_reference_errors('app.loaded=true;app.busy=false;',source)
+    assert project_parts.js_shared_reference_errors('app.fake=true;app.hidden=2;',source)
+    assert json.loads(project_parts.js_contract_context(source,{'app':['loaded','busy'],'ui':[]}))['globals']=={'app':['loaded','busy'],'ui':[]}
+
+
+def test_pinned_parser_files_match_retained_vendor_hashes():
+    vendor=project_parts.ACORN_PATH.parent
+    provenance=json.loads((vendor/'ACORN-PROVENANCE.json').read_text(encoding='utf-8'))
+    assert provenance['name']=='acorn' and provenance['version']=='8.15.0'
+    assert provenance['npm_integrity'].startswith('sha512-')
+    for name,digest in provenance['files'].items():
+        assert hashlib.sha256((vendor/name).read_bytes()).hexdigest()==digest
+    assert 'MIT' in (vendor/'ACORN-LICENSE').read_text(encoding='utf-8')
+
+
+@pytest.mark.asyncio
+async def test_busy_feedback_names_actual_cancel_property_for_precise_model_patch():
+    source='function setBusy(flag){\n app.busy=flag;\n ui.fileInput.disabled=flag;\n const blocked=flag||!app.loaded;\n'+''.join(' ui.'+key+'.disabled=blocked;\n' for key in ('playBtn','seekInput','startInput','endInput','exportBtn'))+' ui.cancelBtn.hidden=false;\n}'
+    errors=await project_checks.inspect_helper(source,'busy')
+    assert errors and all('cancelBtn.hidden expected true' in error and 'actual=false' in error for error in errors)
+    assert project_patches.failing_lines(source,errors)==[10]
+
+
+@pytest.mark.asyncio
+async def test_helper_behavior_rejects_implicit_global_assignments():
+    errors=await project_checks.inspect_helper('function setBusy(flag){app.busy=flag;blocked=flag||!app.loaded;}', 'busy')
+    assert errors and any('blocked is not defined' in error for error in errors)
+    assert await project_checks.inspect_helper('function setStatus(message){accidentalStatus=message;ui.status.textContent=message;}', 'status')
