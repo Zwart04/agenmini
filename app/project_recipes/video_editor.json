@@ -49,8 +49,28 @@
           "tag": "a"
         }
       },
-      "task": "Write one HTML header fragment, class topbar. Text brand Clip Mini. A disabled button with id exportBtn and label Export. A hidden button with id cancelBtn and label Cancel. A hidden download anchor with id downloadLink and label Download, download attribute and no href. Close header. No extra elements or CSS.",
-      "root_class": "topbar"
+      "task": "Write one HTML header with class topbar. Use an h1 heading for brand Clip Mini. A disabled button with id exportBtn and label Export. A button with id cancelBtn, label Cancel and HTML hidden attribute. An anchor with id downloadLink, label Download, HTML hidden and download attributes, no href. Never use inline style or display:none; JavaScript toggles hidden. Close header. No extra elements or CSS.",
+      "root_class": "topbar",
+      "present_attributes": {
+        "exportBtn": [
+          "disabled"
+        ],
+        "cancelBtn": [
+          "hidden"
+        ],
+        "downloadLink": [
+          "hidden",
+          "download"
+        ]
+      },
+      "absent_attributes": {
+        "downloadLink": [
+          "href"
+        ]
+      },
+      "required_tags": [
+        "h1"
+      ]
     },
     {
       "name": "Stage container",
@@ -161,109 +181,424 @@
       "root_class": "timeline-panel"
     },
     {
-      "name": "Theme",
+      "name": "Theme / *",
       "file": "style.css",
       "kind": "css",
-      "tokens": 500,
-      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \"*\": {\n    \"box-sizing\": \"border-box\"\n  },\n  \"html, body\": {\n    \"margin\": \"0\",\n    \"width\": \"100%\"\n  },\n  \"body\": {\n    \"font\": \"13px system-ui, sans-serif\",\n    \"background\": \"#0e1013\",\n    \"color\": \"#edf0f4\"\n  },\n  \"button, input\": {\n    \"font\": \"inherit\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"*\". box-sizing should be border-box. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        "*",
-        "html, body",
-        "body",
+        "*"
+      ]
+    },
+    {
+      "name": "Theme / html, body",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"html, body\". margin should be 0, width should be 100%. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "html, body"
+      ]
+    },
+    {
+      "name": "Theme / body",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"body\". font should be 13px system-ui, sans-serif, background should be #0e1013, color should be #edf0f4. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "body"
+      ]
+    },
+    {
+      "name": "Theme / button, input",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"button, input\". font should be inherit. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         "button, input"
       ]
     },
     {
-      "name": "Desktop layout",
+      "name": "Desktop layout / body",
       "file": "style.css",
       "kind": "css",
-      "tokens": 500,
-      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \"body\": {\n    \"height\": \"100dvh\",\n    \"overflow\": \"hidden\",\n    \"display\": \"grid\",\n    \"grid-template-rows\": \"52px minmax(280px, 1fr) 210px 28px\"\n  },\n  \".stage\": {\n    \"display\": \"grid\",\n    \"grid-template-columns\": \"220px minmax(0, 1fr) 250px\",\n    \"gap\": \"1px\",\n    \"min-height\": \"0\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"body\". height should be 100dvh, overflow should be hidden, display should be grid, grid-template-rows should be 52px minmax(280px, 1fr) 210px 28px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        "body",
+        "body"
+      ]
+    },
+    {
+      "name": "Desktop layout / .stage",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".stage\". display should be grid, grid-template-columns should be 220px minmax(0, 1fr) 250px, gap should be 1px, min-height should be 0. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         ".stage"
       ]
     },
     {
-      "name": "Header and footer",
+      "name": "Header and footer / .topbar, .statusbar",
       "file": "style.css",
       "kind": "css",
-      "tokens": 500,
-      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".topbar, .statusbar\": {\n    \"display\": \"flex\",\n    \"align-items\": \"center\",\n    \"gap\": \"12px\",\n    \"padding\": \"0 16px\",\n    \"background\": \"#171a20\",\n    \"border\": \"1px solid #2b3038\"\n  },\n  \".topbar h1\": {\n    \"font-size\": \"16px\",\n    \"margin\": \"0 auto 0 0\"\n  },\n  \".statusbar\": {\n    \"font-size\": \"12px\",\n    \"color\": \"#89919e\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".topbar, .statusbar\". display should be flex, align-items should be center, gap should be 12px, padding should be 0 16px, background should be #171a20, border should be 1px solid #2b3038. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        ".topbar, .statusbar",
-        ".topbar h1",
+        ".topbar, .statusbar"
+      ]
+    },
+    {
+      "name": "Header and footer / .topbar h1",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".topbar h1\". font-size should be 16px, margin should be 0 auto 0 0. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".topbar h1"
+      ]
+    },
+    {
+      "name": "Header and footer / .statusbar",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".statusbar\". font-size should be 12px, color should be #89919e. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         ".statusbar"
       ]
     },
     {
-      "name": "Side panels",
+      "name": "Side panels / .library, .inspector, .timeline-panel",
       "file": "style.css",
       "kind": "css",
-      "tokens": 500,
-      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".library, .inspector, .timeline-panel\": {\n    \"padding\": \"16px\",\n    \"background\": \"#171a20\",\n    \"min-width\": \"0\",\n    \"overflow\": \"auto\",\n    \"border\": \"1px solid #2b3038\"\n  },\n  \"h1, h2\": {\n    \"font-size\": \"14px\",\n    \"margin\": \"0 0 12px\"\n  },\n  \".media-card\": {\n    \"display\": \"grid\",\n    \"gap\": \"8px\",\n    \"padding\": \"12px\"\n  },\n  \"label\": {\n    \"display\": \"block\",\n    \"margin\": \"8px 0\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".library, .inspector, .timeline-panel\". padding should be 16px, background should be #171a20, min-width should be 0, overflow should be auto, border should be 1px solid #2b3038. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        ".library, .inspector, .timeline-panel",
-        "h1, h2",
-        ".media-card",
+        ".library, .inspector, .timeline-panel"
+      ]
+    },
+    {
+      "name": "Side panels / h1, h2",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"h1, h2\". font-size should be 14px, margin should be 0 0 12px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "h1, h2"
+      ]
+    },
+    {
+      "name": "Side panels / .media-card",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".media-card\". display should be grid, gap should be 8px, padding should be 12px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".media-card"
+      ]
+    },
+    {
+      "name": "Side panels / label",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"label\". display should be block, margin should be 8px 0. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         "label"
       ]
     },
     {
-      "name": "Video monitor",
+      "name": "Video monitor / .viewer",
       "file": "style.css",
       "kind": "css",
-      "tokens": 600,
-      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".viewer\": {\n    \"display\": \"flex\",\n    \"flex-direction\": \"column\",\n    \"gap\": \"12px\",\n    \"padding\": \"16px\",\n    \"min-height\": \"0\",\n    \"min-width\": \"0\",\n    \"background\": \"#171a20\"\n  },\n  \".viewer-surface\": {\n    \"position\": \"relative\",\n    \"flex\": \"1\",\n    \"min-height\": \"0\",\n    \"display\": \"flex\",\n    \"background\": \"#08090b\"\n  },\n  \"#preview\": {\n    \"width\": \"100%\",\n    \"height\": \"100%\",\n    \"object-fit\": \"contain\"\n  },\n  \"#textOverlay\": {\n    \"position\": \"absolute\",\n    \"bottom\": \"10%\",\n    \"left\": \"0\",\n    \"right\": \"0\",\n    \"text-align\": \"center\",\n    \"font-size\": \"24px\",\n    \"color\": \"white\",\n    \"text-shadow\": \"0 1px 4px black\",\n    \"pointer-events\": \"none\"\n  },\n  \".transport\": {\n    \"display\": \"flex\",\n    \"gap\": \"12px\"\n  },\n  \"#seekInput\": {\n    \"flex\": \"1\",\n    \"min-width\": \"0\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".viewer\". display should be flex, flex-direction should be column, gap should be 12px, padding should be 16px, min-height should be 0, min-width should be 0, background should be #171a20. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        ".viewer",
-        ".viewer-surface",
-        "#preview",
-        "#textOverlay",
-        ".transport",
+        ".viewer"
+      ]
+    },
+    {
+      "name": "Video monitor / .viewer-surface",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".viewer-surface\". position should be relative, flex should be 1, min-height should be 0, display should be flex, background should be #08090b. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".viewer-surface"
+      ]
+    },
+    {
+      "name": "Video monitor / #preview",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"#preview\". width should be 100%, height should be 100%, object-fit should be contain. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "#preview"
+      ]
+    },
+    {
+      "name": "Video monitor / #textOverlay",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"#textOverlay\". position should be absolute, bottom should be 10%, left should be 0, right should be 0, text-align should be center, font-size should be 24px, color should be white, text-shadow should be 0 1px 4px black, pointer-events should be none. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "#textOverlay"
+      ]
+    },
+    {
+      "name": "Video monitor / .transport",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".transport\". display should be flex, gap should be 12px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".transport"
+      ]
+    },
+    {
+      "name": "Video monitor / #seekInput",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"#seekInput\". flex should be 1, min-width should be 0. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         "#seekInput"
       ]
     },
     {
-      "name": "Controls and tracks",
+      "name": "Controls and tracks / button, a[download]",
       "file": "style.css",
       "kind": "css",
-      "tokens": 1000,
-      "task": "Write standard CSS implementing this design specification. Outer keys are selectors, inner keys are CSS properties with desired values. Wrap the mobile specification in its @media block when present. Separate each declaration with a semicolon. Output CSS only, not JSON/JS or explanations. Specification:\n{\n  \"button, a[download]\": {\n    \"height\": \"32px\",\n    \"padding\": \"6px 12px\",\n    \"border\": \"1px solid #2b3038\",\n    \"border-radius\": \"6px\",\n    \"background\": \"#232831\",\n    \"color\": \"#edf0f4\"\n  },\n  \"#exportBtn\": {\n    \"background\": \"#72edc3\",\n    \"color\": \"#0e1013\"\n  },\n  \"button:disabled, input:disabled\": {\n    \"opacity\": \".45\"\n  },\n  \"input\": {\n    \"width\": \"100%\",\n    \"min-width\": \"0\",\n    \"background\": \"#171a20\",\n    \"border\": \"1px solid #2b3038\",\n    \"padding\": \"8px\",\n    \"color\": \"inherit\"\n  },\n  \"[hidden]\": {\n    \"display\": \"none !important\"\n  },\n  \".error\": {\n    \"color\": \"#f38181\"\n  },\n  \".track-row\": {\n    \"display\": \"flex\"\n  },\n  \".track-label\": {\n    \"width\": \"70px\"\n  },\n  \".track-lane\": {\n    \"position\": \"relative\",\n    \"flex\": \"1\",\n    \"height\": \"32px\",\n    \"overflow\": \"hidden\"\n  },\n  \".video-clip, .text-clip\": {\n    \"position\": \"absolute\",\n    \"height\": \"28px\",\n    \"background\": \"#315f79\",\n    \"overflow\": \"hidden\",\n    \"text-overflow\": \"ellipsis\",\n    \"white-space\": \"nowrap\"\n  },\n  \".text-clip\": {\n    \"background\": \"#72edc3\",\n    \"color\": \"#0e1013\"\n  },\n  \".playhead\": {\n    \"position\": \"absolute\",\n    \"top\": \"0\",\n    \"bottom\": \"0\",\n    \"width\": \"2px\",\n    \"background\": \"#72edc3\"\n  }\n}",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"button, a[download]\". height should be 32px, padding should be 6px 12px, border should be 1px solid #2b3038, border-radius should be 6px, background should be #232831, color should be #edf0f4. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
       "css_selectors": [
-        "button, a[download]",
-        "#exportBtn",
-        "button:disabled, input:disabled",
-        "input",
-        "[hidden]",
-        ".error",
-        ".track-row",
-        ".track-label",
-        ".track-lane",
-        ".video-clip, .text-clip",
-        ".text-clip",
+        "button, a[download]"
+      ]
+    },
+    {
+      "name": "Controls and tracks / #exportBtn",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"#exportBtn\". background should be #72edc3, color should be #0e1013. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "#exportBtn"
+      ]
+    },
+    {
+      "name": "Controls and tracks / button:disabled, input:disabled",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"button:disabled, input:disabled\". opacity should be .45. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "button:disabled, input:disabled"
+      ]
+    },
+    {
+      "name": "Controls and tracks / input",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"input\". width should be 100%, min-width should be 0, background should be #171a20, border should be 1px solid #2b3038, padding should be 8px, color should be inherit. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        "input"
+      ]
+    },
+    {
+      "name": "Controls and tracks / [hidden]",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write a complete CSS attribute-selector rule for all elements carrying the boolean HTML attribute named hidden. Inside the rule, set the display property to none with important priority so hidden controls remain invisible. Include the selector, both braces and the declaration. Output CSS only.",
+      "css_selectors": [
+        "[hidden]"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .error",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".error\". color should be #f38181. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".error"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .track-row",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".track-row\". display should be flex. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".track-row"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .track-label",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".track-label\". width should be 70px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".track-label"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .track-lane",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".track-lane\". position should be relative, flex should be 1, height should be 32px, overflow should be hidden. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".track-lane"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .video-clip, .text-clip",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".video-clip, .text-clip\". position should be absolute, height should be 28px, background should be #315f79, overflow should be hidden, text-overflow should be ellipsis, white-space should be nowrap. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".video-clip, .text-clip"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .text-clip",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".text-clip\". background should be #72edc3, color should be #0e1013. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
+        ".text-clip"
+      ]
+    },
+    {
+      "name": "Controls and tracks / .playhead",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".playhead\". position should be absolute, top should be 0, bottom should be 0, width should be 2px, background should be #72edc3. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup.",
+      "css_selectors": [
         ".playhead"
       ]
     },
     {
-      "name": "Mobile layout",
+      "name": "Mobile layout / body",
       "file": "style.css",
       "kind": "css",
-      "tokens": 1000,
-      "task": "Write standard CSS implementing this design specification. Outer keys are selectors, inner keys are CSS properties with desired values. Wrap the mobile specification in its @media block when present. Separate each declaration with a semicolon. Output CSS only, not JSON/JS or explanations. Specification:\n{\n  \"@media (max-width:700px)\": {\n    \"body\": {\n      \"height\": \"auto\",\n      \"min-height\": \"100dvh\",\n      \"display\": \"flex\",\n      \"flex-direction\": \"column\",\n      \"overflow\": \"visible\"\n    },\n    \".stage\": {\n      \"display\": \"flex\",\n      \"flex-direction\": \"column\"\n    },\n    \".viewer\": {\n      \"order\": \"1\"\n    },\n    \".library\": {\n      \"order\": \"2\"\n    },\n    \".inspector\": {\n      \"order\": \"3\"\n    },\n    \".viewer-surface\": {\n      \"flex\": \"none\",\n      \"aspect-ratio\": \"16/9\",\n      \"min-height\": \"180px\"\n    },\n    \"#preview\": {\n      \"max-height\": \"300px\"\n    },\n    \".topbar\": {\n      \"flex-wrap\": \"wrap\",\n      \"min-height\": \"52px\",\n      \"padding\": \"12px\"\n    },\n    \".library, .viewer, .inspector, .timeline-panel\": {\n      \"max-width\": \"100%\",\n      \"min-width\": \"0\"\n    },\n    \".timeline-panel\": {\n      \"min-height\": \"180px\"\n    }\n  }\n}",
-      "media_query": "(max-width:700px)",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"body\". height should be auto, min-height should be 100dvh, display should be flex, flex-direction should be column, overflow should be visible. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
       "css_selectors": [
-        "body",
-        ".stage",
-        ".viewer",
-        ".library",
-        ".inspector",
-        ".viewer-surface",
-        "#preview",
-        ".topbar",
-        ".library, .viewer, .inspector, .timeline-panel",
+        "body"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .stage",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".stage\". display should be flex, flex-direction should be column. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".stage"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .viewer",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".viewer\". order should be 1. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".viewer"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .library",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".library\". order should be 2. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".library"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .inspector",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".inspector\". order should be 3. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".inspector"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .viewer-surface",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".viewer-surface\". flex should be none, aspect-ratio should be 16/9, min-height should be 180px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".viewer-surface"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / #preview",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \"#preview\". max-height should be 300px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        "#preview"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .topbar",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".topbar\". flex-wrap should be wrap, min-height should be 52px, padding should be 12px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".topbar"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .library, .viewer, .inspector, .timeline-panel",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".library, .viewer, .inspector, .timeline-panel\". max-width should be 100%, min-width should be 0. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
+        ".library, .viewer, .inspector, .timeline-panel"
+      ],
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "Mobile layout / .timeline-panel",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 300,
+      "task": "Write exactly one complete CSS rule for selector \".timeline-panel\". min-height should be 180px. Put every property inside the rule and close it. No other selectors, explanations, JSON or markup. Wrap the rule inside @media (max-width:700px). No global rules.",
+      "css_selectors": [
         ".timeline-panel"
-      ]
+      ],
+      "media_query": "(max-width:700px)"
     },
     {
       "name": "App state",

@@ -67,6 +67,21 @@ def test_patch_with_retained_correct_line_and_actual_change_is_not_a_noop():
     assert project_patches.apply('keep();\nwrong();',raw)=='keep();\nfixed_by_model();'
 
 
+def test_html_patch_replay_preserves_selected_model_node_and_discards_no_new_source():
+    node='<header class="topbar"><button id="cancelBtn">Cancel</button></header>'
+    origin='<html><body>'+node+'</body></html>'
+    raw=json.dumps({'edits':[{'find':'id="cancelBtn"','replace':'id="cancelBtn" hidden'}]})
+    source=project_patches.apply(node,raw)
+    chain=[{'base_sha256':project_patches.digest(node),'raw_patch':raw,
+            'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(source)}]
+    item={'file':'index.html','task':'model task','root_class':'topbar'}
+    saved={'source':source,'raw_source':raw,'origin_raw_source':origin,'repair_chain':chain,
+           'evidence':{'sha256':project_patches.digest(source),'raw_sha256':project_patches.digest(raw),
+                       'task_sha256':project_patches.digest(json.dumps(item,sort_keys=True,ensure_ascii=False))}}
+    assert project_parts.reusable_part(saved,item)['patched_source']==source
+    assert project_parts.reusable_part(saved,{**item,'root_class':'missing'}) is None
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
 async def test_model_patch_request_uses_selected_backend_and_supplies_no_runtime_template(monkeypatch,backend):
@@ -83,6 +98,91 @@ async def test_model_patch_request_uses_selected_backend_and_supplies_no_runtime
     monkeypatch.setattr(llm,'chat',chat)
     result=await project_patches.request('existing model bytes',task='user task',errors=['actual failure'],contracts='actual contracts')
     assert project_patches.apply('existing model bytes',result['content'])=='existing model replacement from model'
+
+
+@pytest.mark.asyncio
+async def test_invalid_syntax_patch_is_rolled_back_before_next_model_repair(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Style','file':'style.css','kind':'css','task':'model task','css_selectors':['.correct']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:'local')
+    original='.wrong {color:red;}'
+    responses=[original,json.dumps({'edits':[{'find':original,'replace':'.correct {color:red;'}]}),'Correct the selector while preserving the declaration and braces.',
+               json.dumps({'edits':[{'find':'.wrong','replace':'.correct'}]})]
+    calls=[];events=[]
+    async def model(messages,**options):
+        if len(calls)>=2:
+            supplied=json.loads(messages[1]['content'])
+            assert supplied['source']==original
+            assert any('Original source restored' in error for error in supplied['errors'])
+        calls.append(messages)
+        return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop','served_model':'fixture-model'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class ReachedValidatedSource(Exception):pass
+    async def event(kind,value):
+        events.append((kind,value))
+        if kind=='source_part':raise ReachedValidatedSource()
+    with pytest.raises(ReachedValidatedSource):await project_parts.generate('requested application',object(),event)
+    accepted=next(value for kind,value in events if kind=='source_part')
+    assert accepted['source']=='.correct {color:red;}'
+    assert len(accepted['repair_chain'])==1
+    rejected=next(value for kind,value in events if kind=='source_check' and value['attempt']==1)
+    assert not rejected['passed']
+    assert any(kind=='code' and value.get('restored') for kind,value in events)
+
+
+@pytest.mark.asyncio
+async def test_repair_diagnosis_is_model_authored_and_never_applied_as_source(monkeypatch):
+    original='existing source'
+    async def model(messages,**options):
+        supplied=json.loads(messages[1]['content'])
+        assert supplied['source']==original
+        if 'fmt' not in options:return {'content':'Explain the actual error and replace only the failing text.','stats':{'served_model':'selected-model'}}
+        assert supplied['repair_plan']=='Explain the actual error and replace only the failing text.'
+        return {'content':json.dumps({'edits':[{'find':'existing','replace':'repaired'}]}),'stats':{'served_model':'selected-model'}}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(original,task='actual task',errors=['actual failure'],contracts='actual contracts',diagnose=True)
+    assert project_patches.apply(original,result['content'])=='repaired source'
+    assert result['repair_plan']['model']=='selected-model'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_incomplete_source_is_regenerated_by_selected_model_instead_of_patched(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Visibility','file':'style.css','kind':'css','task':'Write the required visibility rule','css_selectors':['[hidden]']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        assert 'fmt' not in options
+        if len(calls)==1:return {'content':'[hidden]:','stats':{'finish_reason':'stop'}}
+        assert '[hidden]:' in messages[1]['content'] and 'CHECK ERRORS' in messages[1]['content']
+        return {'content':'[hidden] {display:none!important;}','stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']=='[hidden] {display:none!important;}'
+            assert value['raw_source']==value['source']
+            assert not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)
+    assert len(calls)==2
+
+
+def test_cached_patch_rejects_tampered_model_diagnosis():
+    original='model source'
+    raw=json.dumps({'edits':[{'find':'source','replace':'repair'}]})
+    chain=[{'base_sha256':project_patches.digest(original),'raw_patch':raw,
+            'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest('model repair'),
+            'repair_plan':{'text':'actual diagnosis','sha256':project_patches.digest('actual diagnosis')}}]
+    assert project_patches.replay(original,chain,'app.js')=='model repair'
+    chain[0]['repair_plan']['text']='changed diagnosis'
+    with pytest.raises(ValueError,match='diagnosis changed'):project_patches.replay(original,chain,'app.js')
 
 
 def test_html_parts_receive_html_instructions_not_markdown():
@@ -169,6 +269,14 @@ def test_css_contract_rejects_class_alias_for_actual_id():
     assert project_parts.part_contract_errors('.exportBtn{color:white}',{'css_selectors':['#exportBtn']})
     assert not project_parts.part_contract_errors('@media (max-width:700px){#exportBtn{color:white}}',{'css_selectors':['#exportBtn']})
     assert not project_parts.part_contract_errors('.library{padding:1px}.viewer{padding:1px}',{'css_selectors':['.library, .viewer']})
+
+
+def test_html_visibility_contract_rejects_inline_display_that_hidden_cannot_toggle():
+    item={'kind':'node','present_attributes':{'downloadLink':['hidden','download']},
+          'absent_attributes':{'downloadLink':['href']},'required_tags':['h1']}
+    assert project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" style="display:none">Download</a>',item)
+    assert project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" hidden download href="#">Download</a>',item)
+    assert not project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" hidden download>Download</a>',item)
 
 
 def test_fenced_source_with_explanation_is_selected_without_rewriting():

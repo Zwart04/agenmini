@@ -207,3 +207,32 @@ Pembanding berikutnya memakai GGUF resmi IBM `granite-4.0-1b`. Nama model
 memuat "1b", tetapi tabel arsitektur resmi menyebut **1.6B parameter** untuk
 versi dense tersebut. Hasilnya harus dilabeli pembanding 1.6B, bukan keberhasilan
 model tepat 1B. Sumber: https://huggingface.co/ibm-granite/granite-4.0-1b.
+
+Pada putaran Granite privat `video-granite16-parts-v3` sampai `v8`, model
+berhasil memperbaiki atribut header dan satu selector monitor melalui patch
+buatannya sendiri. Pemeriksaan kini menolak atribut style inline yang membuat
+tombol/link tetap tersembunyi ketika status berubah, link download tanpa atribut
+download, serta selector CSS yang tidak sesuai elemen. CSS dibagi per aturan
+agar konteks lebih kecil; pembagian ini tetap berupa instruksi, tanpa kode
+runtime yang diisi evaluator.
+
+Namun Granite berulang kali menghasilkan selector `[hidden]:` tanpa blok CSS.
+Putaran sampai `v8` **gagal** pada aturan visibilitas, sebelum JavaScript dan uji
+browser. Kode dengan sintaks tidak lengkap sekarang diminta ulang sebagai
+bagian lengkap; patch hanya dipakai untuk sumber yang sintaksnya valid.
+Patch yang merusak sintaks dikembalikan ke sumber sebelumnya sebelum model
+memperbaikinya lagi. Pada upaya patch terakhir, model dapat diminta menjelaskan
+galat dulu; penjelasan beserta hash dicatat, tetapi tidak dipasang sebagai kode.
+Diagnosis itu juga belum membuat benchmark video editor ini lulus.
+
+Pada `v9`, instruksi atribut visibilitas diperjelas tanpa memberi kode jawaban.
+Model berhasil menulis aturan lengkap pada percobaan kedua dan menyelesaikan
+CSS desktop/mobile. Putaran tetap **gagal** di fungsi kontrol sibuk: tombol
+pemutaran/ekspor dapat aktif sebelum video dimuat, lalu patch model justru
+memotong fungsi. Guard menolak dan mengembalikan patch rusak. Belum ada bukti
+impor, playback, trim atau ekspor hasil melalui browser untuk putaran ini.
+
+Pemeriksaan routing mencakup model lokal/API online/router. Tes respons stub
+tidak membuktikan mutu model online, dan putaran CPU nyata ini tidak membuktikan
+model sekitar 1B dapat menghasilkan aplikasi setara CapCut. Jalur source-parts
+tetap eksperimen opt-in; tidak diaktifkan sebagai default pengguna.

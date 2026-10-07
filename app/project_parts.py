@@ -25,7 +25,7 @@ def part_system(kind):
         'shell':'Complete HTML document with empty comment slots. No panel implementations or styles.',
         'shellchunk':'One HTML fragment only for this task. No styles or other panels.',
         'panel':'One balanced HTML panel fragment. No document, styles or scripts.',
-        'css':'CSS rules only. Match the actual HTML. No markup or JavaScript.',
+        'css':'Complete CSS rules only: exact selector, opening brace, property/value declarations with colons and semicolons, then closing brace. A selector alone is not a rule. Match the actual HTML. No markup or JavaScript.',
         'js':'Complete JavaScript functions exactly as requested. Reuse previous state. No global redeclarations, Node exports or copied previous functions.',
         'md':'Short honest Markdown instructions.'
     }[kind]
@@ -35,6 +35,17 @@ def part_system(kind):
 def part_contract_errors(source, item):
     """Check declared contracts, without filling in missing model implementations."""
     errors=[]
+    if item.get('kind') in ('document','node','panel','shell','shellchunk'):
+        doc=projects.Document();doc.feed(source)
+        if doc.inline_styles:errors.append('No inline style attributes. Use semantic hidden/disabled attributes; styling belongs in style.css.')
+        for ident,attrs in item.get('present_attributes',{}).items():
+            for attr in attrs:
+                if attr not in doc.attributes.get(ident,{}):errors.append(ident+' must have HTML attribute '+attr+'.')
+        for ident,attrs in item.get('absent_attributes',{}).items():
+            for attr in attrs:
+                if attr in doc.attributes.get(ident,{}):errors.append(ident+' must not have HTML attribute '+attr+'.')
+        for tag in item.get('required_tags',[]):
+            if not doc.tags.get(tag):errors.append('Required HTML tag '+tag+' is missing; it is used by the stylesheet.')
     if item.get('media_query'):
         import tinycss2
         rules=[r for r in tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True)]
@@ -73,7 +84,7 @@ def part_contract_errors(source, item):
         collect(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
         for required in item['css_selectors']:
             if not split_selector(required)<=selectors:
-                errors.append('Missing CSS selector '+required+'; keep IDs (#) and classes (.) exactly as specified.')
+                errors.append('Missing CSS selector '+required+'; preserve its exact punctuation, including IDs (#), classes (.), attribute brackets and descendant spaces.')
     return errors
 
 
@@ -110,7 +121,8 @@ def reusable_part(saved, item):
     origin=saved.get('origin_raw_source')
     if chain:
         try:
-            if project_patches.replay(origin,chain,item['file'])!=source:return None
+            selector=(lambda value:extract_node(value,item['root_class'])) if item.get('root_class') else None
+            if project_patches.replay(origin,chain,item['file'],selector)!=source:return None
         except (ValueError,KeyError,TypeError):return None
         if raw!=chain[-1]['raw_patch']:return None
     elif origin is not None:return None
@@ -213,16 +225,16 @@ async def generate(brief,ctx,on_event=None):
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source='';repair_chain=[];origin_raw=None;errors=[]
+        source='';repair_chain=[];origin_raw=None;errors=[];source_syntax_valid=False
         for attempt in range(3):
             response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
             patch_error='';patch_base=None;previous_errors=list(errors)
             if response is None:
-                if attempt and kind=='js' and item.get('functions') and source and stats.get('finish_reason') not in ('length','max_tokens'):
+                if attempt and source_syntax_valid and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=js_contract_context(prior,item.get('relevant_fields'))+'\n'+system,
-                        max_tokens=min(1100,item.get('tokens',900)))
+                        contracts=(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else json.dumps({key:value for key,value in item.items() if key not in ('task','tokens')}))+'\n'+system,
+                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2)
                 else:
                     response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
             raw=response.get('content','');stats=response.get('stats',{})
@@ -235,11 +247,11 @@ async def generate(brief,ctx,on_event=None):
                     source=project_patches.apply(patch_base,raw)
                     repair_chain.append({'base_sha256':project_patches.digest(patch_base),'raw_patch':raw,
                         'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(source),
-                        'model':stats.get('served_model','')})
+                        'model':stats.get('served_model',''),**({'repair_plan':response['repair_plan']} if response.get('repair_plan') else {})})
                 except (ValueError,jsonschema.ValidationError) as exc:
                     source=patch_base;patch_error='Patch rejected: '+str(exc)[:400]
             else:
-                source=projects.unwrap_file(raw,path);repair_chain=[];origin_raw=raw if kind=='js' else None
+                source=projects.unwrap_file(raw,path);repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel') else None
             extraction_error=''
             if kind=='document':
                 try:source=document_container(source)
@@ -249,9 +261,11 @@ async def generate(brief,ctx,on_event=None):
                 except ValueError as exc:extraction_error=str(exc)
             await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name,
                 'response_kind':'model_patch' if patch_base is not None else 'reused_model_patch' if response.get('patched_source') is not None else 'source',
-                'patch_error':patch_error,'repair_chain':repair_chain})
+                'patch_error':patch_error,'repair_chain':[dict(entry) for entry in repair_chain],
+                **({'repair_plan':response['repair_plan']} if response.get('repair_plan') else {})})
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
+            syntax_bad=bool(extraction_error)
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
             if extraction_error:errors.append(extraction_error)
@@ -279,20 +293,31 @@ async def generate(brief,ctx,on_event=None):
                 for ident,expected in item.get('controls',{}).items():
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required control '+ident+' must be '+json.dumps(expected)+'.')
             elif kind=='css':
-                if source.count('{')!=source.count('}') or re.search(r'<[a-z!/]',source,re.I):errors.append('CSS only; close all rules.')
-                errors+=projects.inspect_css(source)
+                if source.count('{')!=source.count('}') or re.search(r'<[a-z!/]',source,re.I):
+                    errors.append('CSS only; close all rules.');syntax_bad=True
+                css_errors=projects.inspect_css(source);errors+=css_errors;syntax_bad=syntax_bad or bool(css_errors)
             elif kind=='js':
                 errors+=js_shared_reference_errors(source,prior)
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=(prior+'\n'+source).encode(),project=True)
-                if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:])
+                if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:]);syntax_bad=True
                 for fn in item.get('functions',[]):
                     if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):errors.append('Define complete named function '+fn+'.')
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
                 if not errors:
                     for check in item.get('behavior_checks',[]):
                         errors+=await project_checks.inspect_helper(source,check)
+            errors=list(dict.fromkeys(errors))
             await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
+            if syntax_bad and patch_base is not None and not patch_error:
+                repair_chain.pop();source=patch_base
+                errors.append('The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.')
+                await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip(),'draft':True,'part':name,'restored':True})
+            else:
+                # Exact edits are useful for a valid source with a failing
+                # contract. A fragment without a syntax tree needs a complete
+                # model-written part, not successive edits to a bare selector.
+                source_syntax_valid=not syntax_bad and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
