@@ -156,3 +156,34 @@ laporan privat `video-coder05-parts-v13`; tidak dipublikasikan sebagai demo suks
 Guard kini menolak redefinisi helper pada bagian fungsi, placeholder/simulasi,
 startup yang hilang, serta kontrak API impor/playback yang tidak ditulis.
 Pemeriksaan ini tetap bukan bukti lengkap perilaku; uji browser wajib diulang.
+
+Pembanding lanjutan: DeepSeek Coder **1.3B** Q5_K_M CPU, bukan 1B tepat.
+GGUF TheBloke revision `4595af8c3dff738094bd6c86054dfb5a90d5c41e` diverifikasi
+SHA256 `d5dcc2a484498b412b8bf5821b0ef2a7ea2e1984b37d15e14344259068d19a31`.
+GGUF lama tidak membawa metadata chat/pre-tokenizer; putaran awal mengulang
+prompt. Evaluator menerima format percakapan resmi dari tokenizer DeepSeek
+revision `e063262dac8366fc1f28a4da0ff3c50ea66259ca` dan override llama.cpp
+`tokenizer.ggml.pre=str:deepseek-coder`, tanpa mengubah tensor bobot. Format
+komunikasi ini tidak berisi sumber aplikasi. Hash format dan parameter inferensi
+dicatat, dan resume menolak pengaturan yang berbeda. Hasil belum boleh dianggap
+lulus hanya karena HTML mulai valid.
+
+Parser respons kini memilih satu blok fenced sesuai bahasa berkas walaupun
+model menulis pengantar; beberapa blok bahasa yang sama tetap ditolak sebagai
+ambigu. CSS harus memakai selector ID/class yang sesuai kontrak. Tiga helper
+(format waktu, status error/success, kontrol sibuk) diuji dalam fixture Node
+terbatas melalui sandbox sebelum diterima. Fixture bukan kode aplikasi dan
+tidak dikirim sebagai sumber hasil. Tes ini tidak menguji browser atau encoding
+video; import/playback/export masih harus dibuktikan melalui browser nyata.
+
+Tes integrasi harness juga menjalankan `Turn.run` untuk enam kombinasi:
+lokal/online/router melalui web/Telegram. Model pada tes tersebut adalah stub;
+alat menulis berkas nyata di direktori uji, hasilnya mengikuti respons stub
+yang berbeda tiap kombinasi, dan jurnal call/result diperiksa. Ini membuktikan
+jalur harness bersama, bukan kualitas semua provider atau koneksi Telegram
+langsung. Pilihan model tidak mengganti proses pemeriksaan dan perbaikan.
+
+Putaran DeepSeek 1.3B terkini tetap **gagal** pada kontrol sibuk: model berulang
+kali menonaktifkan impor saat media belum dimuat, sehingga pengguna tidak bisa
+memilih video pertama. Guard perilaku menolak sumber itu; tidak ada koreksi
+kode aplikasi yang disisipkan evaluator untuk membuat benchmark terlihat lulus.

@@ -16,21 +16,32 @@ def main():
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
     p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
     p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25'],default='default')
+    p.add_argument('--chat-template-file',type=Path,help='Explicit model-author chat serialization when GGUF metadata lacks it; not application source.')
+    p.add_argument('--tokenizer-pre',choices=['deepseek-coder'],help='Explicit llama.cpp pre-tokenizer for legacy DeepSeek GGUF missing this metadata.')
     args=p.parse_args();exe=args.server_exe.resolve();model=args.gguf.resolve()
     if not 0<=args.thinking_budget<=512:p.error('--thinking-budget must be 0..512')
     if args.prompt_file and args.case=='all':p.error('--prompt-file requires one --case')
     if args.output_dir:
         run=args.output_dir.resolve();run.mkdir(parents=True,exist_ok=False)
     else:run=Path(tempfile.mkdtemp(prefix='agenmini-apps-eval-'))
+    # A local benchmark must not inherit live provider or Telegram credentials.
+    # This only changes the evaluator process; the user's app/settings stay intact.
+    for key in ('GH_TOKEN','GITHUB_TOKEN','ONLINE_API_KEY','COMPATIBLE_KEY','TELEGRAM_TOKEN','TELEGRAM_USER_IDS','OPENAI_API_KEY','ANTHROPIC_API_KEY','ROUTER_API_KEY','FREE_LLM_API_KEY'):
+        os.environ.pop(key,None)
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
+    repo_root=Path(__file__).resolve().parents[1]
+    generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_recipes/video_editor.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
     log=(run/'llama.log').open('w')
     reasoning_args=['--reasoning-format','deepseek','--reasoning-budget',str(args.thinking_budget)] if args.thinking_budget else []
+    template_args=['--chat-template-file',str(args.chat_template_file.resolve())] if args.chat_template_file else []
+    tokenizer_args=['--override-kv','tokenizer.ggml.pre=str:'+args.tokenizer_pre] if args.tokenizer_pre else []
     process=subprocess.Popen([str(exe),'-m',str(model),'--host','127.0.0.1','--port',str(port),'--alias',args.model_id,
         '-c','8192','-t','4','-ngl','0','--parallel','1','--jinja','--reasoning','on' if args.thinking_budget else 'off',
-        *reasoning_args],stdout=log,stderr=log,
+        *reasoning_args,*template_args,*tokenizer_args],stdout=log,stderr=log,
         **({'creationflags':0x08000000} if os.name=='nt' else {}))
     async def evaluate():
         from app import main,db,config,agent,llm,project_parts
@@ -38,6 +49,9 @@ def main():
         if args.resume_parts:
             old=json.loads((args.resume_parts/'results.json').read_text(encoding='utf-8'))
             if old['gguf_sha256']!=hashlib.sha256(model.read_bytes()).hexdigest():raise ValueError('Resume requires the exact same model weights.')
+            actual_template=hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None
+            if (old.get('chat_template_sha256'),old.get('tokenizer_pre'),old.get('sampling_profile','default'),old.get('thinking_budget',0)) != (actual_template,args.tokenizer_pre,args.sampling_profile,args.thinking_budget):
+                raise ValueError('Resume requires matching chat serialization, pre-tokenizer and inference settings.')
             project_parts.part_cache.set({int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')})
         llm.coding_reasoning.set(bool(args.thinking_budget))
         original=main.Path.is_file
@@ -76,6 +90,9 @@ def main():
                 rows.append(row)
                 report={'model':args.model_label or model.name,'gguf_sha256':hashlib.sha256(model.read_bytes()).hexdigest(),
                     'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget,
+                    'chat_template_sha256':hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None,
+                    'tokenizer_pre':args.tokenizer_pre,
+                    'generator_source_sha256':generator_sources,
                     'limitations':'Real CPU inference. tg uses the shared agent path, not Telegram network. Syntax/ZIP checks do not establish behavior.'}
                 (run/'results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
                 print('CASE RESULT',name,json.dumps(result,ensure_ascii=False)[:1400],flush=True)

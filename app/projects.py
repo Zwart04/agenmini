@@ -119,8 +119,9 @@ def unwrap_file(value,path):
     value=value.strip()
     langs={'.html':'html', '.css':'css', '.js':'javascript|js', '.py':'python|py', '.json':'json', '.md':'markdown|md'}
     lang=langs.get(PurePosixPath(path).suffix,re.escape(PurePosixPath(path).suffix.lstrip('.')))
-    match=re.match(r'(?:'+re.escape(path)+r'\s*)?```(?:'+lang+r')?\s*\n(.*?)\n```(?:\s|$)',value,re.S|re.I)
-    if match:return match.group(1).strip()
+    blocks=list(re.finditer(r'^```([\w-]*)[ \t]*\r?\n(.*?)\r?\n```[ \t]*(?=\r?$)',value,re.S|re.M))
+    matches=[block for block in blocks if not block[1] or re.fullmatch(lang,block[1],re.I)]
+    if len(matches)==1:return matches[0][2].strip()
     return value
 
 

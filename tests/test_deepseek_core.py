@@ -5,6 +5,40 @@ from app import db, deepseek_core, workbench, config
 from test_harnesses import isolated
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('channel',['web','tg'])
+async def test_shared_harness_executes_model_tools_on_every_backend_and_channel(isolated,monkeypatch,backend,channel):
+    """Integration plumbing, not a live-provider quality benchmark."""
+    from app import agent,llm
+    db.set_setting('harness_mode','assisted');db.set_setting('full_access','1')
+    db.set_setting('max_steps','2');db.set_setting('self_improve','off')
+    bot=db.bot('orchestrator');bot.update(backend=backend,tools=['write_file'])
+    filename=f'{backend}-{channel}.txt';payload=f'Unique model output for {backend}/{channel}'
+    seen=[];calls=[]
+    async def callback(kind,data):seen.append((kind,data))
+    async def model(*args,**kwargs):
+        assert llm.active_backend()==backend
+        assert deepseek_core.current.get() is not None
+        calls.append(backend)
+        if len(calls)==1:
+            return {'content':'','tool_calls':[{'name':'write_file','arguments':{'path':filename,'content':payload}}]}
+        return {'content':payload,'tool_calls':[]}
+    monkeypatch.setattr(llm,'chat',model)
+    turn=agent.Turn(bot,channel,'shared-harness',callback)
+    result=await turn.run('Jalankan tugas yang diberikan.')
+    assert (config.WORK_DIR/filename).read_text(encoding='utf-8')==payload
+    assert result['meta']['status']=='done'
+    assert payload in result['text']
+    rows=deepseek_core.events(turn.chat['id'])
+    assert rows[0]['data']['channel']==channel
+    lifecycle=[row for row in rows if row['kind'] in ('turn/start','tool/call','tool/result','turn/end')]
+    assert [row['kind'] for row in lifecycle]==['turn/start','tool/call','tool/result','turn/end']
+    assert lifecycle[2]['data']['outcome']=='returned'
+    assert lifecycle[1]['data']['call_id']==lifecycle[2]['data']['call_id']
+    assert deepseek_core.current.get() is None
+    assert any(kind=='harness' and event['kind']=='turn/end' for kind,event in seen)
+
+@pytest.mark.asyncio
 async def test_interrupted_mutation_records_unknown_without_replay(isolated):
     chat=db.chat_for('orchestrator','core-test','cancel')
     seen=[]

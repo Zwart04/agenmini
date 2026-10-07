@@ -13,7 +13,7 @@ import time
 import zipfile
 from pathlib import Path
 from html.parser import HTMLParser
-from . import llm, projects, tools
+from . import llm, projects, tools, project_checks
 
 part_cache = contextvars.ContextVar('model_source_part_cache', default={})
 
@@ -43,22 +43,45 @@ def part_contract_errors(source, item):
             tinycss2.serialize(r.prelude).replace(' ','').strip()!=expected for r in rules):
             errors.append('Every mobile rule must be inside @media '+item['media_query']+'; no global rules.')
     for ident in item.get('dom_refs',[]):
-        if not re.search(r'\b'+re.escape(ident)+r'\s*:\s*document\.getElementById\(\s*[\"\']'+re.escape(ident)+r'[\"\']\s*\)',source):
+        if not re.search(r'[\"\']?\b'+re.escape(ident)+r'[\"\']?\s*:\s*document\.getElementById\(\s*[\"\']'+re.escape(ident)+r'[\"\']\s*\)',source):
             errors.append('Missing ui reference '+ident+' mapped to document.getElementById of the same ID.')
     if item.get('functions'):
         unexpected=set(re.findall(r'\bfunction\s+(\w+)\s*\(',source))-set(item['functions'])
         if unexpected:errors.append('Do not redefine other helpers: '+', '.join(sorted(unexpected)))
-        if re.search(r'\b(?:simulate|simulation|placeholder|TODO)\b',source,re.I):
+        comments='\n'.join(re.findall(r'/\*.*?\*/|//[^\n]*',source,re.S))
+        if re.search(r'\b(?:simulate|simulation|placeholder|TODO)\b',comments,re.I):
             errors.append('A working implementation is required, not simulated handlers or placeholder code.')
     for pattern in item.get('required_patterns',[]):
         if not re.search(pattern,source):errors.append('Required implementation contract is missing: '+pattern)
+    if 'state_writes' in item:
+        for field in set(re.findall(r'\bapp\.(\w+)\s*=(?!=)',source))-set(item['state_writes']):
+            errors.append('This function must not change app.'+field+'; only permitted state writes: '+', '.join(item['state_writes']))
+    if item.get('css_selectors'):
+        import tinycss2
+        selectors=set()
+        def split_selector(value):
+            groups=[[]]
+            for token in tinycss2.parse_component_value_list(value):
+                if token.type=='literal' and token.value==',':groups.append([])
+                else:groups[-1].append(token)
+            return {' '.join(tinycss2.serialize(tokens).split()) for tokens in groups}
+        def collect(rules):
+            for rule in rules:
+                if rule.type=='qualified-rule':selectors.update(split_selector(tinycss2.serialize(rule.prelude)))
+                elif rule.type=='at-rule' and rule.content is not None:
+                    collect(tinycss2.parse_rule_list(rule.content,skip_comments=True,skip_whitespace=True))
+        collect(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
+        for required in item['css_selectors']:
+            if not split_selector(required)<=selectors:
+                errors.append('Missing CSS selector '+required+'; keep IDs (#) and classes (.) exactly as specified.')
     return errors
 
 
-def js_contract_context(prior):
+def js_contract_context(prior, relevant=None):
     """Supply actual declarations and function signatures, not implementations to copy."""
     globals_=re.findall(r'\b(?:const|let|var)\s+(app|ui)\s*=\s*\{([^}]+)\}',prior,re.S)
-    fields={name:re.findall(r'\b(\w+)\s*:',body) for name,body in globals_}
+    fields={name:[quoted or plain for quoted,plain in re.findall(r'''(?:["'](\w+)["']|\b(\w+))\s*:''',body)] for name,body in globals_}
+    if relevant:fields={name:[key for key in keys if key in relevant.get(name,keys)] for name,keys in fields.items()}
     signatures=re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
     return json.dumps({'globals':fields,'existing_functions':signatures},ensure_ascii=False)
 
@@ -163,16 +186,24 @@ async def generate(brief,ctx,on_event=None):
             context['required_controls']=item.get('controls',{})
         elif kind in ('css','md'):context.pop('architecture')
         if kind=='css':
-            dom=projects.Document();dom.feed(contents.get('index.html',''))
             context.pop('current_html');context.pop('previous_source')
-            context['available_selectors']=', '.join(['.'+name for name in sorted(dom.classes)]+['#'+name for name in sorted(dom.ids)])
+            context.pop('owner_goal')
+            # The part already names its exact selectors. Unrelated selectors
+            # invite small models to style the whole application again.
         if kind=='js':
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
-            context['previous_source']=js_contract_context(prior)
+            context['previous_source']=js_contract_context(prior,item.get('relevant_fields'))
             if item.get('include_html') is False:context.pop('current_html')
+            else:
+                dom=projects.Document();dom.feed(contents.get('index.html',''))
+                context['dom_controls']=json.dumps(dom.elements,ensure_ascii=False)
+                context.pop('current_html')
         context['task']=context.pop('task')
         request='\n\n'.join(key.upper()+':\n'+(value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)) for key,value in context.items())
         system=part_system(kind)
+        if 'state_writes' in item:
+            system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
+        if item.get('system_contract'):system+=' '+item['system_contract']
         source=''
         for attempt in range(3):
             response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
@@ -224,10 +255,13 @@ async def generate(brief,ctx,on_event=None):
                 for fn in item.get('functions',[]):
                     if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):errors.append('Define complete named function '+fn+'.')
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
+                if not errors:
+                    for check in item.get('behavior_checks',[]):
+                        errors+=await project_checks.inspect_helper(source,check)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
-            request='EXISTING CONTRACTS:\n'+(js_contract_context(prior) if kind=='js' else '')+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nTASK:\n'+item['task']+'\nRewrite only this part from scratch. Be concise. No other parts or styling.'
+            request='EXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nMODEL SOURCE TO REPAIR:\n'+source[-9000:]+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nTASK:\n'+item['task']+'\nRepair the failed lines and preserve correct logic. Return this complete corrected part only. No other parts or explanations.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1]})
         if kind in ('shell','document'):shell=source

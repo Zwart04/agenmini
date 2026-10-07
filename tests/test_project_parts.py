@@ -3,7 +3,7 @@ import json
 import hashlib
 from pathlib import Path
 import pytest
-from app import project_parts, projects, llm, db
+from app import project_parts, projects, llm, db, project_checks
 
 
 def test_missing_and_duplicate_model_slots_fail():
@@ -91,6 +91,11 @@ def test_js_context_keeps_contracts_without_previous_implementation():
     context=json.loads(project_parts.js_contract_context("const app={loaded:false}; const ui={preview:document.getElementById('preview')}; function loadVideo(file){ throw new Error('do not copy'); }"))
     assert context=={'globals':{'app':['loaded'],'ui':['preview']},'existing_functions':['function loadVideo(file)']}
     assert 'do not copy' not in str(context)
+    assert json.loads(project_parts.js_contract_context('const app={"loaded":false};'))['globals']=={'app':['loaded']}
+    assert not project_parts.part_contract_errors('const ui={"preview":document.getElementById("preview")}',{'dom_refs':['preview']})
+    assert json.loads(project_parts.js_contract_context('const app={busy:false,loaded:false,canvas:null};',{'app':['busy','loaded']}))['globals']=={'app':['busy','loaded']}
+    assert project_parts.part_contract_errors('function setBusy(flag){app.loaded=!flag}',{'state_writes':['busy']})
+    assert not project_parts.part_contract_errors('function setBusy(flag){app.busy=Boolean(flag)}',{'state_writes':['busy']})
 
 
 def test_js_rejects_invented_shared_state_and_browser_methods():
@@ -105,6 +110,42 @@ def test_function_contract_rejects_simulated_replacements_and_missing_startup():
     assert project_parts.part_contract_errors('function initEditor(){ /* Simulate loading video */ function loadVideo(){} }',item)
     assert project_parts.part_contract_errors('function initEditor(){}',item)
     assert not project_parts.part_contract_errors('function initEditor(){ui.playBtn.onclick=togglePlay;} initEditor();',item)
+    assert not project_parts.part_contract_errors('function initEditor(){ui.titleInput.placeholder="Title";} initEditor();',item)
+
+
+def test_css_contract_rejects_class_alias_for_actual_id():
+    assert project_parts.part_contract_errors('.exportBtn{color:white}',{'css_selectors':['#exportBtn']})
+    assert not project_parts.part_contract_errors('@media (max-width:700px){#exportBtn{color:white}}',{'css_selectors':['#exportBtn']})
+    assert not project_parts.part_contract_errors('.library{padding:1px}.viewer{padding:1px}',{'css_selectors':['.library, .viewer']})
+
+
+def test_fenced_source_with_explanation_is_selected_without_rewriting():
+    source='body { color: #edf0f4; }'
+    assert projects.unwrap_file('Here is the CSS:\n\n```css\n'+source+'\n```\nExplanation after it.','style.css')==source
+    ambiguous='```css\nbody{color:red}\n```\n```css\nbody{color:blue}\n```'
+    assert projects.unwrap_file(ambiguous,'style.css')==ambiguous
+    assert projects.unwrap_file('```js\nconst a=1;\n```\n```css\n'+source+'\n```','style.css')==source
+
+
+@pytest.mark.asyncio
+async def test_helper_behavior_rejects_wrong_time_and_missing_shared_controls():
+    assert await project_checks.inspect_helper('function formatTime(value){return "00:00"}', 'time_format')
+    assert await project_checks.inspect_helper('function setBusy(flag){fileInput.disabled=flag}', 'busy')
+    with pytest.raises(ValueError):await project_checks.inspect_helper('anything','untrusted-check')
+
+
+@pytest.mark.asyncio
+async def test_helper_behavior_detects_repeat_error_class_toggle():
+    assert await project_checks.inspect_helper("function setStatus(message,isError=false){ui.status.textContent=message;if(isError)ui.status.classList.toggle('error');}", 'status')
+    assert not await project_checks.inspect_helper("function setStatus(message,isError=false){ui.status.textContent=message;ui.status.classList.toggle('error',isError);}", 'status')
+    assert not await project_checks.inspect_helper('function setStatus(message,isError=false){const node=document.querySelector("#status");node.textContent=message;if(isError)node.classList.add("error");else node.classList.remove("error");}', 'status')
+    assert await project_checks.inspect_helper('function setStatus(message){document.querySelector(".status").textContent=message}', 'status')
+
+
+@pytest.mark.asyncio
+async def test_helper_behavior_bounds_execution_and_disallows_dynamic_code():
+    assert await project_checks.inspect_helper('function formatTime(value){while(true){}}','time_format')
+    assert await project_checks.inspect_helper('function formatTime(value){return Function("return process")()}','time_format')
 
 
 @pytest.mark.asyncio
