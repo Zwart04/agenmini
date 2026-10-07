@@ -29,8 +29,11 @@ def build():
     shutil.copytree(python_root,payload/'runtime',ignore=shutil.ignore_patterns('__pycache__','*.pyc','test','tests','cache','pip-selfcheck.json'))
     shutil.copytree(ROOT/'app',payload/'server/app',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
     shutil.copytree(ROOT/'frontend',payload/'server/frontend')
-    for name in ('requirements.lock','README.md','CARA-PASANG-WINDOWS.txt','LICENSE'):
+    for name in ('requirements.lock','README.md','CARA-PASANG-WINDOWS.txt','UNINSTALL.md','LICENSE'):
         if (ROOT/name).is_file():shutil.copy2(ROOT/name,payload/name)
+    (payload/'docs').mkdir()
+    for name in ('DEEPSEEK-CORE.md','deepseek-harness.LICENSE','HARNESSES.md','BRANDING.md'):
+        shutil.copy2(ROOT/'docs'/name,payload/'docs'/name)
     shutil.copy2(ROOT/'host-integrations.py',payload/'server/host-integrations.py')
     shutil.copy2(ROOT/'windows/launcher.py',payload/'launcher.py')
     node_version='v24.21.0';node_zip='node-'+node_version+'-win-x64.zip';base='https://nodejs.org/dist/'+node_version+'/'

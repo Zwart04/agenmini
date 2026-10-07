@@ -145,11 +145,13 @@ async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None
         cwd=str(cwd or config.WORK_DIR), env=env, preexec_fn=__import__("functools").partial(_kerja_limits,project=project), **extra)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(stdin), timeout)
-    except asyncio.TimeoutError:
+    except (asyncio.TimeoutError, asyncio.CancelledError) as exc:
         try:
             os.killpg(proc.pid, 9)
         except Exception:
             proc.kill()
+        await proc.wait()
+        if isinstance(exc,asyncio.CancelledError):raise
         return f"(dihentikan: lebih dari {timeout} detik)"
     text = out.decode("utf-8", errors="replace").strip()
     if len(text) > 4000:
@@ -295,6 +297,7 @@ async def read_file(ctx: Ctx, path: str = "", start_line: int = 1, max_lines: in
       {"path": S("file path"), "content": S("text to write")}, ["path", "content"])
 async def write_file(ctx: Ctx, path: str = "", content: str = "", **_):
     p = _ctx_workpath(ctx,path)
+    before=p.read_text(encoding='utf-8',errors='replace')[:24000] if p.is_file() else ''
     missing = []
     parent = p.parent
     while not parent.exists():
@@ -305,6 +308,8 @@ async def write_file(ctx: Ctx, path: str = "", content: str = "", **_):
         try: os.chown(folder, config.KERJA_UID, config.KERJA_GID)
         except (OSError, AttributeError): pass
     p.write_text(content, encoding='utf-8')
+    from .deepseek_core import changed
+    await changed(p.relative_to(config.WORK_DIR.resolve()).as_posix(),before,content)
     if p.suffix=='.py':
         cache=p.parent/'__pycache__'
         if cache.is_dir():
@@ -685,7 +690,15 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
                        'Place exact requested input/output assertions at module scope so they execute. '
                        'Tool names in the request refer to the surrounding agent, never functions to implement. Finish the source.')
     source_messages=[{'role':'system','content':source_prompt},{'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}]
-    result=await llm.chat(source_messages,max_tokens=2400 if local else 6000,temperature=.2)
+    draft='';last_emit=0
+    async def code_token(piece):
+        nonlocal draft,last_emit
+        from .deepseek_core import current
+        core=current.get();draft=(draft+piece)[-48000:];now=time.monotonic()
+        if core and now-last_emit>=.4:
+            last_emit=now
+            await core.callback('code',{'path':target.relative_to(config.WORK_DIR.resolve()).as_posix(),'content':draft,'draft':True})
+    result=await llm.chat(source_messages,max_tokens=2400 if local else 6000,temperature=.2,on_token=code_token)
     if local and result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):
         source_messages[0]['content']+=' The preceding attempt exceeded the output budget. Regenerate a shorter COMPLETE file from the brief, never continue partial source. Remove optional comments and repetition.'
         result=await llm.chat(source_messages,max_tokens=2400,temperature=.1)

@@ -2,91 +2,45 @@
 
 [![Linux tests](https://github.com/Zwart04/agenmini/actions/workflows/test.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/test.yml)
 [![Windows installer](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml)
-[![Original harness runtimes](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml)
+[![External runtimes](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml)
 
-[Unduh aplikasi](https://github.com/Zwart04/agenmini/releases/latest) · [Instalasi Windows](CARA-PASANG-WINDOWS.txt) · [Instalasi Linux](CARA-PASANG-VPS.txt) · [Batas pengujian](VALIDATION.md)
+Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim bot dalam satu aplikasi. Antarmuka memakai HTML/CSS/JavaScript tanpa framework, font eksternal atau editor besar.
 
-Asisten AI dengan chat web, Telegram, tim bot dan proyek bertahap. Agen Mini memakai HTML/CSS/JavaScript ringan tanpa framework antarmuka. Pilih model lokal melalui llama.cpp atau satu pintu AI terhubung: API kompatibel dan gateway OAuth opsional. Pemilih otomatis mencoba sumber yang benar-benar tersedia.
+[Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
 
-**Versi: 0.9.0.** Unduh pemasang yang telah lulus pemeriksaan dari [GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest).
+## Chat dan panel kerja
 
-### Koneksi AI dalam satu aplikasi
+![Panel kode desktop](docs/screenshots/workbench-desktop-v010.jpg)
 
-Agen Mini Gateway adalah fork koneksi dari [9router-go](https://github.com/luqman-v1/9router-go), berdasarkan [9router](https://github.com/decolua/9router). OAuth, refresh token, API key, daftar model, streaming dan fallback dipertahankan. Dashboard kedua, fitur media, terminal, analitik, relay dan updater router tidak dijalankan. Pilih **Pengaturan → Koneksi AI & model**, cari provider dengan logo aslinya, lalu login atau isi key.
+Pilih model pada chat, gunakan **Dengan izin / Akses penuh**, lalu buka **Panel kerja** untuk membaca/edit berkas, melihat perubahan agen, log dan preview. Editor memeriksa hash sebelum menyimpan; bila agen mengubah berkas setelah dibuka, simpan ditolak agar perubahan tidak tertimpa. Salinan sebelum edit disimpan privat, terpisah dari repo.
 
-Gateway memakai binary Go; pemasang Linux mengambil binary sesuai arsitektur dan memeriksa SHA256. Tidak perlu memasang Node atau compiler Go untuk menjalankan gateway. Batas container gateway tetap 256 MB; pemakaian nyata bergantung provider dan jumlah permintaan. [Sumber dan lisensi fork](gateway/README.md). Akun dan kuota setiap provider tetap mengikuti layanannya.
+Preview proyek berjalan di browser Anda dalam iframe terisolasi tanpa akses cookie aplikasi atau jaringan. HTML dengan CSS/JS lokal sederhana didukung; import module, aset luar dan backend perlu server proyek. Tab Browser menampilkan situs yang mengizinkan embedding, dengan **Buka tab** untuk situs yang menolaknya. Panel tampilan ini bukan browser otomatis agen dan tidak menggantikan mesin otomatisasi DOM.
 
-Katalog mencakup **90 provider chat**, termasuk OpenCode Free, MiMo Free dan Devin CLI tanpa key. Pilih kartu **Tanpa login**, lalu pilih model dan **Uji koneksi**. Gratis mengikuti kuota/ketersediaan layanan. OpenCode Free telah menjawab tes koneksi nyata; provider lain belum semuanya diuji dengan akun nyata. OAuth Gemini CLI/Antigravity membutuhkan client aplikasi Google pada `.env`; panduan ada di dokumentasi gateway.
+Untuk agen yang hanya membaca web, unduhan HTML adalah pilihan paling ringan. Lightpanda atau Chromium tetap opsional untuk interaksi otomatis; jangan memasangnya hanya untuk memakai panel. Animasi maskot memakai CSS di perangkat pengguna, tanpa server animasi.
 
-![Provider terintegrasi, data pengujian terpisah](docs/screenshots/providers-desktop-v090.png)
+## Harness bawaan
 
-[Tampilan provider mobile](docs/screenshots/providers-mobile-v090.png)
+**Konteks seperlunya → model memilih tindakan → validasi alat/izin → jalankan berurutan → catat hasil → ulangi → verifikasi → jawab.**
 
-### Kualitas model lokal
+Inti kontrol Agen Mini diadaptasi ke Python dari loop open-source [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), dengan atribusi MIT dan commit sumber tetap. Ada batas langkah/waktu, log tindakan dengan identitas call/result, serta hasil belum diketahui ketika tindakan terputus. Tindakan mutasi tidak otomatis diputar ulang. Web dan Telegram menggunakan `agent.Turn` yang sama.
 
-Model kecil diuji **nyata di CPU Windows**, termasuk Qwen3.5 0.8B dan LFM2.5 1.2B. Hasil coding masih tidak konsisten: model dapat menghitung jumlah item ketika diminta jumlah nilainya, membuat tes yang tidak dipanggil, atau menghasilkan HTML yang tidak memenuhi interaksi. Pemeriksaan menolak keberhasilan palsu dan mencoba perbaikan terbatas; **model kecil belum direkomendasikan untuk coding otomatis tanpa pengawasan**. Harness/skill tidak mengubah bobot model menjadi setara model besar.
+Ini adaptasi inti tertentu, bukan port penuh Cordis atau CLI DeepSeek. **DeepSeek eksternal asli tetap tersedia** dan dipasang hanya saat dipilih. Kosong, Agen Mini bawaan dan runtime eksternal tetap dibedakan. [Detail adaptasi](docs/DEEPSEEK-CORE.md) · [Runtime asli dan batas integrasi](docs/HARNESSES.md)
 
-Pengujian dapat diulang dengan binary llama.cpp dan GGUF sendiri:
+Skill dan ingatan dapat dilihat, diedit dan dikosongkan. Self-improve menyimpan prosedur yang dibuktikan dan ditinjau; tidak melatih bobot model. Model kecil masih dapat salah. Harness tidak menjadikannya setara model frontier.
 
-```sh
-python scripts/evaluate_local.py --server-exe /path/llama-server --gguf /path/model.gguf --model local-test
-```
+## Satu pintu koneksi AI
 
-Evaluasi memakai data baru terpisah dan menjalankan kode model dalam ruang kerja uji. Tidak memakai akun atau riwayat pengguna; laporan mencatat keluaran, waktu, alat dan pemeriksaan independen. Kanal Telegram memakai alur agent yang sama, tanpa mengirim pesan ke Telegram nyata. Interaksi HTML tetap perlu pengujian browser. [Bukti dan batas pengujian](VALIDATION.md).
+Pilih **Pengaturan → Koneksi AI & model** untuk model lokal, API langsung atau gateway OAuth/API. Gateway adalah fork koneksi Go dari [9router-go](https://github.com/luqman-v1/9router-go), berdasarkan [9router](https://github.com/decolua/9router). Tidak menjalankan dashboard kedua atau fitur media/terminal/analitik router.
 
-## Tampilan baru
+Katalog berisi 90 provider chat dengan logo asli, termasuk OpenCode Free, MiMo Free dan Devin CLI tanpa login. Tersedia API key, OAuth, refresh token, pemilih model dan fallback. Gratis tetap mengikuti kuota/ketersediaan provider; seluruh akun OAuth belum diuji nyata. Gemini CLI/Antigravity memerlukan client aplikasi Google sesuai [panduan gateway](gateway/README.md).
 
-![Workspace desktop dengan paket tim bawaan](docs/screenshots/workspace-desktop.jpg)
+![Provider terintegrasi](docs/screenshots/providers-desktop-v090.png)
 
-### Preview aplikasi
-
-![Preview navigasi aplikasi](docs/screenshots/preview.gif)
-
-[Tonton / unduh video MP4](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Unduh GIF](docs/screenshots/preview.gif)
-
-### Chat dan pengaturan
-
-![Chat desktop](docs/screenshots/chat-desktop.jpg)
-
-| Chat mobile | Workspace mobile | Editor harness |
-| --- | --- | --- |
-| ![Chat mobile](docs/screenshots/chat-mobile.jpg) | ![Workspace mobile](docs/screenshots/workspace-mobile.jpg) | ![Editor harness](docs/screenshots/harness-mobile.jpg) |
-
-[Lihat dialog perbaikan aplikasi](docs/screenshots/repair-dialog.jpg) · [Pemilih model custom](docs/screenshots/model-dropdown.jpg)
-
-### Harness asli, dipasang saat dipilih
-
-![Pemilih runtime asli pada desktop](docs/screenshots/runtime-desktop.jpg)
-
-<img src="docs/screenshots/runtime-mobile.jpg" alt="Pilihan Hermes asli dan penjelasannya pada mobile" width="300">
-
-Pilih pada setup awal atau **Pengaturan → Umum → Harness**. Kosong dan Agen Mini tersedia langsung; sembilan CLI asli diunduh seperlunya. Isi API key dan model runtime sebelum chat. [Pilihan, kebutuhan dan batas integrasi](docs/HARNESSES.md).
-
-Preview direkam dari aplikasi lokal dengan data demo terpisah; status model yang belum terhubung tetap terlihat. Bukan demonstrasi model menjawab atau bot bekerja.
-
-Tiga menu utama: **Chat, Tugas & Tim, Pengaturan**. Proyek dan aktivitas berada pada tab Tugas; biaya dan diskusi tim disimpan dalam bagian lanjutan. Desktop menampilkan studio, mobile memakai susunan karakter ringkas. Tema terang/gelap, navigasi keyboard, draft formulir dan indikator aktivitas tersedia tanpa framework atau font eksternal.
-
-## Pilih pemasangan
-
-- **Windows:** unduh installer `.exe` pada [release terbaru](https://github.com/Zwart04/agenmini/releases/latest), jalankan wizard, lalu buka Agen Mini dari Start.
-- **VPS Debian/Ubuntu:** gunakan pemasang pada langkah di bawah; Docker belum perlu terpasang sebelumnya.
-- **Source:** unduh `agenmini-source.zip` untuk mengembangkan aplikasi. ZIP source tidak berisi akun, database atau model pengguna.
-
-Update dengan pemasang versi baru; **jangan hapus folder data atau model lama**. Buat backup privat dari Pengaturan sebelum update.
-
-Instalasi baru dimulai dengan **Orchestrator**. Pilih template tim pada setup, atau tambah spesialis melalui **Workspace → Tim bot → Template bot**. Template tidak menimpa bot Anda dan dapat ditambahkan tanpa skill/ingatan bawaan.
-
-Pemasang VPS menawarkan sandi otomatis/sendiri dan swap opsional. Untuk RAM di bawah 2 GB tanpa swap, rekomendasi 4 GB; RAM 2–8 GB direkomendasikan 2 GB. Swap memakai disk dan lebih lambat dari RAM. Pilihan juga tersedia pada **Pengaturan → Umum → RAM & swap VPS**; swap yang sudah aktif dipertahankan. Tidak ada swap yang ditambahkan tanpa pilihan Anda.
-
-[Lihat setup sandi/swap](docs/screenshots/setup-v081.jpg) · [Template bot di mobile](docs/screenshots/templates-mobile-v081.jpg) · [Notifikasi yang diperbaiki](docs/screenshots/toast-mobile-v081.jpg). Hardware pada preview setup memakai fixture, bukan pengukuran VPS pengguna.
-
-Jika CLI asli ditolak oleh batas RAM container, pilih **Siapkan RAM container & coba lagi** pada panel harness. Supervisor menaikkan batas container ke 2 GB saat senggang lalu melanjutkan pemasangan. Memerlukan RAM fisik minimal 2,5 GB. Ini memasang CLI/dependensi, bukan bobot model lokal.
-
-Angka 2 GB adalah batas maksimum container, bukan RAM yang selalu terpakai. Agen Mini bawaan tetap memakai batas awal 800 MB bila Anda tidak memilih CLI eksternal. Memasang runtime asli tetap membutuhkan dependensi upstream; tidak dapat diganti dengan prompt profil sambil mengaku sebagai runtime asli.
+Gateway memakai binary Go dengan SHA256, tanpa Node/compiler saat instalasi VPS. Batas container gateway 256 MB; pemakaian bergantung beban. Semua bot lokal berbagi satu model aktif melalui llama.cpp. Gateway lama dipertahankan untuk migrasi, tidak menjadi pilihan setup baru.
 
 ## Pasang di VPS Debian / Ubuntu
 
-Jalankan sebagai root pada VPS yang mendukung Docker:
+Login sebagai root, lalu jalankan tiga perintah berikut. Tidak perlu Docker sudah terpasang.
 
 ```bash
 curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps.sh -o pasang-vps.sh
@@ -94,93 +48,97 @@ curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps
 sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
 ```
 
-Alternatif: ekstrak `agenmini-vps.zip`, lalu jalankan `bash pasang-vps.sh`. Pemasang menyiapkan Docker/Compose jika diperlukan dan menampilkan alamat serta sandi. Buka TCP 443 pada firewall VPS. Sertifikat awal bersifat self-signed; browser meminta konfirmasi sertifikat.
+Pemasang memeriksa OS/arsitektur, menyiapkan Docker/Compose, membuat sandi dan menampilkan alamat aplikasi. Buka TCP 443 pada firewall penyedia VPS. Sertifikat awal self-signed. Pilih sandi sendiri/otomatis dan swap opsional; model lokal disarankan mulai dari RAM 4 GB dan 2 CPU. API lebih ringan, RAM 2 GB disarankan. Swap memakai disk dan tidak menggantikan RAM cepat.
 
-Pemasang menawarkan lokal, gateway OAuth, atau API langsung (default paling ringan). Web instalasi baru menawarkan Kosong atau Paket bawaan. Layanan tambahan bersifat opsional; konfigurasi gateway lama tetap didukung tanpa disemai ulang. Untuk pemasangan tanpa prompt: `AGEN_AI_PROFILE=online AGEN_OTOMATIS=1 bash pasang-vps.sh` (profil: `local`, `router`, `free`, `both`, `online`).
+Alternatif: unduh `agenmini-vps.zip`, ekstrak, unggah kedua berkas pemasang/checksum ke VPS dan jalankan perintah checksum terakhir di folder yang sama. Source ZIP dipakai untuk pengembangan, bukan pengganti pemasang.
 
-Mode API lebih ringan; 2 GB RAM disarankan. Untuk model lokal kecil, mulai dari 4 GB RAM dan 2 CPU. Anggaran model diperiksa dari RAM aktual; kebutuhan disk dan kecepatan bergantung model. Semua bot lokal berbagi satu model aktif, tanpa daemon Ollama. Build dan panggilan lokal berjalan serial untuk membatasi pemakaian RAM.
+## Update VPS yang sudah terpasang
 
-## Pasang di Windows
+**Jangan hapus instalasi, model, `data`, atau `.env`.** Buat backup privat di Pengaturan terlebih dahulu.
 
-Unduh `agenmini-setup-0.8.1-windows-x64.exe` dari halaman release. Jalankan wizard pemasangan dan buka Agen Mini dari menu Start. Data disimpan terpisah di `%LOCALAPPDATA%\AgenMini\data`. Ini pemasang aplikasi, bukan ZIP portable.
+```bash
+agen update
+agen status
+```
 
-Windows native dapat memakai API yang sudah berjalan. Pengelolaan layanan model lokal, 9router dan FreeLLMAPI memerlukan lingkungan Linux/WSL/Docker. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
+Supervisor memeriksa release dan SHA256, membuat backup, menunggu tugas sibuk selesai, lalu memasang versi baru. Untuk melewati updater lama atau memperbaiki pemasangan yang berhenti, unduh ulang pemasang/checksum dengan tiga perintah instalasi di atas. Jalankan di atas instalasi lama; sandi, bot, skill, riwayat, model dan akun dipertahankan.
+
+Jika versi 0.9.0 gagal saat unduh gateway dengan 404 sesudah checksum pemasang OK, penyebabnya placeholder versi yang belum diganti pada URL binary. Perbaikan mengganti versi pada saat packaging dan memeriksa hash binary sebelum mengganti binary lama. Jangan menghapus model untuk memperbaiki galat ini.
+
+```bash
+agen log
+agen router-log
+agen lokal-log
+agen supervisor-log
+agen sandi
+```
+
+Update otomatis harian tersedia di Pengaturan dan perlu diaktifkan sendiri. Lokasi instalasi `/opt/agenmini`; data privat `/opt/agenmini/data`. Backup tidak boleh diunggah ke repo publik.
+
+## Remove di Linux
+
+Lihat dahulu tindakan yang akan dilakukan:
+
+```bash
+agen hapus --dry-run
+```
+
+Hapus layanan, **pertahankan data dan model** untuk dipasang kembali:
+
+```bash
+agen hapus
+```
+
+Hapus seluruh layanan **beserta data/model/akun Agen Mini** setelah backup:
+
+```bash
+agen hapus --all
+```
+
+Perintah meminta konfirmasi. Tidak mencopot Docker atau menghapus project/container lain. [Detail penghapusan](UNINSTALL.md)
+
+## Windows
+
+Unduh installer `agenmini-setup-VERSI-windows-x64.exe` dari [release terbaru](https://github.com/Zwart04/agenmini/releases/latest). Jalankan wizard dan buka dari Start. Update dengan installer terbaru di lokasi yang sama; data berada di `%LOCALAPPDATA%\AgenMini\data` dan dipertahankan.
+
+Hapus aplikasi melalui **Settings → Apps → Installed apps → Agen Mini → Uninstall**. Data tetap disimpan. Jika ingin menghapusnya permanen, backup dahulu lalu hapus folder data secara manual. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
+
+API yang sudah berjalan dapat digunakan langsung. Pengelolaan otomatis service Linux, swap dan container tidak dijalankan di Windows native; endpoint llama.cpp/gateway lokal yang sudah tersedia dapat dikoneksikan. Tidak perlu memasang WSL hanya untuk memakai API.
 
 ## Mulai menggunakan
 
-1. Buka **Koneksi**, pilih sumber AI, isi API key atau selesaikan OAuth yang didukung provider. Untuk lokal, pilih model yang sesuai RAM dan tunggu unduh, verifikasi hash serta status siap.
-2. Klik **Uji koneksi**, lalu pilih model. Konfigurasi tersimpan belum berarti provider memiliki kuota atau model berhasil menjawab.
-3. Buka **Chat** dengan Asisten (profil kosong) atau Orchestrator (paket bawaan). Berikan tujuan, jenis hasil dan kriteria penerimaan yang jelas. Model percakapan dapat dipilih pada chat; bot dapat memiliki pilihan sendiri.
-4. Untuk pekerjaan bertahap, buat proyek di **Workspace**. Periksa tahap, hasil tes dan log; jeda atau lanjutkan dari checkpoint. Proyek berpindah ke Selesai setelah tahapnya lulus. Unduh source ZIP dari kartu hasil.
-5. Hubungkan Telegram pada **Pengaturan**. Bot utama mengikuti profil yang dipilih; paket bawaan memakai Orchestrator. Gunakan `/model` untuk memilih sumber/model dan `/belajar` untuk melihat kandidat prosedur; riwayat Telegram dapat disalin ke web untuk dilanjutkan.
+1. Setup awal selalu dimulai dengan Orchestrator. Pilih isi kosong atau paket bot/skill, lalu harness dan sumber model.
+2. Hubungkan sumber AI dan **Uji koneksi**. Key tersimpan atau nama model belum membuktikan provider menjawab.
+3. Beri tujuan dan kriteria hasil pada Chat. Pilih model tiap percakapan/bot; lihat kode dan log melalui Panel kerja.
+4. Untuk proyek panjang, gunakan **Tugas & Tim** agar ada tahap, bukti, jeda, checkpoint dan ZIP hasil.
+5. Hubungkan Telegram melalui Pengaturan. `/model` mengganti model; `/belajar` meninjau prosedur. Alur harness bawaan sama dengan web.
+6. Tambahkan MCP/skill hanya bila diperlukan. HTTP MCP lebih mudah untuk VPS; stdio memerlukan executable pada runtime.
 
-## Empat menu
-
-| Menu | Fungsi |
+| Menu utama | Isi |
 | --- | --- |
-| Chat | Percakapan, pilihan model, aktivitas alat, riwayat dan unduhan berkas |
-| Workspace | Kantor tim bergerak, proyek aktif/selesai, aktivitas, diskusi, token, tim bot dan jadwal |
-| Koneksi | Sumber AI, Smart Router, akun host, akun sosial dan MCP |
-| Pengaturan | Preferensi, izin tindakan, Telegram, skill, ingatan, backup, update dan diagnostik |
+| Chat | Model, akses, riwayat, berkas dan panel kode/preview/log |
+| Tugas & Tim | Orchestrator, spesialis, proyek, aktivitas dan jadwal |
+| Pengaturan | Koneksi AI/MCP, harness, skill, ingatan, Telegram, backup dan update |
 
-Bagian utama tetap terlihat. Daftar aktivitas, skill dan ingatan memakai halaman ringkas; tombol **Baca lengkap** membuka rincian. Kantor memakai karakter CSS original dengan aksesori dan bubble, bukan aset milik Apple/OpenAI/Grok. Gerakan mengikuti aktivitas server; animasi dan polling dijeda ketika tab tersembunyi.
+## Preview aplikasi
 
-## Harness, skill, ingatan & self-improve
+![Workspace](docs/screenshots/workspace-desktop.jpg)
 
-Setup Kosong berisi satu agen, tanpa prompt harness bawaan, nol skill/ingatan/MCP bawaan dan self-improve mati. Paket bawaan menambahkan tim dan panduan; tidak mengarang fakta tentang pemilik. Pilihan bertahan setelah restart/update. Update instalasi lama mempertahankan data dan konfigurasi; wizard tidak meresetnya.
+![Preview navigasi](docs/screenshots/preview.gif)
 
-Setup awal dan Pengaturan Umum menyediakan pilihan **Kosong**, **Agen Mini**, serta runtime asli **Hermes, OpenCode, Claude Code, DeepSeek Harness, oh-my-pi, Pi, Aider, mini-SWE-agent dan Gemini CLI**. Runtime asli diunduh hanya saat dipilih, memakai CLI upstream dan konfigurasi provider/model sendiri; tidak ada semua repo yang di-clone pada pemasangan awal. Lihat [cara pemasangan, versi dan batas integrasi harness](docs/HARNESSES.md). Pilihan belajar Agen Mini tetap Mati/Tinjau/Setelah Sesuai. Akses penuh merupakan pilihan terpisah; batas folder, alat, kredensial dan kuota model tetap berlaku. Untuk model kecil, `find_tools` membuka definisi alat seperlunya dalam izin bot.
+[Tonton / unduh MP4](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Mobile](docs/screenshots/chat-mobile.jpg) · [Panel mobile](docs/screenshots/workbench-mobile-v010.jpg)
 
-Skill hasil belajar berasal dari bukti alat, bukan sapaan, respons gagal atau penilaian sukses oleh model sendiri. Tinjau bukti/langkah pada tab Skill sebelum mengaktifkan. Revisi tersimpan dan bisa dipulihkan. Koreksi menarik kandidat dan menonaktifkan skill hasil belajar yang belum diedit pemilik. Ingatan pribadi harus berlandaskan ucapan pengguna.
+Gambar/video adalah preview antarmuka dengan data uji terpisah, bukan bukti model menyelesaikan tugas.
 
-[Training model kecil](training/README.md) menjelaskan baseline, ekspor JSONL privat, deduplikasi, validation set, LoRA/QLoRA dan evaluasi GGUF. Tidak ada training berat pada VPS atau klaim model kecil setara frontier. Ekspor SFT jawaban tidak dianggap dataset tool-calling.
+## Pengujian dan pengembangan
 
-## Mengedit agen dan memperbaiki aplikasi
-
-Di **Pengaturan → Umum → Instruksi & perbaikan aplikasi**, buka **Lihat & edit harness** untuk membaca prompt aktif, daftar alat, cakupan ingatan dan instruksi tambahan. Revisi tersimpan; **Kembali bawaan** menghapus instruksi tambahan dengan tetap menyimpan versi sebelumnya. Skill dan ingatan punya editor serta riwayat pemulihan masing-masing. Persona dan izin per bot tetap di **Workspace → Tim bot**. Instruksi prompt tidak menghapus penjaga kode atau memberikan akun yang belum tersambung.
-
-**Minta perbaikan** menerima prompt, bot/model pilihan dan 1–6 berkas source yang relevan. Asisten/Orchestrator juga memiliki `inspect_app` dan `propose_app_change` untuk mengusulkan perubahan dari chat web/Telegram. Proses menampilkan Menunggu/Mengerjakan/Gagal/Dihentikan/Draft, dapat dibatalkan, dan menyimpan hasil di SQLite. Draft berisi diff, source kandidat, hash awal/akhir serta ZIP yang bisa diunduh. Source aktif tidak ditulis; kode AI tidak dieksekusi. Penjaga, akun, konfigurasi, database, workflow dan installer tidak termasuk area edit.
-
-Alur pemasangan perubahan kode: tinjau diff → salin kandidat ke branch terpisah **Zwart04/agenmini** di Windows atau Linux → jalankan GitHub Actions → review keamanan dan fungsi → buat release melalui workflow Publish → pasang release yang lulus. Draft bukan pemasang dan belum menjamin tes integrasi lulus. Hash yang berubah membuat draft kedaluwarsa. Bila model gagal atau proses berhenti, source aktif tetap utuh; status pulih menjadi Dihentikan. Proses ini sengaja tidak melakukan deploy otomatis dari jawaban model.
-
-Untuk memulihkan kode bawaan, gunakan pemasang release stabil resmi, pertahankan folder data dan buat backup privat dahulu. Pemulihan instruksi/skill/ingatan menggunakan riwayat versi di web; jangan menghapus database untuk mereset instruksi.
-
-## Model, alat dan proyek
-
-Smart Router memilih kandidat dari sumber yang terhubung dan mencoba cadangan secara serial ketika permintaan gagal. Model serta sumber aktual dicatat; kuota dan kemampuan tetap mengikuti provider. 9router opsional memakai backend Go yang dipin. Dashboard dapat dibuka melalui sesi Agen Mini tanpa membuka port router ke publik.
-
-Alat meliputi Python, shell, berkas, pencarian/pembacaan web, memori, jadwal, MCP dan delegasi. Orchestrator dapat membuat spesialis dengan izin yang ditentukan, menugaskan pekerjaan dan meminta review. Hasil alat gagal tetap ditandai gagal; checkpoint memerlukan bukti berkas dan tes nyata. Mode **Akses penuh** tersedia di Pengaturan untuk alat yang telah diberikan kepada bot.
-
-Skill menyediakan prosedur desain, coding, anti-slop dan verifikasi; dapat diedit atau diimpor sebagai Markdown. Diskusi tim saat senggang bersifat opsional, termasuk interval satu jam. Saran disimpan sebagai draft; menyimpan pelajaran memperbarui ingatan/prosedur, bukan melatih bobot model. Token berasal dari laporan provider. Biaya merupakan estimasi berdasarkan tarif yang diisi dan kurs bertanggal.
-
-GitHub/Cloudflare dapat mendeteksi kredensial host yang tersedia dan memverifikasi akses. Keberadaan CLI saja tidak berarti akun terhubung. Threads, Instagram profesional, Meta Ads dan YouTube memerlukan aplikasi developer serta izin API resmi. MCP HTTP/stdio memerlukan server dan kredensial yang sesuai; executable stdio harus tersedia pada runtime. Fitur tidak mengaku tersambung hanya karena formulir sudah diisi.
-
-Model kecil maupun API dapat salah. Tidak ada jaminan semua aplikasi kompleks selesai otomatis. Kapasitas model, dependensi proyek, RAM, kredensial dan kriteria penerimaan menentukan hasil. Untuk proyek besar, gunakan tahap kecil dengan build/test yang dapat diperiksa. Lihat [panduan proyek](PROYEK-BESAR.md), [katalog model](MODEL-CATALOG.md), dan [validasi serta batas pengujian](VALIDATION.md).
-
-## Update, backup dan pengelolaan
-
-Jalankan `sudo agen update`, atau ulangi pemasang versi baru. Update mempertahankan `.env`, data, sandi, bot, skill, MCP, riwayat dan konfigurasi provider. Supervisor memeriksa checksum, mencadangkan kode/database dan menunda update saat sibuk. Update otomatis harus diaktifkan sendiri.
-
-Perintah umum: `agen status`, `agen log`, `agen restart`, `agen sandi`, `agen router-log`, `agen lokal-log`, `agen supervisor-log`.
-
-Data VPS berada di `/opt/agenmini/data`. Unduh backup migrasi melalui Pengaturan sebelum reinstall VPS. Backup berisi data privat; simpan terpisah dari repo publik. Pemulihan serta pemasangan dijelaskan di [panduan VPS](CARA-PASANG-VPS.txt).
-
-Hapus layanan sambil menyimpan data: `sudo agen uninstall --yes`. Periksa rencana penghapusan total: `sudo agen uninstall --all --dry-run`. Hapus seluruh Agen Mini **termasuk data dan model**: `sudo agen uninstall --all --yes`. Login host dan aplikasi VPS lain tidak termasuk penghapusan.
-
-## Mengubah tampilan
-
-Semua frontend ada di **[`frontend/`](frontend/README.md)**: markup, tema, CSS, JavaScript, karakter SVG dan penyesuaian dashboard. Unduh [ZIP frontend saja](https://github.com/Zwart04/agenmini/releases/latest/download/agenmini-frontend.zip) untuk diberikan kepada AI/desainer lain; perubahan desain biasa tidak memerlukan berkas backend. Panduan menjelaskan urutan CSS/script, bagian halaman dan cara menguji.
-
-## Pengembangan
-
-Gunakan Python 3.12, Node untuk pemeriksaan JavaScript dan dependensi pada `requirements.lock`. Jalankan regresi dengan direktori data terpisah:
+Linux diuji pada container GitHub Actions; Windows mencakup pemeriksaan installer nyata. Runtime eksternal diuji pemasangan/CLI secara terpisah; hal itu tidak membuktikan akun provider atau kualitas model.
 
 ```bash
-python -m pip install -r requirements.lock pytest pytest-asyncio
-DATA_DIR=/tmp/agenmini-tests PYTHONPATH=. python -m pytest -q
-python build_release.py
+python -m pytest tests -q
+python scripts/evaluate_apps.py --server-exe /path/llama-server --gguf /path/model.gguf
 ```
 
-Build release memakai berkas Git yang terlacak; ZIP diperiksa CRC dan SHA256. CI menjalankan regresi Linux dan siklus pemasangan/update/uninstall Windows sebelum publikasi. Jangan commit `.env`, database, kredensial, log pribadi, folder data atau bobot model.
+Evaluasi kedua memakai model CPU nyata, data privat baru, tugas converter gambar dan editor teks, tanpa template hasil. Pemeriksaan ZIP/sintaks tidak cukup; unggah, resize, penggantian teks dan download perlu pengujian browser independen. Kanal `tg` menguji jalur agent yang sama, bukan pengiriman ke jaringan Telegram.
 
-Dropdown, saran model, konfirmasi, input singkat dan notifikasi memakai komponen custom sesuai tema, dengan keyboard/Escape/fokus. Tidak memakai alert/confirm/prompt browser atau library UI tambahan.
+[Validasi dan batas pengujian](VALIDATION.md) · [Proyek besar](PROYEK-BESAR.md) · [Model lokal](MODEL-CATALOG.md) · [Lisensi adaptasi](docs/deepseek-harness.LICENSE)

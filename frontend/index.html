@@ -6,19 +6,20 @@
 <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>Agen Mini</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d1d1f' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/theme.css">
 <link rel="stylesheet" href="/static/base.css">
 <link rel="stylesheet" href="/static/control.css">
 <link rel="stylesheet" href="/static/office.css">
 <link rel="stylesheet" href="/static/layout.css">
 <link rel="stylesheet" href="/static/design-controls.css">
+<link rel="stylesheet" href="/static/workbench.css">
+<link rel="icon" type="image/png" href="/static/mascot.png">
 </head>
 <body>
 
 <section id="login" class="hidden">
   <form class="login-card" id="loginForm">
-    <div class="logo"><span data-ic="sparkle" data-cls="l"></span></div>
+    <div class="logo"><img class="brand-mascot" src="/static/mascot.png" alt="Maskot Agen Mini"></div>
     <h1>Agen Mini</h1>
     <p>Masukkan kata sandi dari layar pemasangan.</p>
     <div class="field"><input class="inp" type="password" id="pw" aria-label="Kata sandi" placeholder="Kata sandi" autocomplete="current-password" required></div>
@@ -29,7 +30,7 @@
 
 <div id="app" class="hidden">
   <aside id="side">
-    <div class="brand"><span data-ic="sparkle"></span>Agen Mini <small id="ver"></small></div>
+    <div class="brand"><img class="brand-mascot" src="/static/mascot.png" alt="">Agen Mini <small id="ver"></small></div>
     <nav class="nav" id="nav">
       <button class="item on" data-v="chat"><span data-ic="chat"></span>Chat</button>
       <button class="item" data-v="office"><span data-ic="briefcase"></span>Tugas & Tim</button>
@@ -57,6 +58,7 @@
       <div class="chat-head">
         <div class="av" id="chAv"></div>
         <div class="grow"><div class="t" id="chName">Asisten</div><div class="s" id="chDesc"></div></div>
+        <button class="btn ghost sm" id="workbenchOpen" type="button" aria-controls="workbench" aria-expanded="false">Panel kerja</button>
         <button class="btn ghost sm" id="histBtn"><span data-ic="history" data-cls="s"></span>Riwayat</button>
         <button class="btn ghost sm" id="newChat"><span data-ic="compose" data-cls="s"></span>Percakapan baru</button>
       </div>
@@ -201,6 +203,16 @@
       </form>
     </div></div></div>
   </main>
+  <section id="workbench" role="complementary" aria-label="Panel kerja agen" hidden>
+    <header class="wb-head"><strong>Panel kerja</strong><button class="ib" type="button" id="wbClose" aria-label="Tutup panel">×</button></header>
+    <nav class="wb-tabs" aria-label="Tampilan panel"><button type="button" data-wb-tab="code" aria-selected="true">Kode</button><button type="button" data-wb-tab="preview" aria-selected="false">Preview</button><button type="button" data-wb-tab="browser" aria-selected="false">Browser</button><button type="button" data-wb-tab="log" aria-selected="false">Log</button></nav>
+    <div class="wb-actions"><select id="wbFiles" class="inp" aria-label="Berkas ruang kerja"><option value="">Pilih berkas…</option></select><button id="wbRefresh" class="btn sm" type="button">Muat ulang</button><button id="wbSave" class="btn sm" type="button">Simpan</button><button id="wbPreview" class="btn sm" type="button">Preview</button></div>
+    <div class="wb-body" data-wb-view="code"><textarea id="wbEditor" aria-label="Editor kode ruang kerja" spellcheck="false" placeholder="Buka berkas atau lihat agen menulis kode di sini."></textarea><details><summary>Perubahan terakhir</summary><pre id="wbDiff"></pre></details></div>
+    <div class="wb-body" data-wb-view="preview" hidden><iframe id="wbFrame" title="Preview proyek offline" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe></div>
+    <div class="wb-body" data-wb-view="browser" hidden><form id="wbBrowse"><input id="wbAddress" class="inp" type="url" placeholder="https://…" aria-label="Alamat situs" required><button class="btn sm" type="submit">Buka</button><a class="btn sm" id="wbExternal" target="_blank" rel="noopener noreferrer">Buka tab ↗</a></form><p class="wb-browser-note">Tampilan memakai browser Anda. Situs yang melarang embedding harus dibuka di tab; panel ini tidak mengendalikan browser agen.</p><iframe id="wbWeb" title="Situs dalam panel" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe></div>
+    <div class="wb-body" data-wb-view="log" hidden><ol id="wbLog" aria-label="Log tindakan harness" aria-live="polite"></ol></div>
+    <p id="wbInfo" role="status">Berkas dan aktivitas dari ruang kerja percakapan.</p>
+  </section>
 </div>
 
 <div class="modal hidden" id="histModal"><div class="sheet">
@@ -239,6 +251,7 @@
 <script src="/static/setup.js"></script>
 <link rel="stylesheet" href="/static/providers.css">
 <script src="/static/providers.js"></script>
+<script src="/static/workbench.js"></script>
 <script src="/static/navigation.js"></script>
 </body>
 </html>

@@ -363,14 +363,30 @@ class Turn:
         backend_token = llm.backend_context.set(self.bot.get('backend', ''))
         from . import auto_router
         route_token=auto_router.task_context.set(str(args[0] if args else kwargs.get('text','')))
+        from . import deepseek_core, harnesses
+        core = deepseek_core.Core(self.chat['id'],self.bot['id'],self._callback) if profiles.assisted() and not harnesses.external() else None
+        core_token=deepseek_core.current.set(core)
         try:
-            result = await self._run(*args, **kwargs)
+            if core:await core.emit('turn/start',{'channel':self.channel,'core':'deepseek-adapted'})
+            operation=self._run(*args, **kwargs)
+            result = await core.model(operation) if core else await operation
+            return result
+        except TimeoutError:
+            answer='Tugas dihentikan karena batas waktu harness. Hasil tindakan terakhir mungkin belum diketahui; periksa log dan berkas sebelum mengulang.'
+            meta={'status':'failed','mode':'harness_timeout','tools':[]}
+            mid=db.add_message(self.chat['id'],'assistant',answer,meta)
+            result={'text':answer,'meta':meta,'message_id':mid}
+            await self.on_event('done',result)
             return result
         finally:
-            office.finish(token,result)
-            usage_meter.actor.reset(usage_token)
-            llm.backend_context.reset(backend_token)
-            auto_router.task_context.reset(route_token)
+            try:
+                if core:await core.finish((result or {}).get('meta',{}).get('status','interrupted' if result is None else 'done'))
+            finally:
+                deepseek_core.current.reset(core_token)
+                office.finish(token,result)
+                usage_meter.actor.reset(usage_token)
+                llm.backend_context.reset(backend_token)
+                auto_router.task_context.reset(route_token)
 
     async def _run(self, text: str, save_user: bool = True, extra_msgs: list[dict] | None = None,
                   images: list[bytes] | None = None) -> dict:
@@ -459,13 +475,17 @@ class Turn:
         if getattr(self,'review_only',False):
             msgs[0]['content']+='\nReview only the supplied work and actual files. Do not perform web research or unrelated tasks. If no files require tools, a reasoned textual review is sufficient.'
         from . import coding, office
+        from .deepseek_core import current
+        core=current.get()
+        async def execute(name,args,operation,timeout=150):
+            return await core.invoke(name,args,operation,timeout) if core else await operation
         arithmetic=list(re.finditer(r'(?<![\w.])(\d+(?:\.\d+)?)\s*(dikali|kali|dibagi|ditambah|dikurangi|times|[×*/+−-])\s*(\d+(?:\.\d+)?)(?![\w]|\.\d)',text,re.I))
         chained=bool(arithmetic and (re.search(r'[+*/×−-]\s*$',text[:arithmetic[0].start()]) or re.match(r'\s*(?:[+*/×−-]|dikali|kali|dibagi|ditambah|dikurangi)\s*\d',text[arithmetic[0].end():],re.I)))
         if profiles.assisted() and llm.active_backend()=='local' and len(arithmetic)==1 and not chained and 'run_python' in bot['tools'] and not extra_msgs and not re.search(r'\b(file|berkas|fungsi|function|kode python|program)\b',text,re.I):
             a,op,b=arithmetic[0].groups();op={'dikali':'*','kali':'*','times':'*','×':'*','dibagi':'/','ditambah':'+','dikurangi':'-','−':'-'}.get(op.lower(),op)
             if len(a)+len(b)<=32:
                 await self.on_event('status','Memeriksa hitungan dengan Python…')
-                calculation=await tools.run_python(ctx,code='print('+a+op+b+')')
+                calculation=await execute('run_python',{},tools.run_python(ctx,code='print('+a+op+b+')'))
                 reply=await llm.chat([{'role':'system','content':'Jawab SATU baris dalam bahasa Indonesia, tanpa salam. Sertakan kode acuan yang diminta pengguna dan hasil Python yang benar. Jangan menghitung ulang, mengubah angka atau mengarang satuan.'},{'role':'user','content':text+'\nActual Python calculation '+a+op+b+':\n'+calculation}],max_tokens=160)
                 answer=reply['content'];value=calculation.splitlines()[-1]
                 ok=calculation.startswith('[kode keluar 0]') and value in answer
@@ -482,7 +502,7 @@ class Turn:
             if not (config.WORK_DIR/filename).exists():
                 await self.on_event('status','Menulis kode asli dari model…')
                 try:
-                    output=await tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nWrite only real standalone Python source. Do not call agent tools inside the program. Add executable assertion tests for the exact input/output cases requested by the user under if __name__ == "__main__". No print-only checks.')
+                    output=await execute('edit_project_file',{'path':filename},tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nWrite only real standalone Python source. Do not call agent tools inside the program. Add executable assertion tests for the exact input/output cases requested by the user under if __name__ == "__main__". No print-only checks.'))
                     if output.startswith('Error:'):raise ValueError(output)
                     check='Belum dijalankan; pemeriksaan sintaks saja.'
                     needs_test=bool(re.search(r'\b(uji|test|tes|jalankan)\b',text,re.I))
@@ -506,20 +526,20 @@ class Turn:
                             check='Kode tersimpan; menunggu izin untuk menjalankan pemeriksaan.'
                         else:
                             await self.on_event('status','Menjalankan kode dan assertion…')
-                            check=await tools.run_python(ctx,code=code)
+                            check=await execute('run_python',{},tools.run_python(ctx,code=code))
                             assertions=[ast.dump(n) for n in ast.walk(ast.parse((config.WORK_DIR/filename).read_text(encoding='utf-8'))) if isinstance(n,ast.Assert)]
                             for repair_attempt in range(2):
                                 if check.startswith('[kode keluar 0]'):break
                                 previous=(config.WORK_DIR/filename).read_text(encoding='utf-8')
                                 await self.on_event('status','Memperbaiki kode dari galat uji nyata…')
-                                repair=await tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nFix the actual execution failure below. Preserve every existing assertion expression exactly; fix the implementation, never weaken or delete tests. No agent tool calls or unrelated file writes.\n'+check[-2000:])
+                                repair=await execute('edit_project_file',{'path':filename},tools.edit_project_file(ctx,folder='.',path=filename,instructions=text+'\nFix the actual execution failure below. Preserve every existing assertion expression exactly; fix the implementation, never weaken or delete tests. No agent tool calls or unrelated file writes.\n'+check[-2000:]))
                                 if repair.startswith('Error:'):break
                                 current_assertions=[ast.dump(n) for n in ast.walk(ast.parse((config.WORK_DIR/filename).read_text(encoding='utf-8'))) if isinstance(n,ast.Assert)]
                                 if current_assertions!=assertions:
                                     await tools.write_file(ctx,filename,previous)
                                     check='Error: model mengubah assertion saat memperbaiki. Source sebelumnya dipulihkan; uji belum lulus.'
                                     break
-                                check=await tools.run_python(ctx,code=code)
+                                check=await execute('run_python',{},tools.run_python(ctx,code=code))
                     if filename not in ctx.attachments:ctx.attachments.append(filename)
                     ok=not check.startswith('Error:') and not re.search(r'\[kode keluar (?!0\])',check)
                     answer=('Kode tersimpan: ' if ok else 'Kode belum lulus uji: ')+filename+'\n'+check
@@ -545,10 +565,15 @@ class Turn:
         from . import projects
         if profiles.assisted() and projects.project_request(text) and not coding.website_request(text) and 'build_project' in bot['tools'] and not extra_msgs:
             try:
-                result=await tools.build_project(ctx,brief=text,on_event=self.on_event)
+                from .deepseek_core import current
+                core=current.get()
+                operation=tools.build_project(ctx,brief=text,on_event=self.on_event)
+                result=await core.invoke('build_project',{},operation,900) if core else await operation
                 answer=result
             except (ValueError,llm.LLMError,OSError) as exc:answer='Tugas belum berhasil: '+str(exc)
             meta={'tools':['build_project'],'files':ctx.attachments if not answer.startswith('Tugas belum berhasil') else [],
+                  'status':'failed' if answer.startswith(('Tugas belum berhasil','Error:')) else 'done',
+                  'validation':'structure_syntax_only','behavior_verified':False,
                   'seconds':round(time.time()-t0,1),'stats':{'served_model':getattr(ctx,'served_model','')}}
             mid=db.add_message(chat['id'],'assistant',answer,meta)
             result={'text':answer,'meta':meta,'message_id':mid};await self.on_event('done',result);return result
@@ -561,7 +586,7 @@ class Turn:
                         self._phase = 'code-writing'
                         office.phase('Menulis HTML dan CSS…', 'writing')
                         await self._callback('status', 'Menulis HTML dan CSS…')
-                result = await tools.build_website(ctx, brief=text, on_token=code_token)
+                result = await execute('build_website',{},tools.build_website(ctx, brief=text, on_token=code_token),360)
                 office.log(bot['id'], 'result', result)
                 answer = result.replace('otomatis dikirim:', 'dilampirkan:')
                 if result.startswith('Error:'): answer = result
@@ -574,7 +599,9 @@ class Turn:
             mid = db.add_message(chat['id'], 'assistant', answer, meta)
             await self.on_event('done', {'text':answer,'message_id':mid,'meta':meta})
             return {'text':answer,'message_id':mid,'meta':meta}
-        max_steps = int(getattr(self,"max_steps",None) or db.setting("max_steps") or 6)
+        max_steps = max(1,min(32,int(getattr(self,"max_steps",None) or db.setting("max_steps") or 6)))
+        from .deepseek_core import current
+        core=current.get()
         nudged = finalized = file_checked = False
         evidence: list[str] = []
         trace: list[dict] = []  # jejak alat (disimpan di riwayat untuk diagnosa)
@@ -605,14 +632,18 @@ class Turn:
                     answer, stats, mode = clean_answer(res["content"]), res.get("stats", {}), "cepat"
             for step in range(0 if answer else max_steps + 1):
                 last = step == max_steps
+                if core:
+                    core.remaining()
+                    await core.emit('step/start',{'step':step,'final':last})
                 await self.on_event("status", "Berpikir…" if step == 0 else "Menimbang hasil…")
                 if getattr(ctx,'exposed_tools',None):
                     exposed=set(ctx.exposed_tools)|{s['function']['name'] for s in schemas}
                     schemas=[s for s in tools.schemas_for(bot) if s['function']['name'] in exposed]
                     names=[s['function']['name'] for s in schemas]
-                res = await llm.chat(msgs, tools=None if last else schemas, model=model,
+                operation = llm.chat(msgs, tools=None if last else schemas, model=model,
                                      on_token=lambda p: self.on_event("token", p), prio=self.prio,
                                      max_tokens=(1400 if llm.active_backend()=='local' else 3000) if getattr(self,'project_folder',None) else None)
+                res = await core.model(operation) if core else await operation
                 stats = res.get("stats", {})
                 calls = res["tool_calls"][:3]
                 if not calls and not last:
@@ -665,10 +696,15 @@ class Turn:
                     break
                 msgs.append({"role": "assistant", "content": res["content"] or "",
                              "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]})
-                for c in calls[:3]:
+                for call_index,c in enumerate(calls):
                     name, args = c["name"], c["arguments"]
+                    if call_index>=8:
+                        if core:await core.rejected(name,'batch_limit')
+                        msgs.append({'role':'tool','tool_name':name,'content':'Error: batch limit of eight calls reached. This call was NOT executed. Request it in the next step if still needed.'})
+                        continue
                     validation = tools.validate_arguments(name, args)
                     if validation:
+                        if core:await core.rejected(name,'invalid_arguments')
                         failures.append(f"Error: {name}: {validation}")
                         msgs.append({"role": "tool", "content": f"Error: {validation}. Correct the arguments; do not claim success.", "tool_name": name})
                         continue
@@ -676,13 +712,16 @@ class Turn:
                     t = tools.REGISTRY.get(name)
                     cached=key in seen_calls
                     if cached:
+                        if core:await core.rejected(name,'cached_original_result')
                         result = seen_calls[key] + "\nYou already did exactly this. Do not repeat it; use the original result above."
                     elif not t or name not in bot["tools"]:
+                        if core:await core.rejected(name,'unavailable')
                         result = f"Tool '{name}' is not available."
                     else:
                         project_authorized = bool(getattr(self, 'project_autonomous', False) and getattr(self, 'project_folder', None) and name in ('run_project_command', 'edit_project_file', 'write_file'))
                         reason = t.danger(args) if t.danger and db.setting("full_access") != "1" and not project_authorized else None
                         if reason:
+                            if core:await core.rejected(name,'approval_required')
                             aid = db.run("INSERT INTO approvals(chat_id,bot_id,tool,args,reason,created_at) VALUES(?,?,?,?,?,?)",
                                          (chat["id"], bot["id"], name, json.dumps(args, ensure_ascii=False), reason, time.time()))
                             await self.on_event("approval", {"id": aid, "tool": t.label, "args": args, "reason": reason})
@@ -703,7 +742,8 @@ class Turn:
                                 label = 'Berdiskusi dengan ' + ((db.bot(target) or {}).get('name') or target)
                             office.phase(label, 'delegating' if name in ('ask_bot','delegate_task') else 'tool')
                             office.log(bot["id"], "tool", tool_label(name,args))
-                            result = await asyncio.wait_for(t.fn(ctx, **args), 900 if name in ('delegate_task','build_project') else 360 if name=='build_website' else 150)
+                            timeout=900 if name in ('delegate_task','build_project') else 360 if name=='build_website' else 150
+                            result = await core.invoke(name,args,t.fn(ctx,**args),timeout) if core else await asyncio.wait_for(t.fn(ctx, **args),timeout)
                             if getattr(ctx,'pending_approval',None):
                                 result={'text':str(result),'approval':ctx.pending_approval}
                                 await self.on_event('done',result)

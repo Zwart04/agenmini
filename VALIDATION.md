@@ -1,4 +1,12 @@
-# Validasi Agen Mini 0.9.0
+# Validasi Agen Mini 0.10.0
+
+## Inti DeepSeek dan panel kerja — 7 Oktober 2026
+
+70 tes terkait agent, proyek, jalur model lokal, editor, journal dan sintaks frontend lulus di Windows lokal. Kasus mencakup tindakan mutasi terputus dengan outcome unknown tanpa replay, argumen privat tidak masuk log, penolakan jalur traversal/berkas privat, dan simpan editor yang konflik dengan perubahan agen. Pemeriksaan packaging memastikan placeholder URL gateway benar-benar diganti pada pemasang yang dibangun. CI Linux memeriksa seluruh suite serta fixture pemasang/supervisor; release gate memerlukan sukses pada commit rilis yang sama.
+
+Browser nyata pada preview dengan data terpisah memeriksa simpan berkas dan tombol JavaScript di iframe preview. Pada desktop 1440×900 dan mobile 390×844, document scrollWidth sama dengan lebar viewport. Screenshot panel tersedia pada docs/screenshots/workbench-desktop-v010.jpg dan workbench-mobile-v010.jpg; berkas demo ditulis untuk pengujian editor, bukan bukti model menghasilkan aplikasi. Panel memakai textarea dan iframe native; tidak ada Monaco atau layanan render di VPS. RAM VPS belum diukur.
+
+Evaluasi model CPU nyata dapat diulang memakai scripts/evaluate_apps.py. Data, draft dan laporan disimpan ke direktori temp baru; kode tidak diganti dengan template evaluator. Tugas converter mencakup unggah, canvas, resize dan download; editor mencakup file UTF-8, hitungan kata, replace-all dan save. Kanal tg memanggil agent.Turn yang sama, bukan Telegram network. Respons yang terpotong/invalid tetap failed. Hasil pengujian aplikasi model dicatat di docs/LOCAL-APPS-EVAL.md; sintaks/ZIP tidak membuktikan perilaku browser.
 
 ## Gateway koneksi
 

@@ -104,6 +104,21 @@ def test_inline_touch_control_is_validated():
     content={'index.html':'<html><script>document.querySelectorAll("[data-direction]");</script></html>','game.js':''}
     assert not projects.project_errors(content,'Buat game dengan kontrol HP')
 
+def test_generated_html_rejects_multifile_dump_and_missing_requested_controls():
+    html='<!doctype html><html><head><title>Editor</title><meta name="viewport" content="width=device-width"></head><body><textarea id="editor"></textarea></body></html>'
+    assert projects.inspect_html(html,{'editor'},strict=True)['ok']
+    assert not projects.inspect_html(html,{'editor','saveBtn'},strict=True)['ok']
+    assert not projects.inspect_html('index.html\n```html\n'+html+'\n```\napp.js\nalert(1)',strict=True)['ok']
+
+def test_control_contract_does_not_mistake_control_types_for_ids():
+    assert projects.requested_controls('input ID imageFile, select ID outputFormat, input widthInput, tombol convertBtn dan link downloadLink.')=={'imageFile','outputFormat','widthInput','convertBtn','downloadLink'}
+    assert projects.requested_controls('ID fileInput, editor, findText, replaceText, replaceBtn, saveBtn, resetBtn, wordCount.')=={'fileInput','editor','findText','replaceText','replaceBtn','saveBtn','resetBtn','wordCount'}
+
+def test_fenced_file_recovery_never_includes_neighbor_module():
+    response='index.html\n```html\n<html>model source</html>\n```\napp.js\n```javascript\nthrow new Error("different file")\n```'
+    assert projects.unwrap_file(response,'index.html')=='<html>model source</html>'
+    assert projects.unwrap_file('```javascript\nconst incomplete =','app.js')=='```javascript\nconst incomplete ='
+
 
 @pytest.mark.asyncio
 async def test_project_paths_stay_in_assigned_folder(monkeypatch,tmp_path):

@@ -621,6 +621,8 @@ async def start():
     app = web.Application(middlewares=[control.errors, auth_mw], client_max_size=16 * 1024 * 1024)  # unggahan gambar
     app.add_routes(control.routes)
     app.add_routes(native_apps.routes)
+    from . import workbench
+    app.add_routes(workbench.routes)
     app.add_routes(routes)
     app.router.add_static("/static/", config.STATIC_DIR)
     runner = web.AppRunner(app, access_log=None)

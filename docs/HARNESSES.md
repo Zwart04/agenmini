@@ -1,6 +1,6 @@
 # Harness asli, dipasang seperlunya
 
-Agen Mini menjalankan distribusi CLI upstream asli. Ini bukan persona atau prompt yang meniru Hermes/Claude Code. Runtime bawaan tetap pilihan paling ringan; katalog tidak memasang apa pun saat dibaca.
+Agen Mini menawarkan inti bawaan ringan dan distribusi CLI upstream asli yang opsional. **Agen Mini · inti DeepSeek** mengadaptasi kontrak lifecycle dan eksekusi alat DeepSeek ke Python: log call/result, alat serial, deadline dan penanganan tindakan terputus. Ini bukan runtime `dsh` asli atau port lengkap. Sumber, lisensi dan batas adaptasi ada di [DEEPSEEK-CORE.md](DEEPSEEK-CORE.md). Katalog tidak memasang apa pun saat dibaca.
 
 ## Memilih
 
@@ -18,7 +18,7 @@ Agen Mini menjalankan distribusi CLI upstream asli. Ini bukan persona atau promp
 | Pilihan | Distribusi asli yang dipasang | Kebutuhan / catatan |
 | --- | --- | --- |
 | Kosong | Tidak memasang paket tambahan | Tidak menyuntik prompt/panduan/konteks otomatis; protokol alat dan penjaga aplikasi tetap berjalan |
-| Agen Mini | Bawaan aplikasi | Integrasi alat, delegasi, MCP, skill, ingatan dan pembelajaran Agen Mini |
+| Agen Mini · inti DeepSeek | Adaptasi Python bawaan aplikasi | Alat serial, lifecycle/log, integrasi delegasi, MCP, skill dan ingatan; tanpa CLI tambahan |
 | [Hermes](https://github.com/nousresearch/hermes-agent) | Source commit `7157422022ff` dalam venv sendiri | Python 3.14 privat dipasang saat dipilih; provider/model asli; skill/ingatan Hermes terpisah |
 | [OpenCode](https://github.com/anomalyco/opencode) | `opencode-ai@1.18.34` | Banyak provider, model `provider/id` |
 | [Claude Code](https://code.claude.com/docs/en/headless) | `@anthropic-ai/claude-code@2.1.289` | Distribusi resmi; kode inti bukan open source untuk di-fork. Mode `--bare` memakai API key Anthropic |

@@ -187,6 +187,8 @@ async function loadChat(chatId) {
   $('#chAv').outerHTML = `<span class="av" id="chAv">${ic(b.icon, 's')}</span>`;
   $('#chName').textContent = b.name; $('#chDesc').textContent = b.persona.split(/(?<=[.!?])\s+/)[0].slice(0,120);
   const d = await api('/api/chat/' + b.id + (chatId ? '?chat_id=' + chatId : ''));
+  window.Workbench?.bindChat(d.chat.id);
+  window.Workbench?.access().catch(sayError);
   const th = $('#thread'); th.innerHTML = '';
   const bar = $('#oldBar'), c = d.chat || {}, tg = c.channel === 'tg';
   const old = tg || c.archived;
@@ -260,15 +262,18 @@ function addApproval(el, id) {
 }
 async function runStream(path, body) {
   S.busy = true; $('#sendBtn').disabled = true;
+  window.Workbench?.busy(true);
   const th = $('#thread');
-  const st = document.createElement('div'); st.className = 'status'; st.setAttribute('role','status'); st.innerHTML = '<span class="spin"></span><span class="activity-label">Menghubungkan AI…</span><small class="activity-elapsed"></small>'; th.append(st);
+  const st = document.createElement('div'); st.className = 'status'; st.setAttribute('role','status'); st.innerHTML = '<img class="brand-mascot" src="/static/mascot.png" alt=""><span class="spin"></span><span class="activity-label">Menghubungkan AI…</span><small class="activity-elapsed"></small>'; th.append(st);
   const started=Date.now(); const clock=setInterval(()=>{if(!document.hidden)st.querySelector('.activity-elapsed').textContent=Math.floor((Date.now()-started)/1000)+' dtk'},1000);
   $('#chatBackend').disabled=true;$('#chatModel').disabled=true;$('#chatModelApply').disabled=true;
   let draft = null, draftText = '';
   scrollEnd();
   try {
     await stream(path, body, ev => {
-      if (ev.type === 'status') { st.querySelector('.activity-label').textContent = ev.data; if (draft) { draft.remove(); draft = null; draftText = '' } }
+      if (ev.type === 'harness') { window.Workbench?.event(ev.data) }
+      else if (ev.type === 'code') { window.Workbench?.draft(ev.data) }
+      else if (ev.type === 'status') { st.querySelector('.activity-label').textContent = ev.data; if (draft) { draft.remove(); draft = null; draftText = '' } }
       else if (ev.type === 'token') {
         st.querySelector('.activity-label').textContent='Menulis jawaban…';
         if (!draft) { draft = addMsg({role: 'assistant', content: ''}); draft.querySelector('.meta').remove(); draft.innerHTML='<div class="b"></div>'; th.append(st) }
@@ -281,7 +286,7 @@ async function runStream(path, body) {
       scrollEnd();
     });
   } catch (e) { addMsg({role: 'assistant', content: 'Koneksi terputus: ' + e.message + '. Jawaban tetap disimpan, muat ulang halaman.'}) }
-  clearInterval(clock); st.remove(); S.busy = false; $('#chatBackend').disabled=$('#chatBackend').dataset.native==='1';$('#chatModel').disabled=false;$('#chatModelApply').disabled=false; $('#sendBtn').disabled = false; $('#input').focus();
+  clearInterval(clock); st.remove(); S.busy = false; window.Workbench?.busy(false); $('#chatBackend').disabled=$('#chatBackend').dataset.native==='1';$('#chatModel').disabled=false;$('#chatModelApply').disabled=false; $('#sendBtn').disabled = false; $('#input').focus();
 }
 async function send() {
   const t = $('#input').value.trim(); const imgs = S.attach.slice();

@@ -1,15 +1,13 @@
-# Agen Mini 0.9.0
+# Agen Mini 0.10.0
 
-Katalog 90 provider chat mencakup OpenCode Free/MiMo Free/Devin CLI tanpa API key, cookie dan impor Cursor. OpenCode Free diuji dengan respons nyata. OAuth Google memakai client aplikasi operator; akun provider lain belum seluruhnya diuji.
+Harness bawaan mengadaptasi inti kontrol DeepSeek ke Python: tindakan alat berurutan, identitas call/result, journal privat, deadline dan penanganan tindakan terputus tanpa replay otomatis. Mode Kosong tetap terpisah; runtime DeepSeek asli tetap pilihan eksternal yang dipasang saat dipilih. Atribusi MIT dan commit sumber disertakan dalam paket.
 
-Uji nyata model CPU 0.8B/1.2B menemukan hasil coding belum andal. Guard kini menjalankan assertion tersembunyi, menolak perubahan tes saat repair, menolak JSON alat terpotong, dan membedakan validasi sintaks HTML dari perilaku browser. Setup satu Orchestrator tidak lagi mencoba bot template yang belum dipasang. Evaluasi dapat diulang melalui `scripts/evaluate_local.py`; tidak ada klaim training bobot atau kemampuan setara model besar.
+Chat mendapat Panel kerja dengan editor ringan, perubahan sebelum/sesudah, draf kode langsung, preview offline terisolasi, Browser dan log. Editor menolak konflik dengan perubahan agen dan membuat salinan sebelum menyimpan. Preview memakai browser pengguna; panel Browser bukan mesin otomatisasi agen. Import module, backend dan situs yang menolak iframe memerlukan server/tab tersendiri. Model dan akses alat dapat dipilih pada chat.
 
-Agen Mini Gateway adalah fork koneksi 9router-go berdasarkan 9router: OAuth, refresh, API key, model, streaming dan fallback berada dalam satu aplikasi. Dashboard kedua, media, terminal, analitik, relay dan updater router tidak dijalankan. Logo provider disimpan lokal dan dapat dicari di Pengaturan → Koneksi AI & model.
+Maskot dari aset pengguna dibersihkan menjadi PNG transparan dan dianimasikan melalui CSS saat bekerja. Panel diperiksa pada desktop dan mobile 390 px, dengan kontrol custom, fokus modal dan dukungan reduced motion. Tidak menambah Monaco, Node service atau server animasi.
 
-Menu utama menjadi Chat, Tugas & Tim, Pengaturan. Proyek dan aktivitas digabung pada Tugas; biaya dan diskusi tim berada pada bagian lanjutan. FreeLLMAPI tidak ditawarkan pada instalasi baru; konfigurasi lama dipertahankan.
+Pemasang memperbaiki 404 pada rilis 0.9.0: placeholder versi URL gateway diganti saat packaging; binary dan SHA256 diunduh ke staging sebelum mengganti binary lama. Instalasi di atas versi lama mempertahankan data/model/akun. README serta panduan pasang, update dan remove ditulis ulang.
 
-Pemasang Linux mengambil binary Go sesuai arsitektur dan memeriksa SHA256 sebelum build container. Compiler Go/Node tidak dipasang di VPS. Database gateway managed lama dibackup sebelum migrasi; akun laptop dan VPS pengguna tidak disentuh saat pengembangan.
+Uji model lokal CPU 0.8B/1.2B memakai tugas converter gambar dan editor teks, bukan landing page atau template hasil. Ditemukan keluaran terpotong, sintaks salah dan kontrak HTML/JS salah. Guard membatasi perbaikan, memvalidasi tiap berkas, dan menolak menyimpan proyek yang belum valid. Detail hasil serta batas kualitas model ada di VALIDATION.md. Tidak ada klaim training bobot atau kemampuan setara model besar.
 
-Perbaikan bridge mencakup endpoint OAuth Go, status authorized, daftar koneksi API lengkap, session device privat, dan callback beberapa metode login. Arsip installer mempertahankan byte logo PNG.
-
-Pemeriksaan menggunakan binary gateway nyata dan kredensial fixture, bukan akun atau kuota provider pengguna. Gateway Windows tersedia sebagai binary mandiri; wizard Agen Mini Windows masih memakai endpoint gateway yang sudah berjalan. CLI harness asli belum diganti SDK. Hasil CI dan batas pengujian tersedia dalam VALIDATION.md.
+Publikasi mensyaratkan GitHub Actions Linux, installer Windows nyata dan matriks CLI upstream pada commit yang sama. Pengujian tidak mengakses VPS atau akun provider pengguna.

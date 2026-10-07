@@ -189,10 +189,12 @@ if [[ $(get_env NINE_ROUTER_IMAGE) == agenmini-gateway:local ]]; then
     case "$(uname -m)" in x86_64) GATEWAY_ARCH=amd64 ;; aarch64|arm64) GATEWAY_ARCH=arm64 ;; *) fail 'Arsitektur gateway tidak didukung.' ;; esac
     GATEWAY_ASSET="agenmini-gateway-linux-$GATEWAY_ARCH"
     GATEWAY_RELEASE="https://github.com/Zwart04/agenmini/releases/download/v__VERSI__"
-    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET" -o "gateway/bin/$GATEWAY_ASSET"
-    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET.sha256" -o "gateway/bin/$GATEWAY_ASSET.sha256"
-    (cd gateway/bin && sha256sum -c "$GATEWAY_ASSET.sha256") || fail 'Checksum gateway gagal; tidak dijalankan.'
-    mv "gateway/bin/$GATEWAY_ASSET" gateway/bin/agenmini-gateway
+    echo "Mengunduh gateway v__VERSI__ ($GATEWAY_ARCH), memeriksa SHA256 sebelum mengganti binary."
+    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET" -o "$TMP/$GATEWAY_ASSET" || fail "Asset gateway belum tersedia: $GATEWAY_RELEASE/$GATEWAY_ASSET. Data lama tetap disimpan; gunakan pemasang release lengkap terbaru."
+    curl -fL --retry 3 "$GATEWAY_RELEASE/$GATEWAY_ASSET.sha256" -o "$TMP/$GATEWAY_ASSET.sha256" || fail 'Checksum gateway belum tersedia; binary lama dipertahankan.'
+    (cd "$TMP" && sha256sum -c "$GATEWAY_ASSET.sha256") || fail 'Checksum gateway gagal; binary lama dipertahankan.'
+    install -m 755 "$TMP/$GATEWAY_ASSET" gateway/bin/agenmini-gateway.new
+    mv gateway/bin/agenmini-gateway.new gateway/bin/agenmini-gateway
     chmod 755 gateway/bin/agenmini-gateway
   fi
   docker compose -f docker-compose.standalone.yml --profile router build router

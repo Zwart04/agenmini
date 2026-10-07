@@ -1,0 +1,62 @@
+import asyncio
+import json
+import pytest
+from app import db, deepseek_core, workbench, config
+from test_harnesses import isolated
+
+@pytest.mark.asyncio
+async def test_interrupted_mutation_records_unknown_without_replay(isolated):
+    chat=db.chat_for('orchestrator','core-test','cancel')
+    seen=[]
+    async def callback(kind,data):seen.append(data)
+    core=deepseek_core.Core(chat['id'],'orchestrator',callback)
+    started=asyncio.Event();calls=[]
+    async def mutate():
+        calls.append('started');started.set();await asyncio.Event().wait()
+    task=asyncio.create_task(core.invoke('write_file',{'path':'a.txt','secret':'must-not-log'},mutate()))
+    await started.wait();task.cancel()
+    with pytest.raises(asyncio.CancelledError):await task
+    await core.finish('interrupted')
+    assert calls==['started']
+    assert seen[-2]['code']=='TOOL_OUTCOME_UNKNOWN'
+    rows=[r for r in deepseek_core.events(chat['id']) if r['run_id']==core.id]
+    assert [r['kind'] for r in rows]==['tool/call','tool/result','turn/end']
+    assert 'must-not-log' not in json.dumps(rows)
+
+@pytest.mark.asyncio
+async def test_failed_tool_and_file_change_are_not_synthetic_success(isolated):
+    seen=[]
+    async def callback(kind,data):seen.append(data)
+    chat=db.chat_for('orchestrator','core-test','failed')
+    core=deepseek_core.Core(chat['id'],'orchestrator',callback)
+    async def operation():return 'Error: original failure'
+    assert await core.invoke('run_shell',{},operation())=='Error: original failure'
+    assert seen[-1]['outcome']=='error'
+    token=deepseek_core.current.set(core)
+    try:
+        await deepseek_core.changed('a.js','old','new')
+        await deepseek_core.changed('credentials.json','','private')
+    finally:deepseek_core.current.reset(token)
+    assert len([r for r in seen if r['kind']=='file/change'])==1
+
+def test_workbench_rejects_traversal_private_binary_and_symlinks(tmp_path,monkeypatch):
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path)
+    for name in ('../app.py','.env','credentials.json','folder/token.txt','photo.png'):
+        with pytest.raises(ValueError):workbench.target(name)
+    p=tmp_path/'main.py';p.write_text('print(1)')
+    assert workbench.file_info('main.py')['content']=='print(1)'
+
+@pytest.mark.asyncio
+async def test_editor_compare_and_swap_preserves_concurrent_agent_edit(tmp_path,monkeypatch):
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path)
+    monkeypatch.setattr(config,'DATA_DIR',tmp_path/'data')
+    p=tmp_path/'a.js';p.write_text('first')
+    original=workbench.file_info('a.js')
+    p.write_text('agent changed')
+    class Request:
+        async def json(self):return {**original,'content':'user changed'}
+    response=await workbench.save(Request())
+    assert response.status==409 and p.read_text()=='agent changed'
+    original=workbench.file_info('a.js')
+    response=await workbench.save(Request())
+    assert response.status==200 and p.read_text()=='user changed'

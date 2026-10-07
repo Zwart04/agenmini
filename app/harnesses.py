@@ -6,7 +6,7 @@ from . import config, db
 # Fixed distributions only. A request cannot choose a URL, executable or install arguments.
 CATALOG = [
  dict(id='none', name='Kosong', description='Tanpa prompt, panduan tugas atau konteks otomatis Agen Mini.', version='builtin'),
- dict(id='assisted', name='Agen Mini', description='Alat, tim bot, skill dan ingatan dalam satu aplikasi ringan.', version='builtin'),
+ dict(id='assisted', name='Agen Mini · inti DeepSeek', description='Loop DeepSeek diadaptasi ke Python; alat berurutan, log, skill dan ingatan. Tanpa runtime tambahan.', version='builtin'),
  dict(id='hermes', name='Hermes Agent', description='Runtime Nous asli; Python 3.14 privat, skill dan ingatan Hermes.', kind='pip', package='https://codeload.github.com/nousresearch/hermes-agent/zip/7157422022ff06f3e632d1dd394ee1253b17ad37', version='7157422022ff', bin='hermes', source='https://github.com/nousresearch/hermes-agent', keys=['OPENROUTER_API_KEY','OPENAI_API_KEY','OPENAI_BASE_URL','ANTHROPIC_API_KEY'], provider='openrouter'),
  dict(id='opencode', name='OpenCode', description='Agen coding asli, banyak provider; model memakai provider/id.', kind='npm', package='opencode-ai', version='1.18.34', bin='opencode', source='https://github.com/anomalyco/opencode', keys=['ANTHROPIC_API_KEY','OPENAI_API_KEY','OPENROUTER_API_KEY']),
  dict(id='claude', name='Claude Code', description='CLI resmi Anthropic. Mode integrasi memakai API key Anthropic.', kind='npm', package='@anthropic-ai/claude-code', version='2.1.289', bin='claude', source='https://code.claude.com/docs/en/headless', keys=['ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL']),

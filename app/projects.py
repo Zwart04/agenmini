@@ -29,7 +29,7 @@ class Document(HTMLParser):
         if tag=='script':self.scripts+=1
 
 
-def inspect_html(html):
+def inspect_html(html,required_ids=(),strict=False):
     d=Document();d.feed(html);d.close();errors=[]
     for tag in ('html','head','body','title'):
         if not d.tags.get(tag):errors.append('Tag '+tag+' belum ada.')
@@ -40,6 +40,10 @@ def inspect_html(html):
     for tag in ('script','style'):
         if len(re.findall('<'+tag+r'\b',html,re.I))!=len(re.findall('</'+tag+r'\s*>',html,re.I)):errors.append(tag+' belum lengkap.')
     if re.search(r'lorem ipsum|YOUR_API_KEY|TODO:\s*implement',html,re.I):errors.append('Placeholder implementasi masih tersisa.')
+    for name in required_ids:
+        if name not in d.ids:errors.append('Kontrol yang diminta belum ada: '+name)
+    if strict and (re.search(r'^\s*```',html,re.M) or not re.match(r'\s*(?:<!doctype\b|<html\b|<!--)',html,re.I)):
+        errors.append('HTML bercampur label/Markdown atau berkas lain. Output hanya dokumen HTML, bukan seluruh proyek.')
     return {'ok':not errors,'errors':errors,'sections':d.tags.get('section',0),'buttons':d.tags.get('button',0),
             'scripts':d.scripts,'bytes':len(html.encode()),'resources':d.resources,
             'note':'Pemeriksaan struktur dan tautan. Tampilan/interaksi perlu diuji browser; backend hanya dianggap terhubung bila diuji nyata.'}
@@ -65,6 +69,16 @@ def safe_name(name):
     return str(path)
 
 
+def unwrap_file(value,path):
+    """Recover the requested fenced file only; never synthesize source content."""
+    value=value.strip()
+    langs={'.html':'html', '.css':'css', '.js':'javascript|js', '.py':'python|py', '.json':'json', '.md':'markdown|md'}
+    lang=langs.get(PurePosixPath(path).suffix,re.escape(PurePosixPath(path).suffix.lstrip('.')))
+    match=re.match(r'(?:'+re.escape(path)+r'\s*)?```(?:'+lang+r')?\s*\n(.*?)\n```(?:\s|$)',value,re.S|re.I)
+    if match:return match.group(1).strip()
+    return value
+
+
 def project_errors(contents,brief):
     html='\n'.join(code for path,code in contents.items() if path.endswith('.html'))
     js='\n'.join(code for path,code in contents.items() if path.endswith('.js'))+'\n'+'\n'.join(re.findall(r'<script[^>]*>(.*?)</script>',html,re.S|re.I))
@@ -76,9 +90,21 @@ def project_errors(contents,brief):
     return list(dict.fromkeys(errors))
 
 
+def requested_controls(brief):
+    required_ids=set()
+    for group in re.findall(r'\bID\s+([A-Za-z]\w*(?:\s*,\s*[A-Za-z]\w*)*)',brief):
+        names=re.split(r'\s*,\s*',group)
+        required_ids.add(names[0])
+        required_ids.update(n for n in names[1:] if n.lower() not in ('input','select','tombol','link','textarea','button'))
+    for name in re.findall(r'\b(?:input|select|tombol|link|textarea)\s+([A-Za-z]\w*)',brief):
+        if re.search(r'[a-z][A-Z]',name):required_ids.add(name)
+    return required_ids
+
+
 async def generate(brief, ctx, on_event=None):
     from . import tools,office
     local=llm.active_backend()=='local'
+    required_ids=requested_controls(brief)
     if local:
         # Local uses bounded planning and generates one module at a time, no second model process.
         instructions='Use vanilla HTML/CSS/JavaScript only; offline browser frontend. Keep each module short, no frameworks.'
@@ -99,13 +125,67 @@ async def generate(brief, ctx, on_event=None):
     for i,entry in enumerate(plan['files']):
         path=manifest[i];office.phase('Membuat '+path,'writing')
         if on_event:await on_event('status','Membuat '+path+f' ({i+1}/{len(manifest)})…')
+        draft='';last_emit=0
+        async def code_token(piece):
+            nonlocal draft,last_emit
+            draft=(draft+piece)[-48000:]
+            now=__import__('time').monotonic()
+            if on_event and now-last_emit>=.4:
+                last_emit=now
+                await on_event('code',{'path':root+'/'+path,'content':draft,'draft':True})
         # Include previous modules to keep identifiers/imports consistent, with a bounded context.
         context='\n\n'.join(n+'\n'+v for n,v in contents.items())[-11000:]
-        result=await llm.chat([{'role':'system','content':('Implement ONE complete file. Raw file content only, no fences. No truncation/placeholders. '
-                 'Keep consistent with the project plan and previous modules. Finish all braces/tags. '+instructions)},
-                {'role':'user','content':json.dumps({'brief':brief[:4500],'plan':plan,'current':entry},ensure_ascii=False)+'\nPrevious modules:\n'+context}],
-                max_tokens=2400 if local else 4800,temperature=.3)
-        code=result['content'].strip();code=re.sub(r'^```[^\n]*\n','',code);code=re.sub(r'\n```\s*$','',code)
+        contract=Document()
+        for name,source in contents.items():
+            if name.endswith('.html'):contract.feed(source)
+        language={'.css':'CSS rules only, no HTML tags or JavaScript','.js':'JavaScript only, no HTML tags, CSS rules or explanations',
+                  '.html':'one complete HTML document','.md':'short Markdown instructions only'}.get(PurePosixPath(path).suffix,'raw source')
+        file_task='CURRENT FILE: '+path+'\nOutput '+language+'. Use these existing HTML IDs exactly: '+', '.join(sorted(contract.ids))+'. Keep the implementation concise; no repeated scaffolding.'
+        if path=='index.html' and required_ids:file_task+='\nRequired control IDs: '+', '.join(sorted(required_ids))
+        source_request=json.dumps({'brief':brief[:4500],'plan':plan,'current':entry},ensure_ascii=False)+'\nPrevious modules:\n'+context+'\n\n'+file_task
+        if local:
+            if path.endswith('.css'):
+                source_request='Write a short responsive stylesheet for a browser utility. Style body, headings, forms, labels, input, select, textarea, button, image and canvas. Keep within 350 tokens. No HTML or JavaScript.\n'+file_task
+            elif path.endswith('.md'):
+                source_request='Write short usage instructions, including limitations. No source code.\n'+brief[:2000]+'\n'+file_task
+            elif path.endswith('.html'):
+                source_request='Write ONLY the HTML user interface for '+str(plan.get('name','Browser utility'))+'. Purpose: '+str(entry.get('purpose',''))+'.\nProject requirements (implement controls here; functionality belongs to the separate JS file): '+brief[:3500]+'\nReference these local files: '+', '.join(manifest)+'.\nOutput a short complete HTML document. No inline style, no inline JavaScript, no function implementation. Use script src for JS and link rel=stylesheet for CSS. Include title and viewport. End at </html>.'
+            else:
+                source_request=brief[:3500]+'\n'+file_task+'\nExisting HTML (match its elements, do not reproduce it in JS):\n'+'\n'.join(v for n,v in contents.items() if n.endswith('.html'))[-6000:]
+        result=await llm.chat([{'role':'system','content':('Implement ONE complete file. '+file_task+' Raw file content only, no fences. No truncation/placeholders. '
+                 'Keep consistent with previous modules. Finish all braces/tags. '+instructions)},
+                {'role':'user','content':source_request}],
+                max_tokens=(700 if path.endswith('.css') else 400 if path.endswith('.md') else 2400) if local else 4800,temperature=.3,on_token=code_token if on_event else None)
+        code=unwrap_file(result['content'],path)
+        async def source_errors(value):
+            problems=[]
+            if result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):problems.append('Response exceeded output token budget.')
+            if path.endswith('.css') and (re.search(r'<[a-z!/][^>]*>',value,re.I) or value.count('{')!=value.count('}')):problems.append('CSS file contains HTML or unmatched braces.')
+            if path.endswith('.js'):
+                checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=value.encode(),project=True)
+                if not checked.startswith('[kode keluar 0]'):problems.append(checked[-1800:])
+            if path.endswith('.html'):
+                problems.extend(inspect_html(value,required_ids if path=='index.html' else (),strict=True)['errors'])
+                problems.extend(await inspect_inline_js(value))
+                if local and any(n.endswith('.js') for n in manifest) and any(source.strip() for _,source in re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',value,re.I|re.S)):
+                    problems.append('HTML must contain only markup. Move all inline JavaScript to the planned JS file; use script src instead.')
+            if path.endswith('.json'):
+                try:json.loads(value)
+                except ValueError as exc:problems.append(str(exc))
+            if path.endswith('.py'):
+                try:compile(value,path,'exec')
+                except SyntaxError as exc:problems.append(str(exc))
+            return problems
+        problems=await source_errors(code)
+        if problems:
+            if on_event:await on_event('status','Memperbaiki '+path+': jenis/sintaks keluaran belum benar…')
+            draft='';last_emit=0
+            result=await llm.chat([{'role':'system','content':'Write ONE complete concise source file. '+file_task+' No prose, code fences or placeholder logic. Complete the brief, preserve the HTML IDs. Do not output other files.'},
+                {'role':'user','content':source_request+'\nFix these errors: '+json.dumps(problems)}],
+                max_tokens=1600 if path.endswith(('.css','.md')) else 2400 if local else 4800,temperature=.1,on_token=code_token if on_event else None)
+            code=unwrap_file(result['content'],path)
+            problems=await source_errors(code)
+            if problems:raise ValueError(path+' belum valid setelah perbaikan: '+' '.join(problems)[:1800])
         if not code or len(code.encode())>150000:raise ValueError('Berkas proyek kosong/terlalu besar: '+path)
         if path.endswith('.html'):
             check=inspect_html(code)
@@ -115,6 +195,21 @@ async def generate(brief, ctx, on_event=None):
         contents[path]=code;stats=result.get('stats',{})
         # Stage files privately until all modules have passed validation.
     errors=project_errors(contents,brief)
+    if errors and local:
+        if on_event:await on_event('status','Memperbaiki JavaScript sesuai HTML yang sudah dibuat…')
+        # A tiny model cannot rewrite every module inside one JSON token budget.
+        # Repair the actual JS contract without silently editing the DOM or adding templates.
+        html='\n'.join(v for n,v in contents.items() if n.endswith('.html'))
+        for js_path in [n for n in contents if n.endswith('.js')]:
+            repaired=await llm.chat([{'role':'system','content':'Repair ONE JavaScript file. Output complete raw JavaScript only. Match the actual HTML IDs and controls exactly. Preserve all requested functionality. No HTML, fences, explanations or placeholders.'},
+                {'role':'user','content':json.dumps({'brief':brief[:3500],'errors':errors,'html':html,'file':js_path,'javascript':contents[js_path]},ensure_ascii=False)}],max_tokens=2400,temperature=.1)
+            if repaired.get('stats',{}).get('finish_reason') in ('length','max_tokens'):raise ValueError('Perbaikan JavaScript terpotong; proyek belum disimpan.')
+            source=unwrap_file(repaired['content'],js_path)
+            checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=source.encode(),project=True)
+            if not source or not checked.startswith('[kode keluar 0]'):raise ValueError('Perbaikan JavaScript belum valid: '+checked[-1800:])
+            contents[js_path]=source;stats=repaired.get('stats',{})
+        errors=project_errors(contents,brief)
+        if errors:raise ValueError('Kontrak HTML/JS belum benar: '+' '.join(errors))
     if errors:
         if on_event:await on_event('status','Memperbaiki kontrak antarberkas…')
         repaired=await llm.chat([{'role':'system','content':'Repair the complete multi-file project without losing working logic. Return JSON {files:[{path,content}]}, all existing files with complete content. No fences/placeholders. Fix ALL reported issues. Make canvas CSS width:min(100%,320px); height:auto; containers max-width:100%; box-sizing:border-box; controls wrap; fit viewport320px. Preserve matching IDs/imports.'},
@@ -136,7 +231,8 @@ async def generate(brief, ctx, on_event=None):
                 relative=str(PurePosixPath(path).parent/resource.split('?')[0].split('#')[0])
                 if relative not in contents:raise ValueError('Berkas rujukan belum dibuat: '+relative)
     folder=tools._workpath(root);folder.mkdir(parents=True)
-    __import__('os').chown(folder,tools.config.KERJA_UID,tools.config.KERJA_GID)
+    try:__import__('os').chown(folder,tools.config.KERJA_UID,tools.config.KERJA_GID)
+    except (AttributeError,OSError):pass
     for path,code in contents.items():
         await tools.write_file(ctx,root+'/'+path,code)
         if tools._workpath(root+'/'+path).read_text()!=code:raise ValueError('Verifikasi isi gagal: '+path)
