@@ -1,0 +1,273 @@
+{
+  "architecture": "Write an offline single-clip browser video editor from scratch. All source comes from your responses. One classic deferred app.js, no libraries/frameworks. Shared global app state, shared ui DOM references, named complete functions. app fields: loaded, busy, duration, start, end, filename, objectURL, downloadURL, recorder, chunks, canvas, ctx, raf, cancelled, audioContext, audioSource, audioDest. ui keys match DOM IDs: fileInput, preview, playBtn, seekInput, startInput, endInput, titleInput, exportBtn, cancelBtn, downloadLink, status, timeline, textOverlay, clipLabel, durationLabel, progressLabel. Functions: setStatus, setBusy, formatTime, loadVideo, togglePlay, seekVideo, validateTrim, updateTimeline, updateText, prepareCanvas, paintFrame, exportVideo, initEditor. Use browser-native video/Canvas/MediaRecorder APIs only. app.start/end are seconds, not percentages. Imported media stays in browser; no uploads. Real export must encode canvas frames, optionally attach audio via Web Audio. Maintain exact shared names. No demo assets or fake successful controls.",
+  "panels": [
+    "library",
+    "viewer",
+    "inspector",
+    "timeline"
+  ],
+  "required_ids": [
+    "fileInput",
+    "preview",
+    "playBtn",
+    "seekInput",
+    "startInput",
+    "endInput",
+    "titleInput",
+    "exportBtn",
+    "cancelBtn",
+    "downloadLink",
+    "status",
+    "timeline",
+    "textOverlay",
+    "clipLabel",
+    "durationLabel",
+    "progressLabel"
+  ],
+  "parts": [
+    {
+      "name": "Document opening",
+      "file": "index.html",
+      "kind": "shellchunk",
+      "tokens": 250,
+      "task": "HTML fragment only: doctype, html lang=en, head with charset UTF-8, viewport, title Clip Mini, link style.css, script app.js defer. Close head. Open body class app. Stop immediately after opening body. Do not close body/html or add content."
+    },
+    {
+      "name": "Header",
+      "file": "index.html",
+      "kind": "shellchunk",
+      "tokens": 350,
+      "controls": {
+        "exportBtn": {
+          "tag": "button"
+        },
+        "cancelBtn": {
+          "tag": "button"
+        },
+        "downloadLink": {
+          "tag": "a"
+        }
+      },
+      "task": "Write only header class topbar. Include Clip Mini wordmark, button id exportBtn disabled Export, button id cancelBtn hidden Cancel, anchor id downloadLink download hidden Download WITHOUT href. Close header. No document, styles, extra controls or panels."
+    },
+    {
+      "name": "Panel slots",
+      "file": "index.html",
+      "kind": "shellchunk",
+      "tokens": 180,
+      "slots": [
+        "library",
+        "viewer",
+        "inspector",
+        "timeline"
+      ],
+      "task": "Write only div class stage containing EXACT comment markers <!--panel:library--> <!--panel:viewer--> <!--panel:inspector-->. Close div. Then EXACT comment <!--panel:timeline-->. No other HTML or styles."
+    },
+    {
+      "name": "Document closing",
+      "file": "index.html",
+      "kind": "shellchunk",
+      "tokens": 220,
+      "controls": {
+        "status": {
+          "tag": "span"
+        },
+        "progressLabel": {
+          "tag": "span"
+        }
+      },
+      "task": "HTML fragment only: footer class statusbar containing span id status text Import a video and empty span id progressLabel. Close footer. Then close body and html. No other tags, styles or content."
+    },
+    {
+      "name": "Koleksi media",
+      "file": "index.html",
+      "kind": "panel",
+      "slot": "library",
+      "tokens": 650,
+      "controls": {
+        "fileInput": {
+          "tag": "input",
+          "type": "file"
+        },
+        "clipLabel": {
+          "tag": "span"
+        },
+        "durationLabel": {
+          "tag": "span"
+        }
+      },
+      "task": "Only complete aside class library fragment. Top Media heading, subtitle Your files stay on this device. Styled upload-zone label containing input type=file ID fileInput accept video/mp4,video/webm plus visible Import video text/icon. Selected clip card class media-card, contains decorative film icon, span ID clipLabel initial No clip selected, span ID durationLabel initial MP4 or WebM. Add simple helpful empty tip and small keyboard shortcut chips Space Play, Esc Cancel. No scripts/style/document tags, no fake thumbnails, no IDs from other panels."
+    },
+    {
+      "name": "Monitor video",
+      "file": "index.html",
+      "kind": "panel",
+      "slot": "viewer",
+      "tokens": 750,
+      "controls": {
+        "preview": {
+          "tag": "video"
+        },
+        "playBtn": {
+          "tag": "button"
+        },
+        "seekInput": {
+          "tag": "input",
+          "type": "range"
+        },
+        "textOverlay": {
+          "tag": "div"
+        }
+      },
+      "task": "Only complete section class viewer. Small panel-heading Preview and 16:9 badge. A div class viewer-surface contains video ID preview playsinline preload=metadata without src or native controls, and div ID textOverlay class text-overlay blank. Video must exist even before import. Below, custom transport row class transport contains button ID playBtn disabled with Play label, input type=range ID seekInput min=0 max=0 step=.01 value=0 disabled labelled Scrub video. Include tiny note Drag the playhead to preview. Avoid empty fake video source. No other panel IDs, inline CSS/JS/document tags."
+    },
+    {
+      "name": "Properti klip",
+      "file": "index.html",
+      "kind": "panel",
+      "slot": "inspector",
+      "tokens": 700,
+      "controls": {
+        "startInput": {
+          "tag": "input",
+          "type": "number"
+        },
+        "endInput": {
+          "tag": "input",
+          "type": "number"
+        },
+        "titleInput": {
+          "tag": "input",
+          "type": "text"
+        }
+      },
+      "task": "Only complete aside class inspector. Heading Clip properties, trim section with proper labels Start seconds and End seconds, input type=number ID startInput value=0 min=0 step=.1 disabled and input type=number ID endInput value=0 min=0 step=.1 disabled. A Text overlay section contains labelled input type=text ID titleInput placeholder Add a title maxlength=120. Include helpful text Trim selects the exported portion. Small export summary WebM / up to 720p / local. Honest warning that audio depends on browser support; export status must reveal silent fallback. No other IDs or inline CSS/JS."
+    },
+    {
+      "name": "Timeline",
+      "file": "index.html",
+      "kind": "panel",
+      "slot": "timeline",
+      "tokens": 600,
+      "controls": {
+        "timeline": {
+          "tag": "div"
+        }
+      },
+      "task": "Only complete section class timeline-panel. Timeline toolbar with heading Timeline, subdued Single clip editing subtitle and keyboard tip Space to play. Div ID timeline class timeline tabindex=0 role=region aria-label Video timeline, initially contains pleasant empty state Import a clip to begin editing. JS will render its real clip/trim/text tracks, do not invent sample media. Add a restrained ruler/track-label presentation if useful, no interactive fake buttons, no script/style/document tags."
+    },
+    {
+      "name": "Tema dan layout",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 1200,
+      "task": "Write CSS for the ACTUAL assembled HTML. Only base/theme/layout rules. CapCut-like professional charcoal editing workspace, no gradients, neon backgrounds or stretched huge buttons. Palette background #0e1013, panels #171a20, borders #2b3038, text #edf0f4, secondary #89919e, mint #72edc3. System font 13px, font smoothing; universal border-box, margin resets. Body/app min-width:0, height:100dvh. .app grid rows 52px minmax(280px,1fr) 210px 28px, overflow hidden. .topbar horizontal flex with actions pushed right; wordmark prominent. .stage grid columns 220px minmax(0,1fr) 250px gap:1px, each panel min-width:0. Panels dark bordered, padding 16px, content overflow auto. .viewer flex column gap:12px, min-height:0. .viewer-surface black background, relative, centered flex, flex:1 min-height:0; preview width/height 100%, object-fit:contain. .text-overlay absolute bottom 10% left:0 right:0, centered white bold 24px with dark text-shadow, pointer-events:none. .statusbar flex justify-between. Use actual selectors/classes from markup. NO responsive media rules yet; next part provides them. No HTML or previous CSS repetition."
+    },
+    {
+      "name": "Komponen editor",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 1050,
+      "task": "Append CSS only for components, using actual markup classes/IDs, don't repeat base/layout. Buttons compact height32 padding0 14 border-radius6, mint export primary, subtle secondary buttons, hover/focus/disabled states. Inputs dark backgrounds, borders, font inherit, number/text full width, rounded6 height34, labelled groups with 8px gaps, sections with 20px spacing. File input within upload-zone accessible and clickable: style its file-selector-button; no hidden inaccessible input. Library upload zone dashed muted border, media-card compact icon/name/time card; chip badges subdued. Transport flex button plus full flexible mint-accent range; preview video never stretched/distorted. timeline-panel subtle top border; timeline rows 32px with video blue-gray clip, mint text clip and a clear absolute playhead. Style JS-created .timeline-ruler, .track-row, .track-label, .track-lane, .video-clip, .text-clip, .playhead; track-lane relative min-width0 and overflow hidden, clip boxes compact rounded4. clip text ellipsis, playhead thin mint. Empty states centered muted. [hidden] always display:none!important. Status error red. No gradients/neon green panels, no HTML/JS."
+    },
+    {
+      "name": "Layout mobile",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 600,
+      "task": "Append responsive CSS ONLY. At max-width900px shrink stage to 180px minmax(0,1fr) 210px. At max-width700px body/app height:auto min-height100dvh overflow:visible; app display:flex flex-direction:column; stage display:flex flex-direction:column; topbar flex-wrap with height:auto padding12 and actions reasonable gaps; library order:2, viewer order:1, inspector order:3. viewer-surface aspect-ratio:16/9 flex:none width100%, min-height180; preview max-height300. Panels width100%, min-width0. Timeline min-height180; transport/input controls fit 390px; text inputs max-width100%; no horizontal document scroll. Style focus-visible with visible mint outline and respect prefers-reduced-motion. No CSS that overrides desktop to a plain unstyled form."
+    },
+    {
+      "name": "State dan helper",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 950,
+      "functions": [
+        "setStatus",
+        "setBusy",
+        "formatTime"
+      ],
+      "task": "First JS part only. Declare ONE global app object with architecture fields initialized, and ONE global ui object mapping every DOM ID to getElementById. loaded/busy/cancelled false, start/end/duration0, nullable recorder/URL/canvas/context/audio fields, chunks empty. Define setStatus(message,isError=false) updating ui.status.textContent and error class; formatTime(seconds) returns safe mm:ss with finite clamped nonnegative numbers; setBusy(flag) updates app.busy, disables fileInput/playBtn/seekInput/startInput/endInput/exportBtn while busy or unloaded, shows cancelBtn only busy, prevents interaction during export without disabling the video element programmatically. This is just state/helpers; no handlers, imports, init call or other features. Don't redefine app/ui in later parts."
+    },
+    {
+      "name": "Impor media asli",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 1100,
+      "functions": [
+        "loadVideo"
+      ],
+      "task": "Define only complete function loadVideo(file). Use existing app/ui/helpers. If busy return. Validate file is present and MIME starts video/; reject without destroying old video on invalid input. Revoke previous objectURL/downloadURL safely; createObjectURL(file), set preview.src, loaded=false until loadedmetadata. Set preview.onloadedmetadata to update loaded/duration/start0/endduration, start/end/seek input values and seek.max in seconds, clipLabel.textContent filename, durationLabel formatTime(duration), hide downloadLink until new export, setBusy(false), setStatus Ready, call updateTimeline and updateText. Set onerror to clear ready flag and show error. Do not invent Media/File helper classes or read file text. Don't autoplay on import. Audio, mediaRecorder and export are handled elsewhere. No other functions, globals or init handlers."
+    },
+    {
+      "name": "Playback dan scrub",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 850,
+      "functions": [
+        "togglePlay",
+        "seekVideo"
+      ],
+      "task": "Define complete functions togglePlay() async and seekVideo(value). Use app/ui actual shared state. Guard unloaded/busy. togglePlay pauses if playing; otherwise if currentTime outside [app.start,app.end) seek to start, then await preview.play with error handling. Set playBtn label appropriately. seekVideo clamps numeric seconds within0..app.duration and sets preview.currentTime, calls updateTimeline. Do not define event listeners here; final init handles timeupdate and trim end. No new globals, video classes, exports or playback timers."
+    },
+    {
+      "name": "Trim dan timeline nyata",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 1300,
+      "functions": [
+        "validateTrim",
+        "updateTimeline"
+      ],
+      "task": "Define validateTrim() returning boolean; parse ui.startInput/endInput numeric seconds and require finite0<=start<end<=duration. Invalid: setStatus error and disable exportBtn, keep previous valid app.start/end. Valid: update app.start/end, enable export unless busy, setStatus duration of selected clip, call updateTimeline. Define updateTimeline(): if no loaded media show truthful empty state. Otherwise use DOM createElement/textContent (safe filenames/text, no raw user HTML) to clear and render actual .timeline-ruler with duration, .track-row labelled Video and Text, .track-label, .track-lane. Video clip .video-clip absolute left/start divided duration percent, width (end-start)/duration percent, text filename and selected seconds; Text clip .text-clip exists only if titleInput has text. Each lane has .playhead at currentTime/duration percentage. Do not create IDs that duplicate controls; no fake sample footage. ui.seekInput.value updated from currentTime. Timeline click handler belongs to final init. No global app/ui redeclarations."
+    },
+    {
+      "name": "Teks overlay",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 350,
+      "functions": [
+        "updateText"
+      ],
+      "task": "Define ONLY updateText(). Assign ui.textOverlay.textContent from ui.titleInput.value safely, toggle hidden based on trimmed empty text, then call updateTimeline() if loaded. Do not make updateTimeline call updateText or cause recursive loops. No innerHTML from user text, no handlers or globals."
+    },
+    {
+      "name": "Canvas ekspor",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 700,
+      "functions": [
+        "prepareCanvas",
+        "paintFrame"
+      ],
+      "task": "Define prepareCanvas() using actual preview.videoWidth/videoHeight, require >0. Create offscreen canvas, width min(originalWidth,720), height rounded proportional ratio; get2d context, store app.canvas/app.ctx, throw descriptive errors if unsupported. Define paintFrame(): drawImage(preview,0,0,canvas.width,canvas.height), then if titleInput nonempty draw centered white bold system-font overlay at x width/2,y height*.9; textAlign center, textBaseline middle, font max(14,round(width/30))px, dark shadow or stroke so visible; max text width90% canvas. This part only prepares/paints, no media recorder, loops, events or exports. Preserve shared fields."
+    },
+    {
+      "name": "Encode WebM",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 1700,
+      "functions": [
+        "exportVideo"
+      ],
+      "task": "Define complete async exportVideo() ONLY, using existing helpers. Return if unloaded/busy or !validateTrim(). Check canvas.captureStream and MediaRecorder support; choose first supported MIME video/webm;codecs=vp9,opus then vp8,opus then video/webm. Clear cancelled/chunks, setBusy(true), hide old download, prepareCanvas. Await seek to app.start: attach one-shot seeked before changing currentTime; resolve immediately if already within .02; give timeout rejecting after5s. Paint first frame, canvas.captureStream(24). Try audio: lazily create AudioContext, createMediaElementSource(preview) ONCE, connect source to context.destination and a MediaStreamDestination, resume context and add its audio tracks to canvas stream. If audio unsupported continue with explicit silent-export status. Create MediaRecorder on stream, collect nonempty dataavailable blobs. onstop stops canvas video tracks (keep reusable audio destination track), cancels RAF, pauses video, resets play label; if cancelled clear blob and status Cancelled; otherwise create actual Blob chunks with recorder.mimeType, require nonzero bytes, revoke old downloadURL, createObjectURL, set downloadLink.href/download=clip-mini.webm, reveal it, setStatus Export ready with byte size and audio/silent info; finally setBusy(false), clear progress. onerror cleanly stop and show actual error. Start recorder BEFORE await preview.play(). A requestAnimationFrame loop paintFrame + progress percentage while playing; stop recorder when currentTime>=app.end-.025 OR preview.ended OR cancelled, set time to selected end. Cancel UI handler only sets app.cancelled; this loop owns stopping. Catch failures resets busy, stops recorder/tracks and reports error. No invented encoder classes, Node APIs, fake downloads of original, or new globals. Keep implementation concise and complete."
+    },
+    {
+      "name": "Menghubungkan kontrol",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 1200,
+      "functions": [
+        "initEditor"
+      ],
+      "task": "Define complete initEditor() then call it once. Add actual event handlers: fileInput.change calls loadVideo(first file), playBtn.click togglePlay, seekInput.input seekVideo(value), start/endInput.change validateTrim, titleInput.input updateText, exportBtn.click exportVideo, cancelBtn.click sets cancelled true. preview.timeupdate updates seekInput/playBtn and updateTimeline; when !busy and playing reaches app.end pause and show Play; preview.pause/ended updates label. timeline.click calculates seek seconds from clicked .track-lane bounding rectangle only (clamp0..duration) and calls seekVideo. Keyboard Space toggles playback unless target INPUT/TEXTAREA/contentEditable, preventDefault; Escape cancels busy. Set initial setBusy(false), updateText and status Import a video to start. Add beforeunload revoking app URLs if present and cancelling RAF. Do not redefine any helper/state/functions. All DOM controls must really call defined earlier functions."
+    },
+    {
+      "name": "Panduan hasil",
+      "file": "README.md",
+      "kind": "md",
+      "tokens": 450,
+      "task": "Write concise honest Markdown usage instructions. Open index.html in a modern Chromium browser, import video, play/scrub, set trim bounds, overlay text, export then download WebM. The editor is single clip, real-time export up to720px, no cloud uploads, no AI/autocaption/multi-clip/full CapCut parity. Audio uses Web Audio when browser supports it, otherwise explicit silent fallback. Note that source was authored by local model in small parts, no evaluator template. Do not say behavior tested unless provided actual evidence. No code examples needed."
+    }
+  ]
+}

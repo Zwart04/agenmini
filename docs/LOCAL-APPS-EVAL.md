@@ -113,3 +113,14 @@ menjadi div. Putaran itu dihentikan oleh guard sebelum menjadi ZIP hasil.
 Status akhir benchmark video editor: **belum lulus**. Keluaran sebelumnya
 juga belum layak sebagai aplikasi video editor; tidak ada demo sukses yang
 ditambahkan untuk menutupi kegagalan model.
+
+Eksperimen selanjutnya memecah kode menjadi panel dan fungsi kecil. Jalur
+ini netral provider: lokal, API online, dan router memakai generator yang sama.
+Resep berisi instruksi desain/kontrak fungsi, bukan sumber HTML/CSS/JS siap pakai.
+Setiap bagian sumber yang valid disimpan bersama hash dan identitas model.
+Namun LFM 1.2B dan Qwen 0.8B masih gagal memenuhi kontrak HTML, bahkan sebelum
+uji ekspor. Karena itu jalur bagian sumber **belum diaktifkan sebagai default**.
+Aktifkan hanya pada evaluator privat dengan `--source-parts`. Eksperimen Qwen
+dapat memakai `--thinking-budget 256`, dibatasi maksimum 512; ini bukan janji
+peningkatan kualitas. Jalur utama pembuatan proyek tetap tersedia untuk semua
+backend. Tidak ada template runtime yang disisipkan untuk meluluskan benchmark.
