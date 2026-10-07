@@ -13,7 +13,7 @@ import time
 import zipfile
 from pathlib import Path
 from html.parser import HTMLParser
-from . import llm, projects, tools, project_checks
+from . import llm, projects, tools, project_checks, project_patches
 
 part_cache = contextvars.ContextVar('model_source_part_cache', default={})
 
@@ -106,7 +106,16 @@ def reusable_part(saved, item):
     if evidence.get('task_sha256')!=task_hash or evidence.get('sha256')!=hashlib.sha256(source.encode()).hexdigest():return None
     raw=saved.get('raw_source',source)
     if evidence.get('raw_sha256') and evidence['raw_sha256']!=hashlib.sha256(raw.encode()).hexdigest():return None
-    return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True}}
+    chain=saved.get('repair_chain',[])
+    origin=saved.get('origin_raw_source')
+    if chain:
+        try:
+            if project_patches.replay(origin,chain,item['file'])!=source:return None
+        except (ValueError,KeyError,TypeError):return None
+        if raw!=chain[-1]['raw_patch']:return None
+    elif origin is not None:return None
+    return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True},
+            **({'patched_source':source,'repair_chain':chain,'origin_raw_source':origin} if chain else {})}
 
 
 def extract_node(source,root_class):
@@ -204,12 +213,33 @@ async def generate(brief,ctx,on_event=None):
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source=''
+        source='';repair_chain=[];origin_raw=None;errors=[]
         for attempt in range(3):
             response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
+            patch_error='';patch_base=None;previous_errors=list(errors)
             if response is None:
-                response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
-            raw=response.get('content','');source=projects.unwrap_file(raw,path);stats=response.get('stats',{})
+                if attempt and kind=='js' and item.get('functions') and source and stats.get('finish_reason') not in ('length','max_tokens'):
+                    patch_base=source
+                    response=await project_patches.request(source,task=item['task'],errors=errors,
+                        contracts=js_contract_context(prior,item.get('relevant_fields'))+'\n'+system,
+                        max_tokens=min(1100,item.get('tokens',900)))
+                else:
+                    response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
+            raw=response.get('content','');stats=response.get('stats',{})
+            if response.get('patched_source') is not None:
+                source=response['patched_source'];repair_chain=response['repair_chain'];origin_raw=response['origin_raw_source']
+            elif patch_base is not None:
+                try:
+                    import jsonschema
+                    if stats.get('finish_reason') in ('length','max_tokens'):raise ValueError('Patch response truncated.')
+                    source=project_patches.apply(patch_base,raw)
+                    repair_chain.append({'base_sha256':project_patches.digest(patch_base),'raw_patch':raw,
+                        'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(source),
+                        'model':stats.get('served_model','')})
+                except (ValueError,jsonschema.ValidationError) as exc:
+                    source=patch_base;patch_error='Patch rejected: '+str(exc)[:400]
+            else:
+                source=projects.unwrap_file(raw,path);repair_chain=[];origin_raw=raw if kind=='js' else None
             extraction_error=''
             if kind=='document':
                 try:source=document_container(source)
@@ -217,9 +247,12 @@ async def generate(brief,ctx,on_event=None):
             if item.get('root_class'):
                 try:source=extract_node(source,item['root_class'])
                 except ValueError as exc:extraction_error=str(exc)
-            await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name})
+            await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name,
+                'response_kind':'model_patch' if patch_base is not None else 'reused_model_patch' if response.get('patched_source') is not None else 'source',
+                'patch_error':patch_error,'repair_chain':repair_chain})
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
+            if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
             if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
@@ -258,12 +291,16 @@ async def generate(brief,ctx,on_event=None):
                 if not errors:
                     for check in item.get('behavior_checks',[]):
                         errors+=await project_checks.inspect_helper(source,check)
+            await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
+                'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
             request='EXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nMODEL SOURCE TO REPAIR:\n'+source[-9000:]+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nTASK:\n'+item['task']+'\nRepair the failed lines and preserve correct logic. Return this complete corrected part only. No other parts or explanations.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
-        await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1]})
+        if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
+        await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],
+            **({'origin_raw_source':origin_raw,'repair_chain':repair_chain} if repair_chain else {})})
         if kind in ('shell','document'):shell=source
         elif kind=='node':nodes[item['slot']]=source
         elif kind=='shellchunk':shell+='\n'+source

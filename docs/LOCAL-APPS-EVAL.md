@@ -187,3 +187,23 @@ Putaran DeepSeek 1.3B terkini tetap **gagal** pada kontrol sibuk: model berulang
 kali menonaktifkan impor saat media belum dimuat, sehingga pengguna tidak bisa
 memilih video pertama. Guard perilaku menolak sumber itu; tidak ada koreksi
 kode aplikasi yang disisipkan evaluator untuk membuat benchmark terlihat lulus.
+
+Perbaikan eksperimen sekarang dapat meminta patch teks kecil kepada model,
+alih-alih selalu meminta seluruh fungsi ulang. Teks `find` harus ada tepat
+sekali, format harus lengkap, dan keseluruhan patch harus mengubah sumber.
+Patch yang ambigu, terpotong atau tidak mengubah hasil ditolak. Perubahan
+diterapkan ke memori lalu diperiksa dengan kontrak/sintaks/tes perilaku yang
+sama. Sumber awal, respons patch, hash tiap tahap dan modelnya dipertahankan;
+cache memutar ulang rantai perubahan sebelum memakai hasil. Semua byte
+pengganti berasal dari respons model, bukan kode buatan evaluator.
+
+Putaran DeepSeek 1.3B dengan patch masih gagal pada kontrol sibuk: model
+mengulang patch tanpa perubahan yang menyelesaikan galat. Log tetap gagal,
+dan jalur eksperimental tetap tidak menjadi default. Evaluator juga mencatat
+`checks/` per percobaan, termasuk galat nyata, hash source dan jenis helper
+yang diuji. Lolos helper tetap tidak membuktikan impor/ekspor video di browser.
+
+Pembanding berikutnya memakai GGUF resmi IBM `granite-4.0-1b`. Nama model
+memuat "1b", tetapi tabel arsitektur resmi menyebut **1.6B parameter** untuk
+versi dense tersebut. Hasilnya harus dilabeli pembanding 1.6B, bukan keberhasilan
+model tepat 1B. Sumber: https://huggingface.co/ibm-granite/granite-4.0-1b.

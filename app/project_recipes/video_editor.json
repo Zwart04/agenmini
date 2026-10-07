@@ -337,7 +337,7 @@
       "functions": [
         "setBusy"
       ],
-      "task": "Write ONLY complete JavaScript function setBusy(flag), following the behavior table below. Each target names an existing property, and the value is a logical description to implement in JavaScript. State busy means app.busy, loaded means app.loaded. Assign every listed target separately. Change no other property. Do not create classes, helper functions or extra globals. No explanation. Behavior table:\n{\n  \"app.busy\": \"Boolean value of flag\",\n  \"ui.fileInput.disabled\": \"busy\",\n  \"ui.playBtn.disabled\": \"busy OR NOT loaded\",\n  \"ui.seekInput.disabled\": \"busy OR NOT loaded\",\n  \"ui.startInput.disabled\": \"busy OR NOT loaded\",\n  \"ui.endInput.disabled\": \"busy OR NOT loaded\",\n  \"ui.exportBtn.disabled\": \"busy OR NOT loaded\",\n  \"ui.cancelBtn.hidden\": \"NOT busy\"\n}",
+      "task": "Write only complete JavaScript function setBusy(flag). Update app.busy to the Boolean flag. Enable file import whenever idle, EVEN IF NO VIDEO IS LOADED: ui.fileInput.disabled follows busy ONLY. For ui.playBtn, seekInput, startInput, endInput, exportBtn: disable when busy or when no media is loaded. ui.cancelBtn.hidden is the inverse of busy. Assign these properties individually; do not loop over all ui fields. Leave app.loaded untouched. Do not add globals, classes or other functions. Return source only.",
       "behavior_checks": [
         "busy"
       ],

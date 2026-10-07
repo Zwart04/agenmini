@@ -31,7 +31,7 @@ def main():
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
     repo_root=Path(__file__).resolve().parents[1]
     generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_recipes/video_editor.json']}
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -75,6 +75,9 @@ def main():
             if kind=='source_part':
                 partdir=run/'parts';partdir.mkdir(exist_ok=True)
                 (partdir/(str(value['index']).zfill(2)+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
+            if kind=='source_check':
+                checkdir=run/'checks';checkdir.mkdir(exist_ok=True)
+                (checkdir/(str(value['index']).zfill(2)+'-'+str(value['attempt'])+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
             if kind=='code':
                 drafts=run/'drafts';drafts.mkdir(exist_ok=True)
                 (drafts/Path(value['path']).name).write_text(value['content'],encoding='utf-8')

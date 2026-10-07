@@ -3,7 +3,7 @@ import json
 import hashlib
 from pathlib import Path
 import pytest
-from app import project_parts, projects, llm, db, project_checks
+from app import project_parts, projects, llm, db, project_checks, project_patches
 
 
 def test_missing_and_duplicate_model_slots_fail():
@@ -31,6 +31,58 @@ def test_resume_requires_matching_model_source_and_task_hashes():
     assert project_parts.reusable_part(saved,item)['stats']=={'served_model':'test-model','reused':True}
     assert project_parts.reusable_part(saved,{**item,'task':'different requirement'}) is None
     assert project_parts.reusable_part({**saved,'source':'edited source'},item) is None
+
+
+@pytest.mark.parametrize('patch',[
+    {'edits':[{'find':'absent','replace':'new'}]},
+    {'edits':[{'find':'same','replace':'new'}]},
+    {'edits':[{'find':'same same','replace':'same same'}]},
+    {'edits':[{'find':'same same','replace':''}]},
+    {'edits':[{'find':'','replace':'new'}]},
+    {'edits':[{'find':'same same','replace':'new','unexpected':True}]},
+    {'edits':[{'find':'same same','replace':'first'},{'find':'absent','replace':'second'}]},
+])
+def test_model_patches_reject_ambiguous_noop_missing_empty_and_partial_edits(patch):
+    with pytest.raises(ValueError):project_patches.apply('same same',json.dumps(patch))
+
+
+def test_patch_cache_replays_model_bytes_and_rejects_modified_provenance():
+    item={'file':'app.js','task':'Requested task'}
+    origin='```js\nconst value = 1;\n```'
+    raw=json.dumps({'edits':[{'find':'value = 1','replace':'value = 2'}]})
+    source=project_patches.apply(projects.unwrap_file(origin,'app.js'),raw)
+    chain=[{'base_sha256':project_patches.digest('const value = 1;'),
+            'raw_patch':raw,'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(source)}]
+    saved={'source':source,'raw_source':raw,'origin_raw_source':origin,'repair_chain':chain,
+           'evidence':{'sha256':project_patches.digest(source),'raw_sha256':project_patches.digest(raw),
+                       'task_sha256':project_patches.digest(json.dumps(item,sort_keys=True,ensure_ascii=False))}}
+    assert project_parts.reusable_part(saved,item)['patched_source']==source
+    assert project_parts.reusable_part({**saved,'origin_raw_source':origin.replace('1','9')},item) is None
+    assert project_parts.reusable_part({**saved,'repair_chain':[{**chain[0],'raw_patch':raw.replace('2','8')}]},item) is None
+
+
+def test_patch_with_retained_correct_line_and_actual_change_is_not_a_noop():
+    raw=json.dumps({'edits':[{'find':'keep();','replace':'keep();'},
+                             {'find':'wrong();','replace':'fixed_by_model();'}]})
+    assert project_patches.apply('keep();\nwrong();',raw)=='keep();\nfixed_by_model();'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_model_patch_request_uses_selected_backend_and_supplies_no_runtime_template(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    async def chat(messages,**options):
+        supplied=json.loads(messages[1]['content'])
+        assert supplied['source']=='existing model bytes'
+        assert supplied['errors']==['actual failure']
+        if backend=='local':
+            assert options['fmt']['type']=='json_schema'
+            assert options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']['find']['enum']==['existing model bytes']
+        else:assert options['fmt']=='json'
+        return {'content':json.dumps({'edits':[{'find':'bytes','replace':'replacement from model'}]})}
+    monkeypatch.setattr(llm,'chat',chat)
+    result=await project_patches.request('existing model bytes',task='user task',errors=['actual failure'],contracts='actual contracts')
+    assert project_patches.apply('existing model bytes',result['content'])=='existing model replacement from model'
 
 
 def test_html_parts_receive_html_instructions_not_markdown():
