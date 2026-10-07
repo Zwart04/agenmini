@@ -126,6 +126,42 @@ def test_nonvoid_self_closing_html_is_rejected_and_localized():
     assert project_parts.part_contract_errors('<section><video id="preview"></video><input /></section>',item)==[]
 
 
+def test_fragment_checks_reject_real_nested_panel_and_mismatched_tag_failure():
+    item={'kind':'panel','root_class':'timeline-panel','required_tags':['h2']}
+    malformed='<section class="timeline-panel"><header class="timeline-panel"><main><aside><div id="timeline">Actual content</div></main></aside></section>'
+    errors=project_parts.part_contract_errors(malformed,item)
+    assert any(error.startswith('Fragment closing tag main') for error in errors)
+    assert any(error.startswith('Root class timeline-panel') for error in errors)
+    assert any('Required HTML tag h2' in error for error in errors)
+    valid='<section class="timeline-panel"><h2>Timeline</h2><div id="timeline" class="timeline">Actual content</div></section>'
+    assert project_parts.part_contract_errors(valid,item)==[]
+    assert any('Duplicate HTML attributes' in error for error in project_parts.part_contract_errors(valid.replace('id="timeline"','id="timeline" role="region" role="alert"'),item))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_model_selects_duplicate_attribute_removal_without_replacement_code(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='<section id="timeline">\r\n<div id="timeline">Actual model content</div>\r\n</section>'
+    choices=project_patches.duplicate_id_choices(source,['Remove duplicate IDs.'])
+    assert choices==[{'line':1,'remove':' id="timeline"'},{'line':2,'remove':' id="timeline"'}]
+    async def model(messages,**options):
+        request=json.loads(messages[1]['content'])
+        assert request['removal_choices']==choices
+        assert 'required control' in messages[0]['content']
+        return {'content':json.dumps({'edits':[choices[0]]})}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Keep timeline on inner div',errors=['Remove duplicate IDs.'],contracts={},indexed=True)
+    assert not result.get('patch_validation_error')
+    corrected=project_patches.apply(source,result['content'])
+    assert corrected=='<section>\r\n<div id="timeline">Actual model content</div>\r\n</section>'
+    chain=[{'base_sha256':project_patches.digest(source),'raw_patch':result['content'],
+            'raw_sha256':project_patches.digest(result['content']),'source_sha256':project_patches.digest(corrected)}]
+    assert project_patches.replay(source,chain,'index.html')==corrected
+    for edits in ([choices[0],choices[0]],[{'line':9,'remove':' id="timeline"'}],[{'line':1,'remove':'not present'}]):
+        with pytest.raises(ValueError):project_patches.apply(source,json.dumps({'edits':edits}))
+
+
 def test_json_source_cache_replays_exact_decoded_model_bytes_and_patches():
     item={'file':'style.css','kind':'css','task':'model task','css_selectors':['.actual']}
     source='.actual {color: red;}'
@@ -431,7 +467,11 @@ def test_cached_patch_rejects_tampered_model_diagnosis():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
-async def test_missing_import_element_is_regenerated_instead_of_copying_incomplete_panel(monkeypatch,tmp_path,backend):
+@pytest.mark.parametrize('invalid_source',[
+    '<aside class="library"><label for="fileInput">Import</label></aside>',
+    '<aside class="library"><div id="fileInput" type="file">Import</div></aside>',
+])
+async def test_missing_import_element_is_regenerated_instead_of_copying_incomplete_panel(monkeypatch,tmp_path,backend,invalid_source):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     item={'name':'Library','file':'index.html','kind':'panel','task':'Include a real video file input','slot':'library','root_class':'library','controls':{'fileInput':{'tag':'input','type':'file'}}}
     (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':['library'],'required_ids':['fileInput']}))
@@ -443,7 +483,7 @@ async def test_missing_import_element_is_regenerated_instead_of_copying_incomple
         calls.append(messages)
         if backend=='local':assert options['fmt']['json_schema']['name']=='html_source'
         else:assert options['fmt']=='json'
-        if len(calls)==1:return {'content':json.dumps({'source':'<aside class="library"><label for="fileInput">Import</label></aside>'}),'stats':{'finish_reason':'stop'}}
+        if len(calls)==1:return {'content':json.dumps({'source':invalid_source}),'stats':{'finish_reason':'stop'}}
         assert 'Required control fileInput' in messages[1]['content']
         assert '<aside' not in messages[1]['content']
         return {'content':json.dumps({'source':complete}),'stats':{'finish_reason':'stop'}}

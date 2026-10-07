@@ -382,3 +382,18 @@ timeline: respons terakhir terpotong sebelum JSON selesai. Belum ada editor
 lengkap atau hasil ekspor yang layak. Sebanyak **138 tes terkait harness/proyek**
 lolos di Windows, termasuk mekanisme yang sama untuk lokal/online/router;
 ini tidak membuktikan kualitas semua model online atau fungsi editor di browser.
+
+Putaran `v15` gagal setelah 140,4 detik pada ID timeline ganda. Ketika elemen
+dengan ID benar memiliki jenis tag yang salah, harness kini meminta regenerasi
+bagian lengkap. Untuk ID ganda, model dapat memilih nomor baris dan atribut ID
+yang sudah ada untuk dihapus, tanpa menulis markup pengganti. Pilihan dibatasi
+pada potongan asli dan diperiksa juga pada API online/router; replay provenance
+memastikan semua byte tersisa tetap berasal dari model.
+
+Putaran `v16` dihentikan setelah pemeriksaan sumber menemukan false positive:
+panel timeline lolos guard lama tetapi memiliki penutup tag salah, atribut
+ganda, kelas root berulang dan heading yang hilang. Ini dicatat sebagai
+evaluasi terhenti dengan sumber tidak layak, bukan editor sukses. Guard fragment
+kini memeriksa penutup eksplisit yang seimbang, atribut unik, dan satu root.
+Kontrak timeline juga memeriksa heading dan parent kontrolnya. **145 tes
+harness/proyek lolos di Windows**; uji ulang model nyata masih diperlukan.

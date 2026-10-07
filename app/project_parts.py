@@ -89,12 +89,16 @@ def part_contract_errors(source, item):
     errors=[]
     if item.get('kind') in ('document','node','panel','shell','shellchunk'):
         doc=projects.Document();doc.feed(source)
-        if item.get('direct_parent_classes') or re.search(r'/\s*>',source):
+        strict_fragment=item.get('kind') in ('node','panel') and bool(item.get('root_class'))
+        if strict_fragment or item.get('direct_parent_classes') or re.search(r'/\s*>',source):
             parents=item.get('direct_parent_classes',{})
             class ParentCheck(HTMLParser):
                 stack=[]
+                roots=0
                 def handle_starttag(self,tag,attrs):
                     attributes=dict(attrs);classes=(attributes.get('class') or '').split()
+                    if strict_fragment and item['root_class'] in classes:self.roots+=1
+                    if strict_fragment and len(attrs)!=len(attributes):errors.append('Duplicate HTML attributes are not allowed in the fragment.')
                     parent_classes=self.stack[-1][1] if self.stack else []
                     for selector,required in parents.items():
                         matches=selector.startswith('#') and attributes.get('id')==selector[1:] or selector.startswith('.') and selector[1:] in classes
@@ -105,9 +109,14 @@ def part_contract_errors(source, item):
                         errors.append((dict(attrs).get('id') or tag)+' must not use a self-closing HTML tag '+tag+'; include explicit </'+tag+'>.')
                     before=len(self.stack);self.handle_starttag(tag,attrs);del self.stack[before:]
                 def handle_endtag(self,tag):
+                    if strict_fragment and (not self.stack or self.stack[-1][0]!=tag):
+                        errors.append('Fragment closing tag '+tag+' does not match the current open element; use explicitly balanced tags.')
                     for index in range(len(self.stack)-1,-1,-1):
                         if self.stack[index][0]==tag:del self.stack[index:];break
-            ParentCheck().feed(source)
+            parsed=ParentCheck();parsed.feed(source)
+            if strict_fragment:
+                if parsed.stack:errors.append('Fragment has unclosed HTML tags: '+', '.join(tag for tag,_ in parsed.stack)+'.')
+                if parsed.roots!=1:errors.append('Root class '+item['root_class']+' must occur on exactly one container, not on nested elements.')
         if doc.inline_styles:errors.append('No inline style attributes. Use semantic hidden/disabled attributes; styling belongs in style.css.')
         if doc.inline_handlers:errors.append('No inline event handlers. Event listeners belong in app.js; do not call undeclared helpers from HTML.')
         for ident,attrs in item.get('present_attributes',{}).items():
@@ -408,6 +417,7 @@ async def generate(brief,ctx,on_event=None):
             missing_structure=False
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
+            if kind in ('node','panel') and any(error.startswith(('Fragment closing tag ','Fragment has unclosed HTML tags:','Root class ','Duplicate HTML attributes')) for error in errors):syntax_bad=True
             if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
             if kind in ('shell','shellchunk','document','node'):
@@ -422,7 +432,7 @@ async def generate(brief,ctx,on_event=None):
                 d=projects.Document();d.feed(source)
                 if kind=='document' and not {'style.css','app.js'}<=set(d.resources):errors.append('Include stylesheet link href="style.css" and deferred script src="app.js" in the head.')
                 for ident,expected in item.get('controls',{}).items():
-                    if ident not in d.ids:missing_structure=True
+                    if ident not in d.ids or expected.get('tag') and d.elements.get(ident,{}).get('tag')!=expected['tag']:missing_structure=True
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required shell control '+ident+' must be '+json.dumps(expected)+'.')
                 for resource in d.resources:
                     if resource not in ('style.css','app.js'):errors.append('Only link style.css and deferred app.js; remove '+resource)
@@ -432,7 +442,7 @@ async def generate(brief,ctx,on_event=None):
                 if d.duplicate_ids:errors.append('Remove duplicate IDs.')
                 if d.resources:errors.append('Imported media must start empty, with no sample src or remote assets: '+str(d.resources))
                 for ident,expected in item.get('controls',{}).items():
-                    if ident not in d.ids:missing_structure=True
+                    if ident not in d.ids or expected.get('tag') and d.elements.get(ident,{}).get('tag')!=expected['tag']:missing_structure=True
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required control '+ident+' must be '+json.dumps(expected)+'.')
             elif kind=='css':
                 if source.count('{')!=source.count('}') or re.search(r'<[a-z!/]',source,re.I):
