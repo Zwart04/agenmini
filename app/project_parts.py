@@ -28,6 +28,19 @@ def css_source_schema(item):
             'required':['source'],'additionalProperties':False}
 
 
+def html_source_schema(item):
+    """Constrain a fragment's root only; its implementation remains model text."""
+    root=item.get('root_class')
+    if item.get('kind') not in ('node','panel') or not root:return None
+    classname=re.escape(root)
+    attribute='(?:"'+classname+'(?: [^"<>]*)?"|\''+classname+'(?: [^\'<>]*)?\')'
+    alternatives=[r'<'+tag+r' class='+attribute+r'[^>]*>[\s\S]*</'+tag+r'>'
+                  for tag in ('section','div','aside','header','footer','main')]
+    schema={'type':'object','properties':{'source':{'type':'string','pattern':'^(?:'+'|'.join(alternatives)+')$'}},
+            'required':['source'],'additionalProperties':False}
+    return schema
+
+
 def decode_source(raw,path,source_format='raw'):
     """Decode a model's source string verbatim; never fill in missing code."""
     if source_format=='json_source':
@@ -76,8 +89,8 @@ def part_contract_errors(source, item):
     errors=[]
     if item.get('kind') in ('document','node','panel','shell','shellchunk'):
         doc=projects.Document();doc.feed(source)
-        if item.get('direct_parent_classes'):
-            parents=item['direct_parent_classes']
+        if item.get('direct_parent_classes') or re.search(r'/\s*>',source):
+            parents=item.get('direct_parent_classes',{})
             class ParentCheck(HTMLParser):
                 stack=[]
                 def handle_starttag(self,tag,attrs):
@@ -88,6 +101,8 @@ def part_contract_errors(source, item):
                         if matches and required not in parent_classes:errors.append(selector+' must be a direct child of class '+required+'; current parent classes: '+str(parent_classes))
                     if tag not in {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}:self.stack.append((tag,classes))
                 def handle_startendtag(self,tag,attrs):
+                    if tag not in {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}:
+                        errors.append((dict(attrs).get('id') or tag)+' must not use a self-closing HTML tag '+tag+'; include explicit </'+tag+'>.')
                     before=len(self.stack);self.handle_starttag(tag,attrs);del self.stack[before:]
                 def handle_endtag(self,tag):
                     for index in range(len(self.stack)-1,-1,-1):
@@ -226,7 +241,9 @@ def reusable_part(saved, item):
     elif origin is not None:return None
     elif source_format=='json_source':
         try:
-            if decode_source(raw,item['file'],source_format)!=source:return None
+            decoded=decode_source(raw,item['file'],source_format)
+            if item.get('root_class'):decoded=extract_node(decoded,item['root_class'])
+            if decoded!=source:return None
         except (ValueError,TypeError):return None
     return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True},
             'source_format':source_format,
@@ -308,6 +325,8 @@ async def generate(brief,ctx,on_event=None):
             context.pop('architecture');context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
             context['required_controls']=item.get('controls',{})
+            for key in ('present_attributes','absent_attributes','direct_parent_classes'):
+                if item.get(key):context[key]=item[key]
         elif kind in ('css','md'):context.pop('architecture')
         if kind=='css':
             context.pop('current_html');context.pop('previous_source')
@@ -344,13 +363,13 @@ async def generate(brief,ctx,on_event=None):
                         contracts=(js_contract_context(prior,item.get('relevant_fields'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
-                    schema=css_source_schema(item)
+                    schema=css_source_schema(item) or html_source_schema(item)
                     generation_system=system
                     options={}
                     if schema:
-                        generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete CSS rule as a string. No other keys, fences or explanations.')
+                        generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete source part as a string. No other keys, fences or explanations.')
                         generation_system+=' The source string must match this schema: '+json.dumps(schema,ensure_ascii=False)
-                        options['fmt']={'type':'json_schema','json_schema':{'name':'css_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+                        options['fmt']={'type':'json_schema','json_schema':{'name':'css_source' if kind=='css' else 'html_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
                     response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
                     response['source_format']='json_source' if schema else 'raw'
             raw=response.get('content','');stats=response.get('stats',{})
@@ -359,6 +378,7 @@ async def generate(brief,ctx,on_event=None):
             elif patch_base is not None:
                 try:
                     import jsonschema
+                    if response.get('patch_validation_error'):raise ValueError(response['patch_validation_error'])
                     if stats.get('finish_reason') in ('length','max_tokens'):raise ValueError('Patch response truncated.')
                     source=project_patches.apply(patch_base,raw)
                     repair_chain.append({'base_sha256':project_patches.digest(patch_base),'raw_patch':raw,
@@ -455,7 +475,7 @@ async def generate(brief,ctx,on_event=None):
             # The separate exact-patch path still receives current source.
             request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
-        if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact model-written JSON source string decoded')
+        if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],
             **({'origin_raw_source':origin_raw,'repair_chain':repair_chain} if repair_chain else {})})

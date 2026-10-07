@@ -3,6 +3,13 @@
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
 4 thread, konteks 8192 dan satu slot per model. Data uji terpisah;
 hasil kode berasal dari model, tidak diganti dengan template evaluator.
+
+Harness Agen Mini dipakai bersama oleh model lokal, API online dan router,
+baik di web maupun Telegram. Model lokal kecil menjadi acuan uji yang sulit,
+bukan satu-satunya model yang mendapat alur kerja tersebut. Harness membantu
+melalui konteks, alat, pemeriksaan dan perbaikan berdasarkan kegagalan nyata;
+tidak menjamin setiap model lemah akan menyamai model besar. Tes routing dengan
+respons stub membuktikan jalur integrasi, bukan mutu jawaban provider nyata.
 Tugas: converter gambar offline dan editor teks UTF-8 dengan replace-all.
 Prompt memuat penanda acak agar hasil dan percakapan dapat dicocokkan.
 
@@ -358,3 +365,20 @@ atribut `src`/`controls` dan tidak mempertahankan root `viewer`. Guard baru
 menahan markup tersebut. Editor belum lengkap, belum menghasilkan ZIP yang
 layak, dan belum lulus impor/playback/trim/ekspor di browser. Bukti draft UI
 di atas tetap disimpan sebagai kegagalan, bukan screenshot demo sukses.
+
+Panel HTML sekarang memakai JSON berisi string sumber dengan batas bentuk root;
+isi panel tetap ditulis model. Pemeriksaan menolak tag HTML non-void yang
+ditutup sendiri, misalnya `<video />`, karena browser memerlukan penutup
+eksplisit. Atribut terlarang dapat diperbaiki lewat edit kecil: model memilih
+potongan atribut yang sudah ada dan meminta penghapusan persis. Harness tidak
+menambahkan markup pengganti. Pilihan ambigu ditolak; respons API/router tetap
+divalidasi walaupun provider tidak mendukung constrained decoding. Hash sumber,
+respons mentah dan rantai edit tetap diperiksa sebelum hasil dipakai kembali.
+
+Qwen 0.8B Q8 `v13` masih gagal pada atribut preview. Putaran CPU nyata `v14`
+berhasil memperbaiki preview: model menghapus atribut `src` lewat patch dan
+panel lolos pemeriksaan. Putaran tetap **gagal setelah 253,2 detik** pada
+timeline: respons terakhir terpotong sebelum JSON selesai. Belum ada editor
+lengkap atau hasil ekspor yang layak. Sebanyak **138 tes terkait harness/proyek**
+lolos di Windows, termasuk mekanisme yang sama untuk lokal/online/router;
+ini tidak membuktikan kualitas semua model online atau fungsi editor di browser.

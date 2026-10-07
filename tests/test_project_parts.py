@@ -36,6 +36,96 @@ def test_css_schema_constrains_structure_without_providing_declarations():
     assert project_parts.css_source_schema({**item,'kind':'js'}) is None
 
 
+def test_html_schema_constrains_root_without_supplying_panel_implementation():
+    import jsonschema
+    item={'kind':'panel','root_class':'viewer'}
+    schema=project_parts.html_source_schema(item)
+    for source in ['<section class="viewer"><h2>Model title</h2></section>',"<div class='viewer extra'><p>Different model content</p></div>"]:
+        jsonschema.validate({'source':source},schema)
+    for source in ['<div class="viewer"></section>','<section class="viewer-surface"></section>','<!DOCTYPE html><section class="viewer"></section>']:
+        with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':source},schema)
+    assert 'video' not in json.dumps(schema) and 'playBtn' not in json.dumps(schema)
+    assert project_parts.html_source_schema({**item,'kind':'js'}) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_json_html_patch_reuses_decoded_root_with_exact_model_provenance(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Preview','file':'index.html','kind':'panel','task':'Model task','slot':'viewer','root_class':'viewer',
+          'controls':{'preview':{'tag':'video'}},'absent_attributes':{'preview':['src']}}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':['viewer'],'required_ids':['preview']}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    original='<section class="viewer">\n<video id="preview" src=""></video>\n</section>'
+    raw=json.dumps({'source':original})
+    patch=json.dumps({'edits':[{'find':' src=""','replace':''}]})
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:
+            assert 'ABSENT_ATTRIBUTES' in messages[1]['content']
+            if backend=='local':assert options['fmt']['json_schema']['name']=='html_source'
+            else:assert options['fmt']=='json'
+            return {'content':raw,'stats':{'finish_reason':'stop','served_model':backend}}
+        request=json.loads(messages[1]['content'])
+        assert request['source']==original
+        assert request['find_choices']==[' src=""']
+        assert 'numbered_lines' not in request
+        return {'content':patch,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==project_patches.apply(original,patch)
+            assert value['origin_raw_source']==raw
+            assert value['evidence']['source_format']=='json_source'
+            assert project_parts.reusable_part(value,item)['patched_source']==value['source']
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)
+    assert len(calls)==2
+
+
+def test_forbidden_attribute_choices_preserve_unrelated_source_and_skip_ambiguous_spans():
+    source='<video id="preview"\n SRC="bad > value" controls></video><video id="other" src="keep"></video>'
+    errors=['preview must not have HTML attribute src.','preview must not have HTML attribute controls.']
+    choices=project_patches.forbidden_attribute_choices(source,errors)
+    assert choices==['\n SRC="bad > value"',' controls']
+    patch=json.dumps({'edits':[{'find':span,'replace':''} for span in choices]})
+    assert project_patches.apply(source,patch)=='<video id="preview"></video><video id="other" src="keep"></video>'
+    ambiguous='<video id="preview" src=""></video><video id="other" src=""></video>'
+    assert project_patches.forbidden_attribute_choices(ambiguous,errors)==[]
+    assert project_patches.forbidden_attribute_choices(source,['Some unrelated failure'])==[]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_attribute_edit_rejects_unlisted_changes_on_every_backend(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='<video id="preview" src="" controls></video>'
+    errors=['preview must not have HTML attribute src.','preview must not have HTML attribute controls.']
+    async def model(messages,**options):
+        request=json.loads(messages[1]['content'])
+        assert request['find_choices']==[' src=""',' controls']
+        if backend=='local':
+            properties=options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']
+            assert properties['replace']['const']==''
+        return {'content':json.dumps({'edits':[{'find':' src=""','replace':' src="invented.mp4"'}]})}
+    monkeypatch.setattr(llm,'chat',model)
+    response=await project_patches.request(source,task='Keep the model video',errors=errors,contracts={},indexed=True)
+    assert response['patch_validation_error']
+    assert 'invented.mp4' in response['content']  # Preserve the failed response as evidence.
+
+
+def test_nonvoid_self_closing_html_is_rejected_and_localized():
+    item={'kind':'panel'}
+    source='<section>\n<video id="preview" />\n<input id="seekInput" />\n</section>'
+    errors=project_parts.part_contract_errors(source,item)
+    assert errors==['preview must not use a self-closing HTML tag video; include explicit </video>.']
+    assert project_patches.failing_lines(source,errors)==[2]
+    assert project_parts.part_contract_errors('<section><video id="preview"></video><input /></section>',item)==[]
+
+
 def test_json_source_cache_replays_exact_decoded_model_bytes_and_patches():
     item={'file':'style.css','kind':'css','task':'model task','css_selectors':['.actual']}
     source='.actual {color: red;}'
@@ -351,11 +441,12 @@ async def test_missing_import_element_is_regenerated_instead_of_copying_incomple
     complete='<aside class="library"><label for="fileInput">Import</label><input id="fileInput" type="file"></aside>'
     async def model(messages,**options):
         calls.append(messages)
-        assert 'fmt' not in options
-        if len(calls)==1:return {'content':'<aside class="library"><label for="fileInput">Import</label></aside>','stats':{'finish_reason':'stop'}}
+        if backend=='local':assert options['fmt']['json_schema']['name']=='html_source'
+        else:assert options['fmt']=='json'
+        if len(calls)==1:return {'content':json.dumps({'source':'<aside class="library"><label for="fileInput">Import</label></aside>'}),'stats':{'finish_reason':'stop'}}
         assert 'Required control fileInput' in messages[1]['content']
         assert '<aside' not in messages[1]['content']
-        return {'content':complete,'stats':{'finish_reason':'stop'}}
+        return {'content':json.dumps({'source':complete}),'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
     async def event(kind,value):

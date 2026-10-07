@@ -2,6 +2,7 @@
 import hashlib
 import json
 import re
+from html.parser import HTMLParser
 from . import llm, projects
 
 SCHEMA = {
@@ -24,6 +25,27 @@ def digest(source):
     return hashlib.sha256(source.encode()).hexdigest()
 
 
+def forbidden_attribute_choices(source, errors):
+    """Offer only unique spans already present on the IDs named by real checks."""
+    forbidden={}
+    for error in errors:
+        found=re.fullmatch(r'([\w-]+) must not have HTML attribute ([\w-]+)\.',error)
+        if found:forbidden.setdefault(found[1],set()).add(found[2].lower())
+    choices=[]
+    class AttributeSpans(HTMLParser):
+        def handle_starttag(self,tag,attrs):
+            ident=dict(attrs).get('id')
+            if ident not in forbidden:return
+            opening=self.get_starttag_text()
+            tag_end=re.match(r'<\s*[^\s/>]+',opening).end()
+            for match in re.finditer(r'''\s+([^\s/>=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?''',opening[tag_end:]):
+                span=match[0]
+                if match[1].lower() in forbidden[ident] and source.count(span)==1:choices.append(span)
+        def handle_startendtag(self,tag,attrs):self.handle_starttag(tag,attrs)
+    AttributeSpans().feed(source)
+    return list(dict.fromkeys(choices))
+
+
 def failing_lines(source, errors):
     """Locate identifiers named by real checks, without deciding replacements."""
     lines=source.splitlines()
@@ -43,6 +65,7 @@ def failing_lines(source, errors):
         named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden)\s+expected',error))
         named.update(re.findall(r"SyntaxError: Identifier '([A-Za-z_$][\w$]*)' has already been declared",error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
+        named.update(re.findall(r'\b([A-Za-z_][\w-]*) must not use a self-closing HTML tag',error))
         # A generic structural error can concern another line. Do not prevent
         # that repair merely because a separate error happens to name an ID.
         if not named:return list(range(1,len(lines)+1))
@@ -102,6 +125,8 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     # Choices only describe existing text, never the correct replacement. A
     # bounded model can select a line or the whole part without inventing find
     # strings. Exact-match application still validates online/plain JSON output.
+    attribute_choices=forbidden_attribute_choices(source,errors)
+    if attribute_choices:indexed=False
     schema=json.loads(json.dumps(INDEXED_SCHEMA if indexed else SCHEMA))
     choices=[source]+[line.strip() for line in source.splitlines() if line.strip() and source.count(line.strip())==1]
     targets=failing_lines(source,errors) if indexed else []
@@ -109,11 +134,15 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         schema['properties']['edits']['items']['properties']['line']['enum']=targets
         schema['properties']['edits']['maxItems']=min(8,len(targets))
         schema['properties']['edits']['items']['properties']['replace']['pattern']='^[^\r\n]*$'
-    else:schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
+    else:
+        if attribute_choices:
+            choices=attribute_choices
+            schema['properties']['edits']['items']['properties']['replace']['const']=''
+        schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
     fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
     reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
     diagnosis=None
-    if diagnose:
+    if diagnose and not attribute_choices:
         diagnosis=await llm.chat([
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
             {'role':'user','content':json.dumps({'errors':errors,'task':task,'source':source},ensure_ascii=False)}
@@ -123,10 +152,14 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     plan=(diagnosis or {}).get('content','')[:1800]
     complete_plan=plan if (diagnosis or {}).get('stats',{}).get('finish_reason') not in ('length','max_tokens') else ''
     result=await llm.chat([
-        {'role':'system','content':('You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
+        {'role':'system','content':('Remove ALL listed forbidden attribute spans from the current source. Return one JSON object with edits, an array of find/replace strings. Copy each find exactly from find_choices and set replace to the empty string. Keep the element, its ID, every other attribute and surrounding source. No replacement markup or other changes. Other errors will be checked again afterwards.' if attribute_choices else 'You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
         {'role':'user','content':json.dumps({'source':source,'errors':errors,'contracts':contracts,'task':task,
             **({'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
+    if attribute_choices:
+        import jsonschema
+        try:jsonschema.validate(json.loads(projects.unwrap_file(result.get('content',''),'patch.json')),schema)
+        except (ValueError,jsonschema.ValidationError):result['patch_validation_error']='Attribute edit must select listed existing spans and only delete them.'
     if diagnosis:
         result['repair_plan']={'text':plan,'sha256':digest(plan),'model':diagnosis.get('stats',{}).get('served_model',''),
                                'finish_reason':diagnosis.get('stats',{}).get('finish_reason')}
