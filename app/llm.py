@@ -25,10 +25,11 @@ local_sampling = contextvars.ContextVar('local_sampling', default=None)
 
 
 def sampling_profile(name):
-    """Documented local inference settings, deliberately not applied to online APIs."""
+    """Explicit local inference settings, deliberately not applied to online APIs."""
     profiles={
         'qwen35-nonthinking':dict(temperature=1.0,top_p=1.0,top_k=20,min_p=0.0,presence_penalty=2.0,repetition_penalty=1.0),
         'lfm25':dict(temperature=0.1,top_k=50,repetition_penalty=1.05),
+        'greedy':dict(temperature=0.0),
     }
     return profiles[name].copy()
 

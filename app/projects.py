@@ -16,10 +16,11 @@ def project_request(text):
 
 class Document(HTMLParser):
     def __init__(self):
-        super().__init__();self.ids=set();self.elements={};self.attributes={};self.inline_styles=0;self.duplicate_ids=set();self.classes=set();self.anchors=[];self.resources=[];self.classic_scripts=[];self.tags={};self.viewport=False;self.title=False;self.scripts=0
+        super().__init__();self.ids=set();self.elements={};self.attributes={};self.inline_styles=0;self.inline_handlers=0;self.duplicate_ids=set();self.classes=set();self.anchors=[];self.resources=[];self.classic_scripts=[];self.tags={};self.viewport=False;self.title=False;self.scripts=0
     def handle_starttag(self,tag,attrs):
         a=dict(attrs);self.tags[tag]=self.tags.get(tag,0)+1
         if 'style' in a:self.inline_styles+=1
+        self.inline_handlers+=sum(name.startswith('on') for name in a)
         if a.get('id'):
             if a['id'] in self.ids:self.duplicate_ids.add(a['id'])
             self.ids.add(a['id'])

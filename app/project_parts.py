@@ -38,6 +38,7 @@ def part_contract_errors(source, item):
     if item.get('kind') in ('document','node','panel','shell','shellchunk'):
         doc=projects.Document();doc.feed(source)
         if doc.inline_styles:errors.append('No inline style attributes. Use semantic hidden/disabled attributes; styling belongs in style.css.')
+        if doc.inline_handlers:errors.append('No inline event handlers. Event listeners belong in app.js; do not call undeclared helpers from HTML.')
         for ident,attrs in item.get('present_attributes',{}).items():
             for attr in attrs:
                 if attr not in doc.attributes.get(ident,{}):errors.append(ident+' must have HTML attribute '+attr+'.')
@@ -234,7 +235,7 @@ async def generate(brief,ctx,on_event=None):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
                         contracts=(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else json.dumps({key:value for key,value in item.items() if key not in ('task','tokens')}))+'\n'+system,
-                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2)
+                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
                     response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
             raw=response.get('content','');stats=response.get('stats',{})
@@ -307,11 +308,15 @@ async def generate(brief,ctx,on_event=None):
                     for check in item.get('behavior_checks',[]):
                         errors+=await project_checks.inspect_helper(source,check)
             errors=list(dict.fromkeys(errors))
+            old_cases={error for error in previous_errors if error.startswith('Helper behavior failed: ')}
+            new_cases={error for error in errors if error.startswith('Helper behavior failed: ')}
+            regression=bool(patch_base is not None and old_cases and new_cases-old_cases)
             await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
-            if syntax_bad and patch_base is not None and not patch_error:
+            if (syntax_bad or regression) and patch_base is not None and not patch_error:
                 repair_chain.pop();source=patch_base
-                errors.append('The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.')
+                if regression:errors=previous_errors+['The patch introduced new failing behavior cases. Original source restored; fix existing failures without breaking passing cases.']
+                else:errors.append('The patch introduced invalid syntax/structure. Original source restored; repair its failing lines.')
                 await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip(),'draft':True,'part':name,'restored':True})
             else:
                 # Exact edits are useful for a valid source with a failing

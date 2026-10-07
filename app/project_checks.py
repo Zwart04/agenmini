@@ -54,4 +54,8 @@ async def inspect_helper(source, check):
     encoded=base64.b64encode(RUNNER.encode()).decode()
     loader="eval(Buffer.from('"+encoded+"','base64').toString('utf8'))"
     result=await tools._run_sandboxed(['node','-e',loader],timeout=5,stdin=payload,project=True)
-    return [] if result.startswith('[kode keluar 0]') else ['Helper behavior failed: '+result[-1000:]]
+    if result.startswith('[kode keluar 0]'):return []
+    # Keep individual failing cases addressable. A repair must not solve one
+    # case by breaking a previously passing case; exceptions remain failures.
+    detail=result.split('\n',1)[1] if result.startswith('[kode keluar 1]\n') else result
+    return ['Helper behavior failed: '+case for case in detail[-1000:].strip().split('; ') if case]

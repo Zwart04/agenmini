@@ -15,7 +15,7 @@ def main():
     p.add_argument('--thinking-budget',type=int,default=0,help='Opt-in bounded Qwen reasoning tokens per part (0 disables).')
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
     p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
-    p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25'],default='default')
+    p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25','greedy'],default='default')
     p.add_argument('--chat-template-file',type=Path,help='Explicit model-author chat serialization when GGUF metadata lacks it; not application source.')
     p.add_argument('--tokenizer-pre',choices=['deepseek-coder'],help='Explicit llama.cpp pre-tokenizer for legacy DeepSeek GGUF missing this metadata.')
     args=p.parse_args();exe=args.server_exe.resolve();model=args.gguf.resolve()

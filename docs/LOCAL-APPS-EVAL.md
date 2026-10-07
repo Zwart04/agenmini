@@ -232,6 +232,34 @@ pemutaran/ekspor dapat aktif sebelum video dimuat, lalu patch model justru
 memotong fungsi. Guard menolak dan mengembalikan patch rusak. Belum ada bukti
 impor, playback, trim atau ekspor hasil melalui browser untuk putaran ini.
 
+Perbaikan berikutnya menambah format patch nomor baris. Model cukup menulis
+nomor baris asli dan kode pengganti, tanpa menyalin teks pencarian panjang;
+hingga delapan baris berbeda dapat diubah. Alamat mengacu pada sumber sebelum
+patch, duplikat/nomor di luar sumber ditolak, dan penerapan tetap atomik.
+Nomor kandidat dipersempit berdasarkan identifier yang disebut galat nyata;
+jika ada galat struktur tanpa identifier yang dikenali, seluruh baris tetap
+tersedia agar perbaikan bagian lain tidak terhalang. Format teks
+pencarian lama masih dapat diputar ulang agar provenance cache tidak hilang.
+
+Granite `v10` tetap menghasilkan patch tanpa perubahan, lalu `v11` menggeser
+assignment ke baris yang salah dan menambah kasus gagal. Hasil tetap **gagal**.
+Pemeriksaan helper sekarang mencatat kasus gagal satu per satu; patch yang
+menambah kegagalan pada kasus sebelumnya lolos dikembalikan ke sumber lama.
+Tes regresi memeriksa skenario patch memperbaiki playback tetapi merusak impor
+video pertama, beserta pemutaran ulang hash patch dan routing semua backend.
+
+Evaluator juga memiliki profil opt-in `--sampling-profile greedy` (temperature
+nol). Uji CPU DeepSeek Coder 1.3B `video-deepseek13-parts-v14` dengan profil ini
+masih **gagal** di atribut hidden tombol batal pada header. Pengaturan sampling,
+patch dan instruksi ini tidak melatih atau mengubah bobot model.
+
+Pembanding lebih kecil Qwen Coder 0.49B `video-coder05-parts-v17` juga **gagal**
+di header: atribut hidden/download tidak lengkap dan patch model mengganti
+tombol batal dengan tombol ekspor duplikat. Model juga menulis onclick yang
+merujuk helper di luar fragment terpilih. Guard HTML kini menolak handler inline
+agar event listener tetap berasal dari app.js yang lengkap dan diperiksa.
+Ini masih belum menjadi keberhasilan benchmark model sekitar 1B.
+
 Pemeriksaan routing mencakup model lokal/API online/router. Tes respons stub
 tidak membuktikan mutu model online, dan putaran CPU nyata ini tidak membuktikan
 model sekitar 1B dapat menghasilkan aplikasi setara CapCut. Jalur source-parts

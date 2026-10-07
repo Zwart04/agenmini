@@ -108,8 +108,8 @@ async def test_invalid_syntax_patch_is_rolled_back_before_next_model_repair(monk
     monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
     monkeypatch.setattr(llm,'active_backend',lambda:'local')
     original='.wrong {color:red;}'
-    responses=[original,json.dumps({'edits':[{'find':original,'replace':'.correct {color:red;'}]}),'Correct the selector while preserving the declaration and braces.',
-               json.dumps({'edits':[{'find':'.wrong','replace':'.correct'}]})]
+    responses=[original,json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;'}]}),'Correct the selector while preserving the declaration and braces.',
+               json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;}'}]})]
     calls=[];events=[]
     async def model(messages,**options):
         if len(calls)>=2:
@@ -185,6 +185,83 @@ def test_cached_patch_rejects_tampered_model_diagnosis():
     with pytest.raises(ValueError,match='diagnosis changed'):project_patches.replay(original,chain,'app.js')
 
 
+def test_indexed_patch_addresses_original_lines_atomically_and_preserves_endings():
+    source='same\r\nsame\r\nlast'
+    raw=json.dumps({'edits':[{'line':1,'replace':'first\nextra'},{'line':2,'replace':'second'},{'line':3,'replace':'end'}]})
+    assert project_patches.apply(source,raw)=='first\nextra\r\nsecond\r\nend'
+    for edits in ([{'line':2,'replace':'valid'},{'line':8,'replace':'missing'}],
+                  [{'line':1,'replace':'a'},{'line':1,'replace':'b'}],
+                  [{'line':True,'replace':'bad'}],
+                  [{'line':1,'replace':'a'},{'find':'same','replace':'b'}]):
+        with pytest.raises(ValueError):project_patches.apply(source,json.dumps({'edits':edits}))
+    with pytest.raises(ValueError):project_patches.apply('a',json.dumps({'edits':[{'line':1,'replace':''}]}))
+    with pytest.raises(ValueError):project_patches.apply('a',json.dumps({'edits':[{'line':1,'replace':'a'}]}))
+
+
+def test_failing_line_selection_uses_check_identifiers_and_falls_back_for_unknown_errors():
+    source='function f(){\n ui.playBtn.disabled=flag;\n ui.playBtnExtra.disabled=flag;\n ui.seekInput.disabled=flag;\n}'
+    assert project_patches.failing_lines(source,['playBtn.disabled expected true; seekInput.disabled expected true'])==[2,4]
+    assert project_patches.failing_lines(source,['Unexpected end of input'])==[1,2,3,4,5]
+    assert project_patches.failing_lines(source,['playBtn.disabled expected true','Missing helper declaration'])==[1,2,3,4,5]
+    html='<header>\n<button id="cancelBtn">Cancel</button>\n</header>'
+    assert project_patches.failing_lines(html,['cancelBtn must have HTML attribute hidden.'])==[2]
+
+
+@pytest.mark.asyncio
+async def test_model_repair_cannot_fix_playback_by_breaking_initial_import(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Busy','file':'app.js','kind':'js','task':'Control loading state','functions':['setBusy'],'behavior_checks':['busy']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:'local')
+    def fixture_source(import_logic,playback_logic):
+        return 'function setBusy(flag){app.busy=flag;ui.fileInput.disabled='+import_logic+';'+''.join('ui.'+ident+'.disabled='+playback_logic+';' for ident in ('playBtn','seekInput','startInput','endInput','exportBtn'))+'ui.cancelBtn.hidden=!flag;}'
+    original=fixture_source('flag','flag')
+    broken=fixture_source('flag||!app.loaded','flag||!app.loaded')
+    corrected=fixture_source('flag','flag||!app.loaded')
+    responses=[original,json.dumps({'edits':[{'line':1,'replace':broken}]}),'Preserve import when unloaded; repair playback.',json.dumps({'edits':[{'line':1,'replace':corrected}]})]
+    calls=[];events=[]
+    async def model(messages,**options):
+        if len(calls)>=2:
+            supplied=json.loads(messages[1]['content'])
+            assert supplied['source']==original
+            assert any('new failing behavior cases' in error for error in supplied['errors'])
+        calls.append(messages)
+        return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        events.append((kind,value))
+        if kind=='source_part':
+            assert value['source']==corrected and len(value['repair_chain'])==1
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested video editor',object(),event)
+    rejected=next(value for kind,value in events if kind=='source_check' and value['attempt']==1)
+    assert any('fileInput.disabled' in error for error in rejected['errors'])
+    assert any(kind=='code' and value.get('restored') for kind,value in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_indexed_repair_can_change_five_controls_without_copying_function(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='\n'.join('control'+str(i)+'.disabled = busy;' for i in range(5))
+    async def model(messages,**options):
+        supplied=json.loads(messages[1]['content'])
+        assert supplied['numbered_lines']==[{'line':i+1,'text':line} for i,line in enumerate(source.splitlines())]
+        assert 'find_choices' not in supplied
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']['line']['enum']==[1,2,3,4,5]
+        else:assert options['fmt']=='json'
+        return {'content':json.dumps({'edits':[{'line':i+1,'replace':'control'+str(i)+'.disabled = busy || !loaded;'} for i in range(5)]})}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='actual control logic',errors=['unloaded controls enabled'],contracts='actual field declarations',indexed=True)
+    repaired=project_patches.apply(source,result['content'])
+    chain=[{'base_sha256':project_patches.digest(source),'raw_patch':result['content'],
+            'raw_sha256':project_patches.digest(result['content']),'source_sha256':project_patches.digest(repaired)}]
+    assert project_patches.replay(source,chain,'app.js')==repaired
+    assert repaired.count('busy || !loaded')==5
+
+
 def test_html_parts_receive_html_instructions_not_markdown():
     for kind in ('document','node','shell','shellchunk','panel'):
         instruction=project_parts.part_system(kind)
@@ -227,6 +304,7 @@ def test_sampling_profiles_are_copied_and_local_reasoning_defaults_off():
     first=llm.sampling_profile('qwen35-nonthinking');first['temperature']=99
     assert llm.sampling_profile('qwen35-nonthinking')['temperature']==1.0
     assert llm.sampling_profile('lfm25')['repetition_penalty']==1.05
+    assert llm.sampling_profile('greedy')=={'temperature':0.0}
     assert llm.coding_reasoning.get() is False
 
 
@@ -277,6 +355,7 @@ def test_html_visibility_contract_rejects_inline_display_that_hidden_cannot_togg
     assert project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" style="display:none">Download</a>',item)
     assert project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" hidden download href="#">Download</a>',item)
     assert not project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" hidden download>Download</a>',item)
+    assert project_parts.part_contract_errors('<h1>Editor</h1><a id="downloadLink" hidden download onclick="undeclaredHelper()">Download</a>',item)
 
 
 def test_fenced_source_with_explanation_is_selected_without_rewriting():
