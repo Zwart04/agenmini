@@ -109,10 +109,60 @@ def test_generated_html_rejects_multifile_dump_and_missing_requested_controls():
     assert projects.inspect_html(html,{'editor'},strict=True)['ok']
     assert not projects.inspect_html(html,{'editor','saveBtn'},strict=True)['ok']
     assert not projects.inspect_html('index.html\n```html\n'+html+'\n```\napp.js\nalert(1)',strict=True)['ok']
+    assert not projects.inspect_html(html.replace('</body>','<input id="editor"></body>'))['ok']
+    assert projects.inspect_html(html.replace('</body>','<video><source src="missing.mp4"></video></body>'))['resources']==['missing.mp4']
 
 def test_control_contract_does_not_mistake_control_types_for_ids():
+    assert projects.requested_controls('ID fileInput, timeline. Pastikan semua ID sesuai HTML. Each ID occurs once.')=={'fileInput','timeline'}
     assert projects.requested_controls('input ID imageFile, select ID outputFormat, input widthInput, tombol convertBtn dan link downloadLink.')=={'imageFile','outputFormat','widthInput','convertBtn','downloadLink'}
     assert projects.requested_controls('ID fileInput, editor, findText, replaceText, replaceBtn, saveBtn, resetBtn, wordCount.')=={'fileInput','editor','findText','replaceText','replaceBtn','saveBtn','resetBtn','wordCount'}
+
+
+def test_explicit_media_controls_cannot_be_replaced_by_buttons():
+    types=projects.typed_controls('input type=file ID fileInput, video ID preview, link downloadLink, input type=number ID endInput.')
+    assert types=={'fileInput':{'tag':'input','type':'file'},'preview':{'tag':'video'},'downloadLink':{'tag':'a'},'endInput':{'tag':'input','type':'number'}}
+    html='<html><head><title>Editor</title><meta name="viewport"></head><body><button id="fileInput">Import</button></body></html>'
+    assert not projects.inspect_html(html,required_controls={'fileInput':types['fileInput']})['ok']
+    assert projects.inspect_html(html.replace('</body>','<a id="downloadLink" href="#" download>Download</a></body>'))['ok']
+
+
+@pytest.mark.asyncio
+async def test_local_styles_receive_actual_markup_and_design_before_generation(monkeypatch,tmp_path):
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path)
+    plan={'name':'Video editor','files':[{'path':p,'purpose':'actual UI'} for p in ('style.css','index.html','app.js','README.md')],'instructions':'Open index.html',
+          'interface':{'layout':'Mint sidebar and preview panel','controls':{'playBtn':{'tag':'button','type':'none','label':'Play'}}}}
+    async def request(*a,**kw):
+        controls=kw['schema']['properties']['interface']['properties']['controls']
+        assert controls['required']==['playBtn'] and controls['additionalProperties'] is False
+        return plan,{}
+    monkeypatch.setattr(projects.structured,'request',request)
+    sources=[
+        '<!doctype html><html><head><title>Vidéo 日本語</title><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="style.css"></head><body><main class="preview-panel"><button id="playBtn">Play</button></main><script src="app.js" defer></script></body></html>',
+        '.preview-panel{display:grid;gap:16px}button{background:#0fc;color:#111}',
+        'document.getElementById("playBtn").onclick=()=>{};',
+        '# Open index.html'
+    ];seen=[]
+    async def chat(messages,**kw):
+        seen.append((messages[-1]['content'],kw['max_tokens']))
+        return {'content':sources[len(seen)-1],'stats':{'finish_reason':'stop'}}
+    async def checked(*a,**kw):return '[kode keluar 0]'
+    monkeypatch.setattr(llm,'chat',chat);monkeypatch.setattr(tools,'_run_sandboxed',checked)
+    token=llm.backend_context.set('local')
+    try:await projects.generate('Buat web app video editor dengan aksen mint. ID playBtn.',context())
+    finally:llm.backend_context.reset(token)
+    assert 'CURRENT FILE: index.html' in seen[0][0] or 'HTML user interface' in seen[0][0]
+    assert 'Mint sidebar and preview panel' in seen[0][0] and '"tag": "button"' in seen[0][0]
+    assert 'class="preview-panel"' in seen[1][0] and 'aksen mint' in seen[1][0]
+    assert 'Existing classes: preview-panel' in seen[1][0] and seen[1][1]>=1600
+    assert any(tmp_path.glob('project-*/project.zip'))
+
+
+def test_video_app_not_a_landing_page_cannot_use_copy_template():
+    from app import coding
+    prompt='Build a web app video editor, not a landing page or mockup.'
+    assert coding.functional_request(prompt) and projects.project_request(prompt)
+    assert not coding.website_request(prompt)
+    assert coding.website_request('Build a landing page for a web app video editor.')
 
 def test_fenced_file_recovery_never_includes_neighbor_module():
     response='index.html\n```html\n<html>model source</html>\n```\napp.js\n```javascript\nthrow new Error("different file")\n```'
@@ -154,6 +204,19 @@ def test_template_js_keeps_literal_newline_escapes():
 async def test_inline_script_syntax_is_checked():
     assert not await projects.inspect_inline_js('<script>const x="hello\\nworld";</script>')
     assert await projects.inspect_inline_js('<script>const x="hello\nworld";</script>')
+
+
+@pytest.mark.asyncio
+async def test_browser_scripts_cannot_redeclare_state_or_use_node_exports():
+    contents={'index.html':'<script src="media.js" defer></script><script src="export.js" defer></script>',
+              'media.js':'const media={}; module.exports=media;', 'export.js':'const media={};'}
+    errors=await projects.inspect_browser_js(contents)
+    assert any('CommonJS' in error for error in errors) and any('duplicate declarations' in error for error in errors)
+    contents['media.js']='const media={};';contents['export.js']='media.busy=false;'
+    assert not await projects.inspect_browser_js(contents)
+    contents['index.html']=contents['index.html'].replace(' defer',' type="module"')
+    contents['export.js']='const media={};'
+    assert not await projects.inspect_browser_js(contents)
 
 
 @pytest.mark.asyncio

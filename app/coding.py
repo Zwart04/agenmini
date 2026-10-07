@@ -7,7 +7,7 @@ from . import llm
 
 
 def functional_request(text):
-    wants_landing=bool(re.search(r'landing\s*page|halaman promosi',text,re.I)) and not re.search(r'(?:bukan|jangan|not)\s+(?:cuma\s+|hanya\s+)?landing',text,re.I)
+    wants_landing=bool(re.search(r'landing\s*page|halaman promosi',text,re.I)) and not re.search(r'(?:bukan|jangan|not)\s+(?:(?:a|an|just|only|cuma|hanya)\s+)*landing',text,re.I)
     if wants_landing:return False
     return bool(re.search(r'e[ -]?commerce|ecommers|toko\s+online|marketplace|multi[ -]?(?:seller|tenant)|banyak\s+seller|autobalas|auto[ -]?reply|web[ -]?app|upload\s+produk|unggah\s+produk',text,re.I))
 
