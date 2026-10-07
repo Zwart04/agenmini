@@ -26,17 +26,18 @@
   ],
   "parts": [
     {
-      "name": "Document opening",
+      "name": "Document",
       "file": "index.html",
-      "kind": "shellchunk",
+      "kind": "document",
       "tokens": 250,
-      "task": "HTML fragment only: doctype, html lang=en, head with charset UTF-8, viewport, title Clip Mini, link style.css, script app.js defer. Close head. Open body class app. Stop immediately after opening body. Do not close body/html or add content."
+      "task": "Write a complete HTML document with title Clip Mini, UTF-8 charset, viewport, link to style.css, deferred script app.js. Body has class app and is entirely empty. Close body and html. No inline styles or implementation."
     },
     {
       "name": "Header",
       "file": "index.html",
-      "kind": "shellchunk",
-      "tokens": 350,
+      "kind": "node",
+      "slot": "header",
+      "tokens": 450,
       "controls": {
         "exportBtn": {
           "tag": "button"
@@ -48,26 +49,24 @@
           "tag": "a"
         }
       },
-      "task": "Write only header class topbar. Include Clip Mini wordmark, button id exportBtn disabled Export, button id cancelBtn hidden Cancel, anchor id downloadLink download hidden Download WITHOUT href. Close header. No document, styles, extra controls or panels."
+      "task": "Write one HTML header fragment, class topbar. Text brand Clip Mini. A disabled button with id exportBtn and label Export. A hidden button with id cancelBtn and label Cancel. A hidden download anchor with id downloadLink and label Download, download attribute and no href. Close header. No extra elements or CSS.",
+      "root_class": "topbar"
     },
     {
-      "name": "Panel slots",
+      "name": "Stage container",
       "file": "index.html",
-      "kind": "shellchunk",
-      "tokens": 180,
-      "slots": [
-        "library",
-        "viewer",
-        "inspector",
-        "timeline"
-      ],
-      "task": "Write only div class stage containing EXACT comment markers <!--panel:library--> <!--panel:viewer--> <!--panel:inspector-->. Close div. Then EXACT comment <!--panel:timeline-->. No other HTML or styles."
+      "kind": "node",
+      "slot": "stage",
+      "tokens": 120,
+      "task": "Write one empty HTML div with class stage. It will later contain the editor panels. No document, comments, CSS or other elements.",
+      "root_class": "stage"
     },
     {
-      "name": "Document closing",
+      "name": "Status footer",
       "file": "index.html",
-      "kind": "shellchunk",
-      "tokens": 220,
+      "kind": "node",
+      "slot": "footer",
+      "tokens": 250,
       "controls": {
         "status": {
           "tag": "span"
@@ -76,7 +75,8 @@
           "tag": "span"
         }
       },
-      "task": "HTML fragment only: footer class statusbar containing span id status text Import a video and empty span id progressLabel. Close footer. Then close body and html. No other tags, styles or content."
+      "task": "Write one HTML footer fragment with class statusbar. Include a span with id status and text Ready. Include a second EMPTY span with id progressLabel. Close footer. No other elements, document or styling.",
+      "root_class": "statusbar"
     },
     {
       "name": "Koleksi media",
@@ -96,7 +96,8 @@
           "tag": "span"
         }
       },
-      "task": "Only complete aside class library fragment. Top Media heading, subtitle Your files stay on this device. Styled upload-zone label containing input type=file ID fileInput accept video/mp4,video/webm plus visible Import video text/icon. Selected clip card class media-card, contains decorative film icon, span ID clipLabel initial No clip selected, span ID durationLabel initial MP4 or WebM. Add simple helpful empty tip and small keyboard shortcut chips Space Play, Esc Cancel. No scripts/style/document tags, no fake thumbnails, no IDs from other panels."
+      "task": "Generate HTML for an aside with class=\"library\". Heading: \"Media\". Label: \"Import video\" wrapping an input id=\"fileInput\" type=\"file\" accept=\"video/mp4,video/webm\". A div class=\"media-card\" contains span id=\"clipLabel\" text \"No clip selected\" and span id=\"durationLabel\" text \"MP4 or WebM\". Hint: \"Your files stay on this device\". Use no IDs from other panels.",
+      "root_class": "library"
     },
     {
       "name": "Monitor video",
@@ -119,7 +120,8 @@
           "tag": "div"
         }
       },
-      "task": "Only complete section class viewer. Small panel-heading Preview and 16:9 badge. A div class viewer-surface contains video ID preview playsinline preload=metadata without src or native controls, and div ID textOverlay class text-overlay blank. Video must exist even before import. Below, custom transport row class transport contains button ID playBtn disabled with Play label, input type=range ID seekInput min=0 max=0 step=.01 value=0 disabled labelled Scrub video. Include tiny note Drag the playhead to preview. Avoid empty fake video source. No other panel IDs, inline CSS/JS/document tags."
+      "task": "Write an HTML fragment, with root section class=\"viewer\".\nFirst add a heading \"Preview\".\nA div class=\"viewer-surface\" contains exactly:\n1. A video element with id=\"preview\", playsinline, preload=\"metadata\", src attribute absent, controls attribute absent.\n2. An empty div with id=\"textOverlay\" and class=\"text-overlay\".\nA div class=\"transport\" contains exactly:\n1. A button with id=\"playBtn\", disabled, text \"Play\".\n2. An input with id=\"seekInput\", type=\"range\", min=\"0\", max=\"0\", step=\"0.01\", value=\"0\", disabled, aria-label=\"Scrub video\".\nEnd with hint \"Drag the playhead to preview\". Close section. No other IDs, scripts, styles, or document tags.",
+      "root_class": "viewer"
     },
     {
       "name": "Properti klip",
@@ -141,7 +143,8 @@
           "type": "text"
         }
       },
-      "task": "Only complete aside class inspector. Heading Clip properties, trim section with proper labels Start seconds and End seconds, input type=number ID startInput value=0 min=0 step=.1 disabled and input type=number ID endInput value=0 min=0 step=.1 disabled. A Text overlay section contains labelled input type=text ID titleInput placeholder Add a title maxlength=120. Include helpful text Trim selects the exported portion. Small export summary WebM / up to 720p / local. Honest warning that audio depends on browser support; export status must reveal silent fallback. No other IDs or inline CSS/JS."
+      "task": "Generate HTML for an aside with class=\"inspector\". Heading \"Clip properties\". Three labelled inputs:\n- id=\"startInput\", type=\"number\", value=\"0\", min=\"0\", step=\"0.1\", disabled, label \"Start seconds\"\n- id=\"endInput\", type=\"number\", value=\"0\", min=\"0\", step=\"0.1\", disabled, label \"End seconds\"\n- id=\"titleInput\", type=\"text\", maxlength=\"120\", placeholder=\"Add a title\", label \"Text overlay\"\nHint \"Trim selects the exported portion\" and export summary \"WebM / up to 720p / local\". Use no other IDs.",
+      "root_class": "inspector"
     },
     {
       "name": "Timeline",
@@ -154,40 +157,126 @@
           "tag": "div"
         }
       },
-      "task": "Only complete section class timeline-panel. Timeline toolbar with heading Timeline, subdued Single clip editing subtitle and keyboard tip Space to play. Div ID timeline class timeline tabindex=0 role=region aria-label Video timeline, initially contains pleasant empty state Import a clip to begin editing. JS will render its real clip/trim/text tracks, do not invent sample media. Add a restrained ruler/track-label presentation if useful, no interactive fake buttons, no script/style/document tags."
+      "task": "Only complete section class timeline-panel. Timeline toolbar with heading Timeline, subdued Single clip editing subtitle and keyboard tip Space to play. Div ID timeline class timeline tabindex=0 role=region aria-label Video timeline, initially contains pleasant empty state Import a clip to begin editing. JS will render its real clip/trim/text tracks, do not invent sample media. Add a restrained ruler/track-label presentation if useful, no interactive fake buttons, no script/style/document tags.",
+      "root_class": "timeline-panel"
     },
     {
-      "name": "Tema dan layout",
+      "name": "Theme",
       "file": "style.css",
       "kind": "css",
-      "tokens": 1200,
-      "task": "Write CSS for the ACTUAL assembled HTML. Only base/theme/layout rules. CapCut-like professional charcoal editing workspace, no gradients, neon backgrounds or stretched huge buttons. Palette background #0e1013, panels #171a20, borders #2b3038, text #edf0f4, secondary #89919e, mint #72edc3. System font 13px, font smoothing; universal border-box, margin resets. Body/app min-width:0, height:100dvh. .app grid rows 52px minmax(280px,1fr) 210px 28px, overflow hidden. .topbar horizontal flex with actions pushed right; wordmark prominent. .stage grid columns 220px minmax(0,1fr) 250px gap:1px, each panel min-width:0. Panels dark bordered, padding 16px, content overflow auto. .viewer flex column gap:12px, min-height:0. .viewer-surface black background, relative, centered flex, flex:1 min-height:0; preview width/height 100%, object-fit:contain. .text-overlay absolute bottom 10% left:0 right:0, centered white bold 24px with dark text-shadow, pointer-events:none. .statusbar flex justify-between. Use actual selectors/classes from markup. NO responsive media rules yet; next part provides them. No HTML or previous CSS repetition."
+      "tokens": 500,
+      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \"*\": {\n    \"box-sizing\": \"border-box\"\n  },\n  \"html, body\": {\n    \"margin\": \"0\",\n    \"width\": \"100%\"\n  },\n  \"body\": {\n    \"font\": \"13px system-ui, sans-serif\",\n    \"background\": \"#0e1013\",\n    \"color\": \"#edf0f4\"\n  },\n  \"button, input\": {\n    \"font\": \"inherit\"\n  }\n}"
     },
     {
-      "name": "Komponen editor",
+      "name": "Desktop layout",
       "file": "style.css",
       "kind": "css",
-      "tokens": 1050,
-      "task": "Append CSS only for components, using actual markup classes/IDs, don't repeat base/layout. Buttons compact height32 padding0 14 border-radius6, mint export primary, subtle secondary buttons, hover/focus/disabled states. Inputs dark backgrounds, borders, font inherit, number/text full width, rounded6 height34, labelled groups with 8px gaps, sections with 20px spacing. File input within upload-zone accessible and clickable: style its file-selector-button; no hidden inaccessible input. Library upload zone dashed muted border, media-card compact icon/name/time card; chip badges subdued. Transport flex button plus full flexible mint-accent range; preview video never stretched/distorted. timeline-panel subtle top border; timeline rows 32px with video blue-gray clip, mint text clip and a clear absolute playhead. Style JS-created .timeline-ruler, .track-row, .track-label, .track-lane, .video-clip, .text-clip, .playhead; track-lane relative min-width0 and overflow hidden, clip boxes compact rounded4. clip text ellipsis, playhead thin mint. Empty states centered muted. [hidden] always display:none!important. Status error red. No gradients/neon green panels, no HTML/JS."
+      "tokens": 500,
+      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \"body\": {\n    \"height\": \"100dvh\",\n    \"overflow\": \"hidden\",\n    \"display\": \"grid\",\n    \"grid-template-rows\": \"52px minmax(280px, 1fr) 210px 28px\"\n  },\n  \".stage\": {\n    \"display\": \"grid\",\n    \"grid-template-columns\": \"220px minmax(0, 1fr) 250px\",\n    \"gap\": \"1px\",\n    \"min-height\": \"0\"\n  }\n}"
     },
     {
-      "name": "Layout mobile",
+      "name": "Header and footer",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 500,
+      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".topbar, .statusbar\": {\n    \"display\": \"flex\",\n    \"align-items\": \"center\",\n    \"gap\": \"12px\",\n    \"padding\": \"0 16px\",\n    \"background\": \"#171a20\",\n    \"border\": \"1px solid #2b3038\"\n  },\n  \".topbar h1\": {\n    \"font-size\": \"16px\",\n    \"margin\": \"0 auto 0 0\"\n  },\n  \".statusbar\": {\n    \"font-size\": \"12px\",\n    \"color\": \"#89919e\"\n  }\n}"
+    },
+    {
+      "name": "Side panels",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 500,
+      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".library, .inspector, .timeline-panel\": {\n    \"padding\": \"16px\",\n    \"background\": \"#171a20\",\n    \"min-width\": \"0\",\n    \"overflow\": \"auto\",\n    \"border\": \"1px solid #2b3038\"\n  },\n  \"h1, h2\": {\n    \"font-size\": \"14px\",\n    \"margin\": \"0 0 12px\"\n  },\n  \".media-card\": {\n    \"display\": \"grid\",\n    \"gap\": \"8px\",\n    \"padding\": \"12px\"\n  },\n  \"label\": {\n    \"display\": \"block\",\n    \"margin\": \"8px 0\"\n  }\n}"
+    },
+    {
+      "name": "Video monitor",
       "file": "style.css",
       "kind": "css",
       "tokens": 600,
-      "task": "Append responsive CSS ONLY. At max-width900px shrink stage to 180px minmax(0,1fr) 210px. At max-width700px body/app height:auto min-height100dvh overflow:visible; app display:flex flex-direction:column; stage display:flex flex-direction:column; topbar flex-wrap with height:auto padding12 and actions reasonable gaps; library order:2, viewer order:1, inspector order:3. viewer-surface aspect-ratio:16/9 flex:none width100%, min-height180; preview max-height300. Panels width100%, min-width0. Timeline min-height180; transport/input controls fit 390px; text inputs max-width100%; no horizontal document scroll. Style focus-visible with visible mint outline and respect prefers-reduced-motion. No CSS that overrides desktop to a plain unstyled form."
+      "task": "Write standard CSS rules implementing this design specification. Each outer key is a selector; each inner key is a valid CSS property and its value is the desired styling. One rule per selector, colon between property/value, semicolon after EVERY declaration. No JSON, JavaScript, explanations or extra rules in the output. Design specification:\n{\n  \".viewer\": {\n    \"display\": \"flex\",\n    \"flex-direction\": \"column\",\n    \"gap\": \"12px\",\n    \"padding\": \"16px\",\n    \"min-height\": \"0\",\n    \"min-width\": \"0\",\n    \"background\": \"#171a20\"\n  },\n  \".viewer-surface\": {\n    \"position\": \"relative\",\n    \"flex\": \"1\",\n    \"min-height\": \"0\",\n    \"display\": \"flex\",\n    \"background\": \"#08090b\"\n  },\n  \"#preview\": {\n    \"width\": \"100%\",\n    \"height\": \"100%\",\n    \"object-fit\": \"contain\"\n  },\n  \"#textOverlay\": {\n    \"position\": \"absolute\",\n    \"bottom\": \"10%\",\n    \"left\": \"0\",\n    \"right\": \"0\",\n    \"text-align\": \"center\",\n    \"font-size\": \"24px\",\n    \"color\": \"white\",\n    \"text-shadow\": \"0 1px 4px black\",\n    \"pointer-events\": \"none\"\n  },\n  \".transport\": {\n    \"display\": \"flex\",\n    \"gap\": \"12px\"\n  },\n  \"#seekInput\": {\n    \"flex\": \"1\",\n    \"min-width\": \"0\"\n  }\n}"
     },
     {
-      "name": "State dan helper",
+      "name": "Controls and tracks",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 1000,
+      "task": "Write standard CSS implementing this design specification. Outer keys are selectors, inner keys are CSS properties with desired values. Wrap the mobile specification in its @media block when present. Separate each declaration with a semicolon. Output CSS only, not JSON/JS or explanations. Specification:\n{\n  \"button, a[download]\": {\n    \"height\": \"32px\",\n    \"padding\": \"6px 12px\",\n    \"border\": \"1px solid #2b3038\",\n    \"border-radius\": \"6px\",\n    \"background\": \"#232831\",\n    \"color\": \"#edf0f4\"\n  },\n  \"#exportBtn\": {\n    \"background\": \"#72edc3\",\n    \"color\": \"#0e1013\"\n  },\n  \"button:disabled, input:disabled\": {\n    \"opacity\": \".45\"\n  },\n  \"input\": {\n    \"width\": \"100%\",\n    \"min-width\": \"0\",\n    \"background\": \"#171a20\",\n    \"border\": \"1px solid #2b3038\",\n    \"padding\": \"8px\",\n    \"color\": \"inherit\"\n  },\n  \"[hidden]\": {\n    \"display\": \"none !important\"\n  },\n  \".error\": {\n    \"color\": \"#f38181\"\n  },\n  \".track-row\": {\n    \"display\": \"flex\"\n  },\n  \".track-label\": {\n    \"width\": \"70px\"\n  },\n  \".track-lane\": {\n    \"position\": \"relative\",\n    \"flex\": \"1\",\n    \"height\": \"32px\",\n    \"overflow\": \"hidden\"\n  },\n  \".video-clip, .text-clip\": {\n    \"position\": \"absolute\",\n    \"height\": \"28px\",\n    \"background\": \"#315f79\",\n    \"overflow\": \"hidden\",\n    \"text-overflow\": \"ellipsis\",\n    \"white-space\": \"nowrap\"\n  },\n  \".text-clip\": {\n    \"background\": \"#72edc3\",\n    \"color\": \"#0e1013\"\n  },\n  \".playhead\": {\n    \"position\": \"absolute\",\n    \"top\": \"0\",\n    \"bottom\": \"0\",\n    \"width\": \"2px\",\n    \"background\": \"#72edc3\"\n  }\n}"
+    },
+    {
+      "name": "Mobile layout",
+      "file": "style.css",
+      "kind": "css",
+      "tokens": 1000,
+      "task": "Write standard CSS implementing this design specification. Outer keys are selectors, inner keys are CSS properties with desired values. Wrap the mobile specification in its @media block when present. Separate each declaration with a semicolon. Output CSS only, not JSON/JS or explanations. Specification:\n{\n  \"@media (max-width:700px)\": {\n    \"body\": {\n      \"height\": \"auto\",\n      \"min-height\": \"100dvh\",\n      \"display\": \"flex\",\n      \"flex-direction\": \"column\",\n      \"overflow\": \"visible\"\n    },\n    \".stage\": {\n      \"display\": \"flex\",\n      \"flex-direction\": \"column\"\n    },\n    \".viewer\": {\n      \"order\": \"1\"\n    },\n    \".library\": {\n      \"order\": \"2\"\n    },\n    \".inspector\": {\n      \"order\": \"3\"\n    },\n    \".viewer-surface\": {\n      \"flex\": \"none\",\n      \"aspect-ratio\": \"16/9\",\n      \"min-height\": \"180px\"\n    },\n    \"#preview\": {\n      \"max-height\": \"300px\"\n    },\n    \".topbar\": {\n      \"flex-wrap\": \"wrap\",\n      \"min-height\": \"52px\",\n      \"padding\": \"12px\"\n    },\n    \".library, .viewer, .inspector, .timeline-panel\": {\n      \"max-width\": \"100%\",\n      \"min-width\": \"0\"\n    },\n    \".timeline-panel\": {\n      \"min-height\": \"180px\"\n    }\n  }\n}",
+      "media_query": "(max-width:700px)"
+    },
+    {
+      "name": "App state",
       "file": "app.js",
       "kind": "js",
-      "tokens": 950,
+      "tokens": 350,
+      "include_html": false,
+      "context": "First JavaScript part, no earlier globals.",
+      "task": "Declare one global const named app, as a plain object. Fields loaded,busy,cancelled=false; duration,start,end=0; filename empty string; objectURL,downloadURL,recorder,canvas,ctx,raf,audioContext,audioSource,audioDest=null; chunks empty array. No class, functions or DOM work. Output only the complete const declaration."
+    },
+    {
+      "name": "DOM references",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 900,
+      "context": "Global app already exists.",
+      "task": "Declare one global const ui, a plain object. Each key maps to document.getElementById of the SAME key. Keys: fileInput,preview,playBtn,seekInput,startInput,endInput,titleInput,exportBtn,cancelBtn,downloadLink,status,timeline,textOverlay,clipLabel,durationLabel,progressLabel. No functions, handlers or app redeclaration.",
+      "dom_refs": [
+        "fileInput",
+        "preview",
+        "playBtn",
+        "seekInput",
+        "startInput",
+        "endInput",
+        "titleInput",
+        "exportBtn",
+        "cancelBtn",
+        "downloadLink",
+        "status",
+        "timeline",
+        "textOverlay",
+        "clipLabel",
+        "durationLabel",
+        "progressLabel"
+      ]
+    },
+    {
+      "name": "Time formatter",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 250,
+      "include_html": false,
       "functions": [
-        "setStatus",
-        "setBusy",
         "formatTime"
       ],
-      "task": "First JS part only. Declare ONE global app object with architecture fields initialized, and ONE global ui object mapping every DOM ID to getElementById. loaded/busy/cancelled false, start/end/duration0, nullable recorder/URL/canvas/context/audio fields, chunks empty. Define setStatus(message,isError=false) updating ui.status.textContent and error class; formatTime(seconds) returns safe mm:ss with finite clamped nonnegative numbers; setBusy(flag) updates app.busy, disables fileInput/playBtn/seekInput/startInput/endInput/exportBtn while busy or unloaded, shows cancelBtn only busy, prevents interaction during export without disabling the video element programmatically. This is just state/helpers; no handlers, imports, init call or other features. Don't redefine app/ui in later parts."
+      "task": "Write only function formatTime(value). It takes seconds, clamps nonfinite/negative input to0 and returns a mm:ss string with 2-digit minutes and seconds. Use different local names from the parameter. No state changes, other functions or classes."
+    },
+    {
+      "name": "Status messages",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 250,
+      "include_html": false,
+      "functions": [
+        "setStatus"
+      ],
+      "task": "Write only function setStatus(message,isError=false). Set ui.status.textContent to message and toggle the error class using classList.toggle. No other functions, globals, classes or calls."
+    },
+    {
+      "name": "Busy controls",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 450,
+      "include_html": false,
+      "functions": [
+        "setBusy"
+      ],
+      "task": "Write only function setBusy(flag). Set app.busy Boolean(flag). fileInput.disabled equals app.busy. playBtn,seekInput,startInput,endInput,exportBtn disabled when app.busy or !app.loaded. cancelBtn.hidden equals !app.busy. No other state changes, helpers, globals or classes. Do not disable the video element."
     },
     {
       "name": "Impor media asli",
@@ -197,7 +286,12 @@
       "functions": [
         "loadVideo"
       ],
-      "task": "Define only complete function loadVideo(file). Use existing app/ui/helpers. If busy return. Validate file is present and MIME starts video/; reject without destroying old video on invalid input. Revoke previous objectURL/downloadURL safely; createObjectURL(file), set preview.src, loaded=false until loadedmetadata. Set preview.onloadedmetadata to update loaded/duration/start0/endduration, start/end/seek input values and seek.max in seconds, clipLabel.textContent filename, durationLabel formatTime(duration), hide downloadLink until new export, setBusy(false), setStatus Ready, call updateTimeline and updateText. Set onerror to clear ready flag and show error. Do not invent Media/File helper classes or read file text. Don't autoplay on import. Audio, mediaRecorder and export are handled elsewhere. No other functions, globals or init handlers."
+      "task": "Define only complete function loadVideo(file). Use existing app/ui/helpers. If busy return. Validate file is present and MIME starts video/; reject without destroying old video on invalid input. Revoke previous objectURL/downloadURL safely; createObjectURL(file), set preview.src, loaded=false until loadedmetadata. Set preview.onloadedmetadata to update loaded/duration/start0/endduration, start/end/seek input values and seek.max in seconds, clipLabel.textContent filename, durationLabel formatTime(duration), hide downloadLink until new export, setBusy(false), setStatus Ready, call updateTimeline and updateText. Set onerror to clear ready flag and show error. Do not invent Media/File helper classes or read file text. Don't autoplay on import. Audio, mediaRecorder and export are handled elsewhere. No other functions, globals or init handlers.",
+      "required_patterns": [
+        "URL\\.createObjectURL\\s*\\(",
+        "\\b(?:onloadedmetadata|loadedmetadata)\\b",
+        "\\bpreview\\.src\\s*="
+      ]
     },
     {
       "name": "Playback dan scrub",
@@ -208,7 +302,12 @@
         "togglePlay",
         "seekVideo"
       ],
-      "task": "Define complete functions togglePlay() async and seekVideo(value). Use app/ui actual shared state. Guard unloaded/busy. togglePlay pauses if playing; otherwise if currentTime outside [app.start,app.end) seek to start, then await preview.play with error handling. Set playBtn label appropriately. seekVideo clamps numeric seconds within0..app.duration and sets preview.currentTime, calls updateTimeline. Do not define event listeners here; final init handles timeupdate and trim end. No new globals, video classes, exports or playback timers."
+      "task": "Define complete functions togglePlay() async and seekVideo(value). Use app/ui actual shared state. Guard unloaded/busy. togglePlay pauses if playing; otherwise if currentTime outside [app.start,app.end) seek to start, then await preview.play with error handling. Set playBtn label appropriately. seekVideo clamps numeric seconds within0..app.duration and sets preview.currentTime, calls updateTimeline. Do not define event listeners here; final init handles timeupdate and trim end. No new globals, video classes, exports or playback timers.",
+      "required_patterns": [
+        "\\bpreview\\.play\\s*\\(",
+        "\\bpreview\\.pause\\s*\\(",
+        "\\bpreview\\.currentTime\\s*="
+      ]
     },
     {
       "name": "Trim dan timeline nyata",
@@ -260,7 +359,10 @@
       "functions": [
         "initEditor"
       ],
-      "task": "Define complete initEditor() then call it once. Add actual event handlers: fileInput.change calls loadVideo(first file), playBtn.click togglePlay, seekInput.input seekVideo(value), start/endInput.change validateTrim, titleInput.input updateText, exportBtn.click exportVideo, cancelBtn.click sets cancelled true. preview.timeupdate updates seekInput/playBtn and updateTimeline; when !busy and playing reaches app.end pause and show Play; preview.pause/ended updates label. timeline.click calculates seek seconds from clicked .track-lane bounding rectangle only (clamp0..duration) and calls seekVideo. Keyboard Space toggles playback unless target INPUT/TEXTAREA/contentEditable, preventDefault; Escape cancels busy. Set initial setBusy(false), updateText and status Import a video to start. Add beforeunload revoking app URLs if present and cancelling RAF. Do not redefine any helper/state/functions. All DOM controls must really call defined earlier functions."
+      "task": "Define complete initEditor() then call it once. Add actual event handlers: fileInput.change calls loadVideo(first file), playBtn.click togglePlay, seekInput.input seekVideo(value), start/endInput.change validateTrim, titleInput.input updateText, exportBtn.click exportVideo, cancelBtn.click sets cancelled true. preview.timeupdate updates seekInput/playBtn and updateTimeline; when !busy and playing reaches app.end pause and show Play; preview.pause/ended updates label. timeline.click calculates seek seconds from clicked .track-lane bounding rectangle only (clamp0..duration) and calls seekVideo. Keyboard Space toggles playback unless target INPUT/TEXTAREA/contentEditable, preventDefault; Escape cancels busy. Set initial setBusy(false), updateText and status Import a video to start. Add beforeunload revoking app URLs if present and cancelling RAF. Do not redefine any helper/state/functions. All DOM controls must really call defined earlier functions.",
+      "required_patterns": [
+        "\\}\\s*initEditor\\(\\s*\\)\\s*;?\\s*$"
+      ]
     },
     {
       "name": "Panduan hasil",

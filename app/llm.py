@@ -21,6 +21,16 @@ from . import db
 
 PRIO_USER, PRIO_TASK, PRIO_BACKGROUND = 0, 1, 5
 coding_reasoning = contextvars.ContextVar('coding_reasoning', default=False)
+local_sampling = contextvars.ContextVar('local_sampling', default=None)
+
+
+def sampling_profile(name):
+    """Documented local inference settings, deliberately not applied to online APIs."""
+    profiles={
+        'qwen35-nonthinking':dict(temperature=1.0,top_p=1.0,top_k=20,min_p=0.0,presence_penalty=2.0,repetition_penalty=1.0),
+        'lfm25':dict(temperature=0.1,top_k=50,repetition_penalty=1.05),
+    }
+    return profiles[name].copy()
 
 
 class Gate:
@@ -614,6 +624,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
             "max_tokens": int(max_tokens or db.setting("max_tokens") or 900)}
     if local and backend == "local":
         body["chat_template_kwargs"] = {"enable_thinking": coding_reasoning.get()}
+        if local_sampling.get():body.update(local_sampling.get())
         if coding_reasoning.get():
             body.update(temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repetition_penalty=1.0)
     if tools and not text_tools:

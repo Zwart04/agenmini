@@ -14,6 +14,8 @@ def main():
     p.add_argument('--model-id',default='local-eval');p.add_argument('--model-label')
     p.add_argument('--thinking-budget',type=int,default=0,help='Opt-in bounded Qwen reasoning tokens per part (0 disables).')
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
+    p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
+    p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25'],default='default')
     args=p.parse_args();exe=args.server_exe.resolve();model=args.gguf.resolve()
     if not 0<=args.thinking_budget<=512:p.error('--thinking-budget must be 0..512')
     if args.prompt_file and args.case=='all':p.error('--prompt-file requires one --case')
@@ -31,7 +33,12 @@ def main():
         *reasoning_args],stdout=log,stderr=log,
         **({'creationflags':0x08000000} if os.name=='nt' else {}))
     async def evaluate():
-        from app import main,db,config,agent,llm
+        from app import main,db,config,agent,llm,project_parts
+        if args.sampling_profile!='default':llm.local_sampling.set(llm.sampling_profile(args.sampling_profile))
+        if args.resume_parts:
+            old=json.loads((args.resume_parts/'results.json').read_text(encoding='utf-8'))
+            if old['gguf_sha256']!=hashlib.sha256(model.read_bytes()).hexdigest():raise ValueError('Resume requires the exact same model weights.')
+            project_parts.part_cache.set({int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')})
         llm.coding_reasoning.set(bool(args.thinking_budget))
         original=main.Path.is_file
         main.Path.is_file=lambda self:False if self.name=='host-integrations.py' else original(self)
@@ -48,6 +55,9 @@ def main():
         rows=[]
         async def event(kind,value):
             if kind in ('status','harness'):print(kind,str(value)[:170],flush=True)
+            if kind=='source_attempt':
+                attemptdir=run/'attempts';attemptdir.mkdir(exist_ok=True)
+                (attemptdir/(str(value['index']).zfill(2)+'-'+str(value['attempt'])+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
             if kind=='source_part':
                 partdir=run/'parts';partdir.mkdir(exist_ok=True)
                 (partdir/(str(value['index']).zfill(2)+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -65,7 +75,7 @@ def main():
                      'behavior_verified':False,'checks':'Independently test actual import, editing, playback, conversion/export/download and responsive layout in a browser.'}
                 rows.append(row)
                 report={'model':args.model_label or model.name,'gguf_sha256':hashlib.sha256(model.read_bytes()).hexdigest(),
-                    'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,
+                    'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget,
                     'limitations':'Real CPU inference. tg uses the shared agent path, not Telegram network. Syntax/ZIP checks do not establish behavior.'}
                 (run/'results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
                 print('CASE RESULT',name,json.dumps(result,ensure_ascii=False)[:1400],flush=True)

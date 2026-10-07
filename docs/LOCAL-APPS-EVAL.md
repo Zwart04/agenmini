@@ -124,3 +124,35 @@ Aktifkan hanya pada evaluator privat dengan `--source-parts`. Eksperimen Qwen
 dapat memakai `--thinking-budget 256`, dibatasi maksimum 512; ini bukan janji
 peningkatan kualitas. Jalur utama pembuatan proyek tetap tersedia untuk semua
 backend. Tidak ada template runtime yang disisipkan untuk meluluskan benchmark.
+
+Putaran lanjutan membandingkan Qwen 0.8B Q4 dan Q8 memakai parameter non-thinking
+resmi; keduanya tetap gagal kontrak dokumen. Mengubah kuantisasi belum terbukti
+menyelesaikan tugas. Qwen2.5-Coder 0.49B Q5 dipakai sebagai pembanding coding
+yang lebih kecil, bukan bukti bahwa benchmark model 1B telah lulus. Model ini
+berhasil menulis bagian HTML dan CSS dengan instruksi desain terstruktur,
+tetapi putaran awal masih gagal pada fungsi trim/timeline.
+
+Guard kini memeriksa sintaks CSS, kelengkapan referensi DOM, batas media-query
+mobile dan field state bersama. Konteks JS membawa kontrak deklarasi/fungsi,
+bukan semua implementasi sebelumnya yang mudah disalin model kecil. Percobaan
+perbaikan menerima kontrak yang sama. Cache bagian memverifikasi hash task,
+source mentah dan source terpilih; evaluator menuntut GGUF yang identik saat
+melanjutkan. Respons mentah tetap disimpan agar pemilihan elemen/penyusunan
+hasil dapat diaudit. Ini generasi yang dibimbing instruksi, bukan training bobot
+model atau bukti kemampuan umum setara model besar.
+
+Instruksi desain memuat spesifikasi selector/properti; sumber HTML/CSS/JS tetap
+ditulis model. Tidak ada aplikasi siap pakai yang dijadikan fallback. Pengujian
+jalur generator mencakup backend lokal, online dan router; test tersebut memakai
+stub dan tidak mengklaim semua model online telah diuji secara nyata. Pemeriksaan
+sintaks dan struktur tidak menggantikan pengujian ekspor video di browser.
+
+Putaran pembanding 0.49B berikutnya menghasilkan ZIP yang lolos struktur/sintaks.
+Uji browser nyata tetap **gagal**: pemilih file menerima fixture MP4, tetapi
+preview tetap tidak mempunyai source dan tombol Play tidak aktif. Kode init
+berisi pengganti helper dengan komentar simulasi dan tidak memanggil startup.
+Tampilan desktop dan 390px juga belum layak. Bukti screenshot berada dalam
+laporan privat `video-coder05-parts-v13`; tidak dipublikasikan sebagai demo sukses.
+Guard kini menolak redefinisi helper pada bagian fungsi, placeholder/simulasi,
+startup yang hilang, serta kontrak API impor/playback yang tidak ditulis.
+Pemeriksaan ini tetap bukan bukti lengkap perilaku; uji browser wajib diulang.

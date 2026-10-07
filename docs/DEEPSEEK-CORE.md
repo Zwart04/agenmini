@@ -13,6 +13,14 @@ Web and Telegram both enter `agent.Turn.run`. Streaming text is presentation;
 the chat message remains the authoritative answer. The SQLite event journal
 records lifecycle/tool outcomes and workspace file changes, not credentials or
 raw model requests. Mutations remain ordered. Time and step budgets bound work.
+
+The core is provider-independent: local, direct online API and gateway models
+use this same lifecycle. Local small models are evaluation references, not a
+restriction on which models can use the harness. Provider-specific sampling
+and authentication belong to the model adapter, not the core workflow.
+Checks may reject or request repair of a model's source; they must not replace
+a failed implementation with an evaluator-authored application template.
+Passing a dispatch test proves shared routing, not equivalent model quality.
 An interrupted started call has unknown outcome: inspect its state, never
 automatically replay a potentially mutating call. Existing interrupted tasks
 still use project checkpoints; this journal does not silently resume them.

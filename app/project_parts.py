@@ -1,16 +1,122 @@
 """Bounded source-part generation. Every runtime byte comes from the model.
 
 Recipes contain engineering/design instructions, never HTML/CSS/JS templates.
-Only model-generated comment slots and whitespace are assembled by the harness.
+The harness selects model-written nodes/containers and joins them with whitespace.
+It can discard unsolicited implementation, but never supplies replacement code.
 This is a task-specific coding skill, not evidence of general frontier capability.
 """
 import hashlib
+import contextvars
 import json
 import re
 import time
 import zipfile
 from pathlib import Path
+from html.parser import HTMLParser
 from . import llm, projects, tools
+
+part_cache = contextvars.ContextVar('model_source_part_cache', default={})
+
+
+def part_system(kind):
+    instruction={
+        'document':'HTML document only. Empty body. No CSS or JavaScript implementation.',
+        'node':'One HTML fragment only. No document, styles or scripts.',
+        'shell':'Complete HTML document with empty comment slots. No panel implementations or styles.',
+        'shellchunk':'One HTML fragment only for this task. No styles or other panels.',
+        'panel':'One balanced HTML panel fragment. No document, styles or scripts.',
+        'css':'CSS rules only. Match the actual HTML. No markup or JavaScript.',
+        'js':'Complete JavaScript functions exactly as requested. Reuse previous state. No global redeclarations, Node exports or copied previous functions.',
+        'md':'Short honest Markdown instructions.'
+    }[kind]
+    return 'You write one source part. Output raw source only, without explanations or fences. '+instruction
+
+
+def part_contract_errors(source, item):
+    """Check declared contracts, without filling in missing model implementations."""
+    errors=[]
+    if item.get('media_query'):
+        import tinycss2
+        rules=[r for r in tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True)]
+        expected=item['media_query'].replace(' ','')
+        if not rules or any(r.type!='at-rule' or r.lower_at_keyword!='media' or
+            tinycss2.serialize(r.prelude).replace(' ','').strip()!=expected for r in rules):
+            errors.append('Every mobile rule must be inside @media '+item['media_query']+'; no global rules.')
+    for ident in item.get('dom_refs',[]):
+        if not re.search(r'\b'+re.escape(ident)+r'\s*:\s*document\.getElementById\(\s*[\"\']'+re.escape(ident)+r'[\"\']\s*\)',source):
+            errors.append('Missing ui reference '+ident+' mapped to document.getElementById of the same ID.')
+    if item.get('functions'):
+        unexpected=set(re.findall(r'\bfunction\s+(\w+)\s*\(',source))-set(item['functions'])
+        if unexpected:errors.append('Do not redefine other helpers: '+', '.join(sorted(unexpected)))
+        if re.search(r'\b(?:simulate|simulation|placeholder|TODO)\b',source,re.I):
+            errors.append('A working implementation is required, not simulated handlers or placeholder code.')
+    for pattern in item.get('required_patterns',[]):
+        if not re.search(pattern,source):errors.append('Required implementation contract is missing: '+pattern)
+    return errors
+
+
+def js_contract_context(prior):
+    """Supply actual declarations and function signatures, not implementations to copy."""
+    globals_=re.findall(r'\b(?:const|let|var)\s+(app|ui)\s*=\s*\{([^}]+)\}',prior,re.S)
+    fields={name:re.findall(r'\b(\w+)\s*:',body) for name,body in globals_}
+    signatures=re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
+    return json.dumps({'globals':fields,'existing_functions':signatures},ensure_ascii=False)
+
+
+def js_shared_reference_errors(source, prior):
+    fields=json.loads(js_contract_context(prior))['globals']
+    errors=[]
+    for obj,key in sorted(set(re.findall(r'\b(app|ui)\.(\w+)',source))):
+        if obj in fields and key not in fields[obj]:
+            errors.append('Undefined shared field '+obj+'.'+key+'; use the declared contracts.')
+    for fake in ('createMediaSource','createMediaDestination'):
+        if re.search(r'\.'+fake+r'\s*\(',source):
+            errors.append('Unsupported Web Audio method '+fake+'; use documented browser APIs.')
+    return errors
+
+
+def reusable_part(saved, item):
+    """Reuse only unmodified model text for an identical task; validate it again."""
+    if not saved:return None
+    source=saved.get('source','');evidence=saved.get('evidence',{})
+    task_hash=hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+    if evidence.get('task_sha256')!=task_hash or evidence.get('sha256')!=hashlib.sha256(source.encode()).hexdigest():return None
+    raw=saved.get('raw_source',source)
+    if evidence.get('raw_sha256') and evidence['raw_sha256']!=hashlib.sha256(raw.encode()).hexdigest():return None
+    return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True}}
+
+
+def extract_node(source,root_class):
+    """Select an exact model-written element span, without rewriting its source."""
+    offsets=[0]
+    for line in source.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    class Selector(HTMLParser):
+        start=None;end=None;tag='';depth=0
+        def source_offset(self):
+            line,col=self.getpos();return offsets[line-1]+col
+        def handle_starttag(self,tag,attrs):
+            if self.end is not None:return
+            if self.start is None:
+                if tag not in ('div','main','section','aside','header','footer'):return
+                if root_class not in dict(attrs).get('class','').split():return
+                self.start=self.source_offset();self.tag=tag;self.depth=1
+            elif tag==self.tag:self.depth+=1
+        def handle_endtag(self,tag):
+            if self.start is None or self.end is not None or tag!=self.tag:return
+            self.depth-=1
+            if self.depth==0:self.end=source.index('>',self.source_offset())+1
+    parser=Selector();parser.feed(source)
+    if parser.start is None or parser.end is None:raise ValueError('Complete element with class '+root_class+' is required.')
+    return source[parser.start:parser.end]
+
+
+def document_container(source):
+    """Keep model-written document tags/assets, discard unsolicited implementations."""
+    source=re.sub(r'<style\b[^>]*>.*?</style\s*>','',source,flags=re.I|re.S)
+    source=re.sub(r'<script\b([^>]*)>.*?</script\s*>',lambda m:m[0] if re.search(r'\bsrc\s*=',m[1],re.I) else '',source,flags=re.I|re.S)
+    body=re.search(r'(<body\b[^>]*>).*?(</body\s*>)',source,re.I|re.S)
+    if not body:raise ValueError('A complete body opening/closing pair is required; no tags can be invented by the assembler.')
+    return source[:body.start()]+body[1]+'\n'+body[2]+source[body.end():]
 
 
 def supports(brief):
@@ -29,47 +135,74 @@ def assemble(shell,panels):
     return shell
 
 
+def compose_document(shell,nodes,panels):
+    """Insert model-written nodes into model-written empty containers, no tags added."""
+    body=re.search(r'(<body\b[^>]*>)\s*(</body\s*>)',shell,re.I)
+    stage=re.fullmatch(r'\s*(<(?:div|main)\b[^>]*>)\s*(</(?:div|main)\s*>)\s*',nodes['stage'],re.I)
+    if not body or not stage:raise ValueError('Model document/body and stage must be empty containers.')
+    inner='\n'.join(panels[key] for key in ('library','viewer','inspector'))
+    markup='\n'.join((nodes['header'],stage[1]+'\n'+inner+'\n'+stage[2],panels['timeline'],nodes['footer']))
+    return shell[:body.start()]+body[1]+'\n'+markup+'\n'+body[2]+shell[body.end():]
+
+
 async def generate(brief,ctx,on_event=None):
     recipe=json.loads((Path(__file__).parent/'project_recipes'/'video_editor.json').read_text(encoding='utf-8'))
-    root='project-'+str(time.time_ns());contents={};panels={};evidence=[];stats={};shell=''
+    root='project-'+str(time.time_ns());contents={};panels={};nodes={};evidence=[];stats={};shell=''
     async def emit(kind,value):
         if on_event:await on_event(kind,value)
     for step,item in enumerate(recipe['parts']):
+        if item['kind']=='js':item={**item,'generation_contract_revision':2}
         path=item['file'];kind=item['kind'];name=item['name']
         await emit('status',f'Menyusun {name} ({step+1}/{len(recipe["parts"])})…')
         prior=contents.get(path,'')
-        context={'owner_goal':brief.split('\n')[0][:250],'architecture':recipe['architecture'],'task':item['task'],
-                 'current_html':contents.get('index.html',shell)[-6500:], 'previous_source':prior[-8500:]}
-        if kind in ('shell','shellchunk','panel'):
+        context={'owner_goal':brief.split('\n')[0][:250],'architecture':recipe['architecture'],
+                 'current_html':contents.get('index.html',shell)[-6500:], 'previous_source':prior[-8500:], 'task':item['task']}
+        if kind in ('shell','shellchunk','document','node','panel'):
             context.pop('architecture');context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
             context['required_controls']=item.get('controls',{})
         elif kind in ('css','md'):context.pop('architecture')
+        if kind=='css':
+            dom=projects.Document();dom.feed(contents.get('index.html',''))
+            context.pop('current_html');context.pop('previous_source')
+            context['available_selectors']=', '.join(['.'+name for name in sorted(dom.classes)]+['#'+name for name in sorted(dom.ids)])
+        if kind=='js':
+            context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
+            context['previous_source']=js_contract_context(prior)
+            if item.get('include_html') is False:context.pop('current_html')
+        context['task']=context.pop('task')
         request='\n\n'.join(key.upper()+':\n'+(value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)) for key,value in context.items())
-        language='HTML' if kind in ('shell','shellchunk','panel') else 'JavaScript' if kind=='js' else 'CSS' if kind=='css' else 'Markdown'
-        system=('Follow CURRENT TASK exactly. Output only raw '+language+' source, no explanations or fences. '
-                'Do not implement other parts of the app. Keep this part small. '+
-                ('HTML fragment only, exactly this task; do not add CSS or other panels.' if kind=='shellchunk' else
-                 'The shell is a complete document with EMPTY comment slots, never panel controls.' if kind=='shell' else
-                 'One balanced panel fragment only; no document, CSS or JavaScript.' if kind=='panel' else
-                 'CSS rules only for this task. Match actual HTML. No invented selectors or markup.' if kind=='css' else
-                 'Complete named JavaScript functions only as requested. Reuse actual previous code/state. No fake APIs, placeholders, Node exports, global redeclarations or copied previous functions.' if kind=='js' else
-                 'Short honest Markdown only.'))
+        system=part_system(kind)
         source=''
-        for attempt in range(2):
-            response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.6)
-            source=projects.unwrap_file(response.get('content',''),path);stats=response.get('stats',{})
+        for attempt in range(3):
+            response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
+            if response is None:
+                response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
+            raw=response.get('content','');source=projects.unwrap_file(raw,path);stats=response.get('stats',{})
+            extraction_error=''
+            if kind=='document':
+                try:source=document_container(source)
+                except ValueError as exc:extraction_error=str(exc)
+            if item.get('root_class'):
+                try:source=extract_node(source,item['root_class'])
+                except ValueError as exc:extraction_error=str(exc)
+            await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name})
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
+            errors+=part_contract_errors(source,item)
+            if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
-            if kind in ('shell','shellchunk'):
+            if kind in ('shell','shellchunk','document','node'):
                 if kind=='shellchunk' and not re.match(r'\s*<(?:!?[a-zA-Z/])',source):errors.append('Output real HTML tags, not a verbal description.')
                 if kind=='shellchunk' and step==0 and re.search(r'</(?:body|html)>',source,re.I):errors.append('Opening fragment must stop at opening body; do not close the document yet.')
-                if kind=='shell':errors+=projects.inspect_html(source,strict=True)['errors']
+                if kind in ('shell','document'):errors+=projects.inspect_html(source,strict=True)['errors']
+                if kind=='document' and not re.search(r'<body\b[^>]*>\s*</body\s*>',source,re.I):errors.append('The document body must be empty. Only document structure and asset links belong here.')
+                if kind=='node' and item.get('slot')=='stage' and not re.fullmatch(r'\s*<(?:div|main)\b[^>]*>\s*</(?:div|main)\s*>\s*',source,re.I):errors.append('Output one empty stage div/main only.')
                 if re.search(r'<style\b',source,re.I):errors.append('No inline CSS. HTML shell only, stylesheet already linked.')
                 for slot in (recipe['panels'] if kind=='shell' else item.get('slots',[])):
                     if source.count('<!--panel:'+slot+'-->')!=1:errors.append('Include exactly one comment slot <!--panel:'+slot+'-->.')
                 d=projects.Document();d.feed(source)
+                if kind=='document' and not {'style.css','app.js'}<=set(d.resources):errors.append('Include stylesheet link href="style.css" and deferred script src="app.js" in the head.')
                 for ident,expected in item.get('controls',{}).items():
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required shell control '+ident+' must be '+json.dumps(expected)+'.')
                 for resource in d.resources:
@@ -78,27 +211,31 @@ async def generate(brief,ctx,on_event=None):
                 d=projects.Document();d.feed(source)
                 if re.search(r'<(?:html|head|body|script|style)\b',source,re.I):errors.append('Panel is a fragment only; no document/script/style tags.')
                 if d.duplicate_ids:errors.append('Remove duplicate IDs.')
+                if d.resources:errors.append('Imported media must start empty, with no sample src or remote assets: '+str(d.resources))
                 for ident,expected in item.get('controls',{}).items():
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required control '+ident+' must be '+json.dumps(expected)+'.')
             elif kind=='css':
                 if source.count('{')!=source.count('}') or re.search(r'<[a-z!/]',source,re.I):errors.append('CSS only; close all rules.')
+                errors+=projects.inspect_css(source)
             elif kind=='js':
+                errors+=js_shared_reference_errors(source,prior)
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=(prior+'\n'+source).encode(),project=True)
                 if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:])
                 for fn in item.get('functions',[]):
                     if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):errors.append('Define complete named function '+fn+'.')
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
             if not errors:break
-            if attempt:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
+            if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nRewrite only this part from scratch. Be concise. No other parts or styling.'
-        evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'model':stats.get('served_model',''),'assembly':'slot replacement' if kind=='panel' else 'model source joined with newline'})
-        await emit('source_part',{'index':step,'source':source,'evidence':evidence[-1]})
-        if kind=='shell':shell=source
+            request='EXISTING CONTRACTS:\n'+(js_contract_context(prior) if kind=='js' else '')+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nTASK:\n'+item['task']+'\nRewrite only this part from scratch. Be concise. No other parts or styling.'
+        evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
+        await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1]})
+        if kind in ('shell','document'):shell=source
+        elif kind=='node':nodes[item['slot']]=source
         elif kind=='shellchunk':shell+='\n'+source
         elif kind=='panel':
             panels[item['slot']]=source
-            if len(panels)==len(recipe['panels']):contents['index.html']=assemble(shell,panels)
+            if len(panels)==len(recipe['panels']):contents['index.html']=compose_document(shell,nodes,panels) if nodes else assemble(shell,panels)
         else:contents[path]=(prior+'\n'+source).strip()+'\n'
         await emit('code',{'path':root+'/'+path,'content':contents.get(path,source),'draft':True})
     errors=projects.inspect_html(contents['index.html'],required_ids=recipe['required_ids'],strict=True)['errors']

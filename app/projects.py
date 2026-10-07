@@ -58,6 +58,24 @@ def inspect_html(html,required_ids=(),strict=False,required_controls=None):
             'note':'Pemeriksaan struktur dan tautan. Tampilan/interaksi perlu diuji browser; backend hanya dianggap terhubung bila diuji nyata.'}
 
 
+def inspect_css(source):
+    """Syntax guard, not a claim about browser layout or supported property values."""
+    import tinycss2
+    errors=[]
+    def visit(entries):
+        for entry in entries:
+            if entry.type=='error':errors.append(f'CSS line {entry.source_line}: {entry.message}')
+            elif entry.type in ('qualified-rule','at-rule') and entry.content is not None:
+                visit(tinycss2.parse_blocks_contents(entry.content,skip_comments=True,skip_whitespace=True))
+            elif entry.type=='declaration':
+                if not entry.name.startswith('--') and any(t.type=='literal' and t.value==':' for t in entry.value):
+                    errors.append(f'CSS line {entry.source_line}: extra colon in {entry.name}; separate declarations with semicolons, no prose in values.')
+                for token in entry.value:
+                    if token.type=='error':errors.append(f'CSS line {token.source_line}: {token.message}')
+    visit(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
+    return errors[:12]
+
+
 async def inspect_inline_js(html):
     from . import tools
     errors=[]
@@ -230,7 +248,9 @@ async def generate(brief, ctx, on_event=None):
         async def source_errors(value):
             problems=[]
             if result.get('stats',{}).get('finish_reason') in ('length','max_tokens'):problems.append('Response exceeded output token budget.')
-            if path.endswith('.css') and (re.search(r'<[a-z!/][^>]*>',value,re.I) or value.count('{')!=value.count('}')):problems.append('CSS file contains HTML or unmatched braces.')
+            if path.endswith('.css'):
+                if re.search(r'<[a-z!/][^>]*>',value,re.I) or value.count('{')!=value.count('}'):problems.append('CSS file contains HTML or unmatched braces.')
+                problems.extend(inspect_css(value))
             if path.endswith('.js'):
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=value.encode(),project=True)
                 if not checked.startswith('[kode keluar 0]'):problems.append(checked[-1800:])
