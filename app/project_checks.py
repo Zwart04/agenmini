@@ -6,7 +6,7 @@ They are not a browser, and passing them cannot prove import/export behavior.
 import json
 from . import tools
 
-CHECKS = {'time_format', 'status', 'busy'}
+CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy'}
 RUNNER = r'''
 const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
@@ -32,6 +32,8 @@ process.stdin.on('end',()=>{
       function assert(value,message){if(!value)failures.push(message);}
     `;
     const cases={
+      normalize_seconds:`for(const value of [NaN,Infinity,-Infinity,-1,-0.1,null,undefined,'65',{},true])assert(normalizeSeconds(value)===0,'normalizeSeconds invalid input '+String(value)+' must return 0');for(let i=0;i<41;i++){const value=(i*83+7)/3;const actual=normalizeSeconds(value);assert(actual===Math.floor(value),'normalizeSeconds('+value+') must return '+Math.floor(value)+' [observed '+JSON.stringify(actual)+']');}`,
+      seconds_clock:`for(const total of [0,1,9,59,60,65,599,3599,3600,...Array.from({length:41},(_,i)=>i*83+7)]){const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');const actual=secondsToClock(total);assert(actual===expected,'secondsToClock('+total+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}`,
       time_format:`for(const [value,expected] of [[0,'00:00'],[65,'01:05'],[65.9,'01:05'],[-1,'00:00'],[NaN,'00:00'],[Infinity,'00:00'],[3599,'59:59']]) {const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}for(let i=0;i<41;i++){const value=(i*83+7)/3;const total=Math.floor(value);const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}`,
       status:`setStatus('failed',true);assert(ui.status.textContent==='failed'&&ui.status.classList.contains('error'),'Error text/class not set');setStatus('failed again',true);assert(ui.status.classList.contains('error'),'Repeated errors must keep error class');setStatus('ready');assert(ui.status.textContent==='ready'&&!ui.status.classList.contains('error'),'Success must clear previous error class');`,
       busy:`for(const loaded of [false,true])for(const flag of [false,true]){app.loaded=loaded;setBusy(flag);assert(app.loaded===loaded,'setBusy must preserve loaded state');assert(app.busy===flag,'busy state mismatch');assert(ui.fileInput.disabled===flag,'fileInput.disabled expected '+flag+' when busy='+flag+' loaded='+loaded+'; actual='+ui.fileInput.disabled);for(const id of ['playBtn','seekInput','startInput','endInput','exportBtn'])assert(ui[id].disabled===(flag||!loaded),id+'.disabled expected '+(flag||!loaded)+' when busy='+flag+' loaded='+loaded);assert(ui.cancelBtn.hidden===!flag,'Cancel visibility mismatch');}`

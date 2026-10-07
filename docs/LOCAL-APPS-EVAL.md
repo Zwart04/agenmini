@@ -443,3 +443,39 @@ serta jumlah diagnostik; jurnal mempertahankan diagnostik guard yang diterima
 (hingga 12 contoh), dan seluruh kasus uji tetap dijalankan. `v22` masih gagal
 setelah 108,9 detik pada sintaks/aritmetika formatter. **151 tes terkait
 harness/proyek lolos di Windows**; belum ada editor lengkap yang lulus browser.
+
+### Pemecahan helper dan konteks fungsi
+
+Formatter kini dipecah menjadi tiga fungsi yang seluruh implementasinya tetap
+ditulis model: normalisasi detik, format bilangan detik menjadi menit/detik,
+dan penggabungan keduanya. Guard menguji normalisasi pada 51 input dan format
+detik pada 50 input; pemeriksaan formatter akhir tetap memakai kasus pecahan,
+negatif, NaN, Infinity, dan variasi nilai. Fixture penguji tidak dimasukkan ke
+aplikasi. Dependensi pemeriksaan diambil dari bagian sumber model yang sudah
+diterima, tanpa menyisipkan deklarasi app/ui atau implementasi buatan evaluator.
+
+Prompt dapat membatasi daftar fungsi yang relevan. Fungsi murni tidak perlu
+menerima signature helper lain, sedangkan formatter gabungan hanya menerima
+signature kedua dependensinya. Deklarasi fungsi ganda dan helper tambahan
+ditolak sebelum perakitan; model diminta menulis ulang bagian lengkap.
+Pengujian jalur tersebut mencakup backend lokal, API online, dan router.
+
+Bukti inferensi CPU nyata dengan Qwen3.5 0.8B Q8_0, reasoning 256:
+
+- `v23` gagal normalisasi setelah 85,4 detik: NaN/Infinity tidak ditangani,
+  patch merusak sintaks, dan respons pengganti terpotong.
+- `v24` lolos normalisasi setelah instruksi dibuat berurutan. Formatter detik
+  tetap gagal: padding hilang, patch tidak berubah, regenerasi terpotong.
+- `v25` gagal setelah 69,4 detik. Konteks fungsi lebih kecil belum cukup:
+  model menambah helper/duplikasi dan memakai string padding kosong.
+- `v26` gagal setelah 85,5 detik. Percobaan pertama menulis fungsi dengan
+  padding benar tetapi mengulang deklarasinya empat kali. Respons berikutnya
+  kembali menambah helper; respons akhir mengembalikan Promise dan memanggil
+  padStart yang tidak didefinisikan. Kegagalan tetap dilaporkan sebagai gagal.
+
+Pembanding LFM2.5 1.17B Q4, profil sampling lfm25, `v9` gagal setelah 9,8 detik
+pada dokumen: script app.js hilang, lalu regenerasi menghasilkan penjelasan.
+Tidak ada ZIP editor berhasil dari putaran ini. **155 tes terkait lolos di
+Windows**. Impor, playback, trim, teks dan ekspor WebM editor lengkap belum
+terbukti. Eksperimen tetap opt-in; angka tes bukan bukti kualitas aplikasi
+atau kecerdasan setara model besar.

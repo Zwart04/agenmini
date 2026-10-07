@@ -174,8 +174,11 @@ def part_contract_errors(source, item):
         if not re.search(r'[\"\']?\b'+re.escape(ident)+r'[\"\']?\s*:\s*document\.getElementById\(\s*[\"\']'+re.escape(ident)+r'[\"\']\s*\)',source):
             errors.append('Missing ui reference '+ident+' mapped to document.getElementById of the same ID.')
     if item.get('functions'):
-        unexpected=set(re.findall(r'\bfunction\s+(\w+)\s*\(',source))-set(item['functions'])
+        declarations=re.findall(r'\bfunction\s+(\w+)\s*\(',source)
+        unexpected=set(declarations)-set(item['functions'])
         if unexpected:errors.append('Do not redefine other helpers: '+', '.join(sorted(unexpected)))
+        for fn in item['functions']:
+            if declarations.count(fn)>1:errors.append('Duplicate requested function declaration: '+fn)
         comments='\n'.join(re.findall(r'/\*.*?\*/|//[^\n]*',source,re.S))
         if re.search(r'\b(?:simulate|simulation|placeholder|TODO)\b',comments,re.I):
             errors.append('A working implementation is required, not simulated handlers or placeholder code.')
@@ -243,12 +246,14 @@ def part_contract_errors(source, item):
     return errors
 
 
-def js_contract_context(prior, relevant=None):
+def js_contract_context(prior, relevant=None, functions=None):
     """Supply actual declarations and function signatures, not implementations to copy."""
     globals_=re.findall(r'\b(?:const|let|var)\s+(app|ui)\s*=\s*\{([^}]+)\}',prior,re.S)
     fields={name:[quoted or plain for quoted,plain in re.findall(r'''(?:["'](\w+)["']|\b(\w+))\s*:''',body)] for name,body in globals_}
     if relevant:fields={name:[key for key in keys if key in relevant.get(name,keys)] for name,keys in fields.items()}
     signatures=re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
+    if functions is not None:
+        signatures=[signature for signature in signatures if re.search(r'\bfunction\s+(\w+)',signature)[1] in functions]
     return json.dumps({'globals':fields,'existing_functions':signatures},ensure_ascii=False)
 
 
@@ -364,7 +369,7 @@ def compose_document(shell,nodes,panels):
 
 async def generate(brief,ctx,on_event=None):
     recipe=json.loads((Path(__file__).parent/'project_recipes'/'video_editor.json').read_text(encoding='utf-8'))
-    root='project-'+str(time.time_ns());contents={};panels={};nodes={};evidence=[];stats={};shell=''
+    root='project-'+str(time.time_ns());contents={};panels={};nodes={};evidence=[];stats={};shell='';helper_sources={}
     async def emit(kind,value):
         if on_event:await on_event(kind,value)
     for step,item in enumerate(recipe['parts']):
@@ -390,7 +395,7 @@ async def generate(brief,ctx,on_event=None):
             # invite small models to style the whole application again.
         if kind=='js':
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
-            context['previous_source']=js_contract_context(prior,item.get('relevant_fields'))
+            context['previous_source']=js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
             if item.get('include_html') is False:context.pop('current_html')
             else:
                 dom=projects.Document();dom.feed(contents.get('index.html',''))
@@ -417,7 +422,7 @@ async def generate(brief,ctx,on_event=None):
                 if attempt and source_patchable and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=(js_contract_context(prior,item.get('relevant_fields'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
+                        contracts=(js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
                     schema=css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
@@ -465,6 +470,7 @@ async def generate(brief,ctx,on_event=None):
             missing_structure=False
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
+            if kind=='js' and any(error.startswith(('Do not redefine other helpers:','Duplicate requested function declaration:')) for error in errors):missing_structure=True
             if kind in ('node','panel') and any(error.startswith(('Fragment closing tag ','Fragment has unclosed HTML tags:','Fragment must be an empty container','Root class ','Duplicate HTML attributes')) for error in errors):syntax_bad=True
             if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
@@ -505,8 +511,12 @@ async def generate(brief,ctx,on_event=None):
                         errors.append('Define complete named function '+fn+'.');missing_structure=True
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
                 if not errors:
+                    dependencies=item.get('behavior_dependencies',[])
+                    missing=[fn for fn in dependencies if fn not in helper_sources]
+                    if missing:errors.append('Missing validated helper dependencies: '+', '.join(missing))
+                    helper_source='\n'.join(dict.fromkeys(helper_sources[fn] for fn in dependencies if fn in helper_sources))
                     for check in item.get('behavior_checks',[]):
-                        errors+=await project_checks.inspect_helper(source,check)
+                        if not missing:errors+=await project_checks.inspect_helper(helper_source+'\n'+source,check)
             errors=list(dict.fromkeys(errors))
             old_cases={helper_failure_identity(error) for error in previous_errors if error.startswith('Helper behavior failed: ')}
             new_cases={helper_failure_identity(error) for error in errors if error.startswith('Helper behavior failed: ')}
@@ -531,12 +541,14 @@ async def generate(brief,ctx,on_event=None):
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],
             **({'origin_raw_source':origin_raw,'repair_chain':repair_chain} if repair_chain else {})})
+        if kind=='js':
+            for fn in item.get('functions',[]):helper_sources[fn]=source
         if kind in ('shell','document'):shell=source
         elif kind=='node':nodes[item['slot']]=source
         elif kind=='shellchunk':shell+='\n'+source

@@ -724,6 +724,9 @@ def test_js_context_keeps_contracts_without_previous_implementation():
     context=json.loads(project_parts.js_contract_context("const app={loaded:false}; const ui={preview:document.getElementById('preview')}; function loadVideo(file){ throw new Error('do not copy'); }"))
     assert context=={'globals':{'app':['loaded'],'ui':['preview']},'existing_functions':['function loadVideo(file)']}
     assert 'do not copy' not in str(context)
+    prior='function normalizeSeconds(value){return 0;} async function unrelated(file){throw "secret implementation";}'
+    assert json.loads(project_parts.js_contract_context(prior,functions=[]))['existing_functions']==[]
+    assert json.loads(project_parts.js_contract_context(prior,functions=['normalizeSeconds']))['existing_functions']==['function normalizeSeconds(value)']
     assert json.loads(project_parts.js_contract_context('const app={"loaded":false};'))['globals']=={'app':['loaded']}
     assert not project_parts.part_contract_errors('const ui={"preview":document.getElementById("preview")}',{'dom_refs':['preview']})
     assert json.loads(project_parts.js_contract_context('const app={busy:false,loaded:false,canvas:null};',{'app':['busy','loaded']}))['globals']=={'app':['busy','loaded']}
@@ -732,6 +735,8 @@ def test_js_context_keeps_contracts_without_previous_implementation():
 
 
 def test_js_rejects_invented_shared_state_and_browser_methods():
+    assert project_parts.part_contract_errors('function f(){return 1;} function f(){return 2;}',{'functions':['f']})==['Duplicate requested function declaration: f']
+    assert not project_parts.part_contract_errors('function f(){return 1;} function g(){return 2;}',{'functions':['f','g']})
     prior="const app={loaded:false,ctx:null}; const ui={preview:null};"
     assert project_parts.js_shared_reference_errors('app.paused=true; app.audioContext.createMediaSource();',prior)
     assert project_parts.js_shared_reference_errors('ui.missing.play()',prior)
@@ -783,6 +788,75 @@ async def test_helper_behavior_rejects_wrong_time_and_missing_shared_controls():
     assert await project_checks.inspect_helper('function formatTime(value){return "00:00"}', 'time_format')
     assert await project_checks.inspect_helper('function setBusy(flag){fileInput.disabled=flag}', 'busy')
     with pytest.raises(ValueError):await project_checks.inspect_helper('anything','untrusted-check')
+
+
+@pytest.mark.asyncio
+async def test_decomposed_time_helpers_reject_coercion_and_wrong_arithmetic():
+    normalize='function normalizeSeconds(value){return Number.isFinite(value)&&value>=0?Math.floor(value):0;}'
+    clock='function secondsToClock(total){return String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");}'
+    formatter='function formatTime(value){return secondsToClock(normalizeSeconds(value));}'
+    assert not await project_checks.inspect_helper(normalize,'normalize_seconds')
+    assert await project_checks.inspect_helper('function normalizeSeconds(value){return Math.floor(Number(value))||0;}','normalize_seconds')
+    assert not await project_checks.inspect_helper(clock,'seconds_clock')
+    assert await project_checks.inspect_helper('function secondsToClock(total){return "00:"+total;}','seconds_clock')
+    assert not await project_checks.inspect_helper(normalize+'\n'+clock+'\n'+formatter,'time_format')
+    assert await project_checks.inspect_helper(formatter,'time_format')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_behavior_dependencies_use_only_accepted_model_functions(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    sources=['const app={loaded:false}; const ui={};',
+             'function normalizeSeconds(value){return Number.isFinite(value)&&value>=0?Math.floor(value):0;}',
+             'function secondsToClock(total){return String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");}',
+             'function formatTime(value){return secondsToClock(normalizeSeconds(value));}']
+    parts=[{'name':'Globals','file':'app.js','kind':'js','task':'Define state'},
+           *[{'name':fn,'file':'app.js','kind':'js','task':'Write '+fn,'functions':[fn]} for fn in ('normalizeSeconds','secondsToClock')],
+           {'name':'Formatter','file':'app.js','kind':'js','task':'Compose helpers','functions':['formatTime'],
+            'behavior_dependencies':['normalizeSeconds','secondsToClock'],'behavior_checks':['time_format']}]
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':parts,'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[]
+    async def model(messages,**options):
+        source=sources[len(calls)];calls.append(messages)
+        return {'content':source if len(calls)==1 else json.dumps({'source':source}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part' and value['index']==3:
+            assert value['source']==sources[3]
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested editor',object(),event)
+    assert len(calls)==4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_duplicate_model_function_is_regenerated_before_assembly(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Helper','file':'app.js','kind':'js','task':'Write one function helper','functions':['helper']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[];good='function helper(value){return value;}'
+    async def model(messages,**options):
+        if calls:
+            assert 'Duplicate requested function declaration' in messages[1]['content']
+            if backend=='local':assert options['fmt']['json_schema']['name']=='js_source'
+            else:assert options['fmt']=='json'
+        calls.append(messages)
+        source='function helper(){return "old";} function helper(){return "overridden";}' if len(calls)==1 else good
+        return {'content':json.dumps({'source':source}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==good and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested editor',object(),event)
+    assert len(calls)==2
 
 
 @pytest.mark.asyncio

@@ -894,21 +894,68 @@
       ]
     },
     {
-      "name": "Time formatter",
       "file": "app.js",
       "kind": "js",
-      "tokens": 450,
+      "tokens": 600,
       "include_html": false,
       "relevant_fields": {
         "app": [],
         "ui": []
       },
+      "name": "Normalize duration",
+      "functions": [
+        "normalizeSeconds"
+      ],
+      "task": "Write only complete function normalizeSeconds(value). Algorithm in order: (1) if Number.isFinite(value) returns false, return numeric 0; (2) if value is less than 0, return numeric 0; (3) otherwise return Math.floor(value). Number.isFinite rejects strings, null, undefined, NaN and Infinity without coercion. typeof is insufficient because NaN and Infinity are numbers. No globals, classes or other functions.",
+      "behavior_checks": [
+        "normalize_seconds"
+      ],
+      "context": "This is a pure numeric helper. It does not use app, ui, DOM or existing state."
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 600,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "name": "Whole seconds clock",
+      "functions": [
+        "secondsToClock"
+      ],
+      "task": "Write only complete function secondsToClock(total). Input is a nonnegative whole integer. Steps in order: compute whole minutes using Math.floor(total / 60); compute remaining seconds using total % 60; convert each result to String; pad each string to width 2 using padStart with zero; join the two padded strings with a colon and return it. 0 gives 00:00, 65 gives 01:05. Do not define a separate padding helper. No other functions, globals or template literals. The padding character must be the literal string \"0\", never an empty string or a space. Use each string object's padStart method, not a new function called padStart.",
+      "behavior_checks": [
+        "seconds_clock"
+      ],
+      "context": "Pure numeric formatting helper, independent of existing state or functions.",
+      "relevant_functions": []
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 350,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "name": "Time formatter",
       "functions": [
         "formatTime"
       ],
-      "task": "Write only function formatTime(value). Return mm:ss for a duration in seconds. First reject negative or nonfinite input: use Number.isFinite, because NaN has typeof number. Invalid values (NaN, Infinity, -1) must return 00:00. For valid input round down to whole seconds, divide by60 for minutes and take remainder for seconds; pad both to two digits. Examples: 0 -> 00:00; 65.9 -> 01:05; 3599 -> 59:59. No globals, classes, other functions, explanations or state changes.",
+      "task": "Write only complete function formatTime(value). Use existing validated helpers: normalizeSeconds(value) returns safe nonnegative whole seconds, secondsToClock(total) converts whole seconds into mm:ss. Pass normalized seconds into the clock helper and return its result. Do not redefine helpers, repeat their arithmetic, change globals or introduce classes.",
+      "behavior_dependencies": [
+        "normalizeSeconds",
+        "secondsToClock"
+      ],
       "behavior_checks": [
         "time_format"
+      ],
+      "relevant_functions": [
+        "normalizeSeconds",
+        "secondsToClock"
       ]
     },
     {
