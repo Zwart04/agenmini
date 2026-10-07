@@ -1013,3 +1013,99 @@ async def test_helper_behavior_rejects_implicit_global_assignments():
     errors=await project_checks.inspect_helper('function setBusy(flag){app.busy=flag;blocked=flag||!app.loaded;}', 'busy')
     assert errors and any('blocked is not defined' in error for error in errors)
     assert await project_checks.inspect_helper('function setStatus(message){accidentalStatus=message;ui.status.textContent=message;}', 'status')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_raw_model_helper_keeps_code_and_provenance_without_json_envelope(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Helper','file':'app.js','kind':'js','task':'Write helper','functions':['helper'],'include_html':False,'raw_source':True}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='function helper(value) { return `🎬 ${value}`; }'
+    async def model(messages,**options):
+        assert 'fmt' not in options
+        assert 'Output raw source only' in messages[0]['content']
+        assert 'OWNER_GOAL:' not in messages[1]['content']
+        assert 'CURRENT_HTML:' not in messages[1]['content']
+        assert 'TASK:' in messages[1]['content']
+        return {'content':source,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==source and value['raw_source']==source
+            assert value['evidence']['raw_sha256']==project_patches.digest(source)
+            assert project_parts.reusable_part(value,{**item,'generation_contract_revision':2})
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)
+
+
+def test_callable_bindings_accept_arrows_without_rewriting_and_exclude_nested_names():
+    source='const loaded = async (file) => { const nested = () => 9; return file; }; const ready = function inner() { return 4; };'
+    assert project_parts.callable_names(source)==['loaded','ready']
+    assert not project_parts.part_contract_errors(source,{'kind':'js','functions':['loaded','ready']})
+    assert project_parts.callable_names('const loaded = 4; const obj = {ready(){}};')==[]
+    item={'kind':'js','functions':['ready'],'behavior_checks':['status']}
+    span='const ready = message => { return message; };'
+    assert project_parts.select_model_helper('function extra(){return 2;} '+span,item)==span
+    assert project_parts.select_model_helper('const ready = (a)=>a; const ready = (a)=>a+1;',item).count('ready')==2
+
+
+@pytest.mark.asyncio
+async def test_arrow_binding_still_requires_real_behavior():
+    source='const setStatus = (message,isError=false) => { ui.status.textContent=message; ui.status.classList.toggle("error",isError); };'
+    assert not await project_checks.inspect_helper(source,'status')
+    assert await project_checks.inspect_helper('const setStatus = () => {};','status')
+
+
+def test_shared_state_shadowing_is_rejected_but_first_declarations_remain_allowed():
+    prior='const app={loaded:false};const ui={preview:null};'
+    for source in ('function f(){const app={};}', 'const f = (ui) => ui;', 'function f(){const {app}=other;}', 'try{}catch(ui){}'):
+        assert any('Do not shadow existing shared state' in error for error in project_parts.js_shared_reference_errors(source,prior))
+    assert not project_parts.js_shared_reference_errors('function f(){const note="ui";app.loaded=true;}',prior)
+    assert not project_parts.js_shared_reference_errors('const app={loaded:false};','')
+    assert not project_parts.js_shared_reference_errors('const ui={preview:null};','const app={loaded:false};')
+
+
+@pytest.mark.asyncio
+async def test_release_urls_checks_actual_revocation_and_preserves_unrelated_state():
+    assert await project_checks.inspect_helper('function releaseVideoUrls(){app.objectURL=null;app.downloadURL=null;}','release_urls')
+    source='function releaseVideoUrls(){for(const key of ["objectURL","downloadURL"]){if(app[key])URL.revokeObjectURL(app[key]);app[key]=null;}}'
+    assert not await project_checks.inspect_helper(source,'release_urls')
+    assert await project_checks.inspect_helper(source.replace('app[key]=null;','app[key]=null;app.loaded=false;'),'release_urls')
+
+
+@pytest.mark.asyncio
+async def test_video_failure_requires_error_class_not_just_error_text():
+    dependencies='function setBusy(flag){app.busy=flag;}function setStatus(message,error=false){ui.status.textContent=message;ui.status.classList.toggle("error",error);}'
+    assert await project_checks.inspect_helper(dependencies+'function videoLoadFailed(){app.loaded=false;setBusy(false);setStatus("Video failed");}','video_load_error')
+    assert not await project_checks.inspect_helper(dependencies+'function videoLoadFailed(){app.loaded=false;setBusy(false);setStatus("Video failed",true);}','video_load_error')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_shadowed_shared_state_requests_fresh_source_instead_of_patch(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    items=[{'name':'State','kind':'js','file':'app.js','task':'Declare app','raw_source':True,'include_html':False},
+           {'name':'Helper','kind':'js','file':'app.js','task':'Update outer loaded','raw_source':True,'include_html':False,'functions':['helper']}]
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':items,'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[]
+    responses=['const app={loaded:false};','function helper(){const app={};app.loaded=true;}','function helper(){app.loaded=true;}']
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==3:
+            assert 'Write a fresh complete source part' in messages[1]['content']
+            assert 'Do not shadow existing shared state app' in messages[1]['content']
+        return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part' and value['index']==1:
+            assert value['source']==responses[2]
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==3

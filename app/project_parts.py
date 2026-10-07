@@ -24,17 +24,38 @@ const input=JSON.parse(fs.readFileSync(0,'utf8'));
 try{
  const ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'script'});
  if(input.mode==='contracts'){
-  const globals={},functions=[];
+  const globals={},functions=[],shadowed=new Set();
+  function bindingNames(node){
+   if(!node)return [];
+   if(node.type==='Identifier')return [node.name];
+   if(node.type==='RestElement')return bindingNames(node.argument);
+   if(node.type==='AssignmentPattern')return bindingNames(node.left);
+   if(node.type==='ArrayPattern')return node.elements.flatMap(bindingNames);
+   if(node.type==='ObjectPattern')return node.properties.flatMap(p=>bindingNames(p.type==='RestElement'?p.argument:p.value));
+   return [];
+  }
+  function walk(node){
+   if(!node||typeof node!=='object')return;
+   let names=[];
+   if(node.type==='VariableDeclarator')names=bindingNames(node.id);
+   if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))names=[...bindingNames(node.id),...node.params.flatMap(bindingNames)];
+   if(node.type==='CatchClause')names=bindingNames(node.param);
+   for(const name of names)if(['app','ui'].includes(name))shadowed.add(name);
+   for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);
+  }
+  walk(ast);
   for(const node of ast.body){
    if(node.type==='VariableDeclaration')for(const declaration of node.declarations){
     if(['app','ui'].includes(declaration.id.name)&&declaration.init?.type==='ObjectExpression')
      globals[declaration.id.name]=declaration.init.properties.filter(p=>p.type==='Property'&&!p.computed).map(p=>p.key.name??p.key.value).filter(k=>typeof k==='string');
+    if(declaration.id.type==='Identifier'&&['ArrowFunctionExpression','FunctionExpression'].includes(declaration.init?.type))
+     functions.push((declaration.init.async?'async ':'')+'function '+declaration.id.name+'('+declaration.init.params.map(p=>input.source.slice(p.start,p.end)).join(',')+')');
    }
    if(node.type==='FunctionDeclaration')functions.push(input.source.slice(node.start,node.body.start).trim());
   }
-  console.log(JSON.stringify({globals,existing_functions:functions}));
+  console.log(JSON.stringify({globals,existing_functions:functions,shadowed_state:[...shadowed]}));
  }else{
- const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name);
+ const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
  const spans=choices.map(n=>input.source.slice(n.start,n.end));
  if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
  else console.log(JSON.stringify({source:spans[0]??input.source}));
@@ -147,7 +168,7 @@ def select_model_helper(source,item):
 
 def parsed_js_contracts(source):
     """Read top-level property names through syntax, never execute declarations."""
-    if not source.strip():return {'globals':{},'existing_functions':[]}
+    if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[]}
     if len(source.encode())>65536:return None
     try:
         result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
@@ -156,9 +177,16 @@ def parsed_js_contracts(source):
             **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
         if result.returncode:return None
         value=json.loads(result.stdout)
-        if set(value)=={'globals','existing_functions'}:return value
+        if set(value)=={'globals','existing_functions','shadowed_state'}:return value
     except (OSError,subprocess.TimeoutExpired,ValueError):pass
     return None
+
+
+def callable_names(source):
+    """Recognize complete top-level callable bindings without rewriting code."""
+    parsed=parsed_js_contracts(source)
+    if parsed is None:return re.findall(r'\bfunction\s+(\w+)\s*\(',source)
+    return [re.search(r'\bfunction\s+(\w+)',signature)[1] for signature in parsed['existing_functions']]
 
 
 def duplicate_declaration_repairable(source,item,errors):
@@ -264,7 +292,7 @@ def part_contract_errors(source, item):
         if not re.search(r'[\"\']?\b'+re.escape(ident)+r'[\"\']?\s*:\s*document\.getElementById\(\s*[\"\']'+re.escape(ident)+r'[\"\']\s*\)',source):
             errors.append('Missing ui reference '+ident+' mapped to document.getElementById of the same ID.')
     if item.get('functions'):
-        declarations=re.findall(r'\bfunction\s+(\w+)\s*\(',source)
+        declarations=callable_names(source)
         unexpected=set(declarations)-set(item['functions'])
         if unexpected:errors.append('Do not redefine other helpers: '+', '.join(sorted(unexpected)))
         for fn in item['functions']:
@@ -351,6 +379,9 @@ def js_contract_context(prior, relevant=None, functions=None):
 def js_shared_reference_errors(source, prior):
     fields=json.loads(js_contract_context(prior))['globals']
     errors=[]
+    parsed=parsed_js_contracts(source)
+    if parsed is not None:
+        errors += ['Do not shadow existing shared state '+name+'; use the outer declaration.' for name in parsed['shadowed_state'] if name in fields]
     for obj,key in sorted(set(re.findall(r'\b(app|ui)\.(\w+)',source))):
         if obj in fields and key not in fields[obj]:
             errors.append('Undefined shared field '+obj+'.'+key+'; use the declared contracts.')
@@ -489,7 +520,12 @@ async def generate(brief,ctx,on_event=None):
         if kind=='js':
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
             context['previous_source']=js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
-            if item.get('include_html') is False:context.pop('current_html')
+            if item.get('include_html') is False:
+                context.pop('current_html')
+                # A narrow helper contract is already derived from the owner
+                # goal. Repeating the whole app request invites a tiny model
+                # to rebuild the editor instead of writing this function.
+                context.pop('owner_goal')
             else:
                 dom=projects.Document();dom.feed(contents.get('index.html',''))
                 context['dom_controls']=json.dumps(dom.elements,ensure_ascii=False)
@@ -518,7 +554,7 @@ async def generate(brief,ctx,on_event=None):
                         contracts=(js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
-                    schema=css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
+                    schema=None if item.get('raw_source') else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
                     generation_system=system
                     options={}
                     if schema:
@@ -568,7 +604,7 @@ async def generate(brief,ctx,on_event=None):
             missing_structure=False
             if patch_error:errors.extend([patch_error,*previous_errors])
             errors+=part_contract_errors(source,item)
-            if kind=='js' and any(error.startswith(('Do not redefine other helpers:','Duplicate requested function declaration:')) for error in errors):missing_structure=True
+            if kind=='js' and any(error.startswith(('Do not redefine other helpers:','Duplicate requested function declaration:','Do not shadow existing shared state ')) for error in errors):missing_structure=True
             if kind in ('node','panel') and any(error.startswith(('Fragment closing tag ','Fragment has unclosed HTML tags:','Fragment must be an empty container','Root class ','Duplicate HTML attributes')) for error in errors):syntax_bad=True
             if extraction_error:errors.append(extraction_error)
             if not source or stats.get('finish_reason') in ('length','max_tokens'):errors.append('Source empty or truncated; finish the part concisely.')
@@ -601,11 +637,14 @@ async def generate(brief,ctx,on_event=None):
                     errors.append('CSS only; close all rules.');syntax_bad=True
                 css_errors=projects.inspect_css(source);errors+=css_errors;syntax_bad=syntax_bad or bool(css_errors)
             elif kind=='js':
-                errors+=js_shared_reference_errors(source,prior)
+                shared_errors=js_shared_reference_errors(source,prior)
+                errors+=shared_errors
+                if any(error.startswith('Do not shadow existing shared state ') for error in shared_errors):missing_structure=True
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=(prior+'\n'+source).encode(),project=True)
                 if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:]);syntax_bad=True
+                bindings=callable_names(source)
                 for fn in item.get('functions',[]):
-                    if not re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source):
+                    if fn not in bindings:
                         errors.append('Define complete named function '+fn+'.');missing_structure=True
                 if re.search(r'module\.exports|\brequire\s*\(',source):errors.append('Browser source only; no Node exports/require.')
                 if not errors:

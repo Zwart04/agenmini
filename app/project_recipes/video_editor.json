@@ -981,7 +981,7 @@
       "functions": [
         "setBusy"
       ],
-      "task": "Write only synchronous function setBusy(flag), at most 14 lines. Compute a busy Boolean from flag and store it in app.busy. ui.fileInput.disabled equals busy. Declare one local const blocked Boolean: busy OR NOT app.loaded. Assign blocked to disabled on ui.playBtn, ui.seekInput, ui.startInput, ui.endInput, ui.exportBtn. ui.cancelBtn.hidden is NOT busy. Do not change app.loaded. Use direct assignments, no comments, loops, early returns, additional functions or initialization code.",
+      "task": "Write only complete function setBusy(flag), at most 12 lines. Store Boolean(flag) in app.busy. Set ui.fileInput.disabled to app.busy. Set disabled separately on ui.playBtn, ui.seekInput, ui.startInput, ui.endInput, ui.exportBtn: each is app.busy OR NOT app.loaded. Set ui.cancelBtn.hidden to NOT app.busy. Use direct property assignments only. No new variables, if statements, loops, comments, helper functions or globals. Never change app.loaded.",
       "behavior_checks": [
         "busy"
       ],
@@ -1003,19 +1003,112 @@
           "cancelBtn"
         ]
       },
-      "system_contract": "app.loaded is a read-only input controlled by video metadata. Busy=false does NOT imply loaded=true. Do not assign or reset app.loaded. Only update app.busy and the listed UI properties.",
+      "system_contract": "app.loaded is a read-only input controlled by video metadata. Busy=false does NOT imply loaded=true. Do not assign or reset app.loaded. Only update app.busy and the listed UI properties. Existing app and ui are already declared outside this function. Do not declare local replacements. Every new variable must use const or let. Output only the requested function, without JSON or sample calls.",
       "context": "Synchronous UI state update. app.loaded is a boolean read-only input. No existing helper calls are needed.",
-      "relevant_functions": []
+      "relevant_functions": [],
+      "raw_source": true
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "include_html": false,
+      "raw_source": true,
+      "context": "Existing app/ui state and helper signatures are supplied. Write only the requested complete named function. Do not redeclare app or ui.",
+      "system_contract": "Use function declaration syntax. Do not define other functions or new globals. Every local variable must use const or let.",
+      "name": "Release prior media URLs",
+      "tokens": 300,
+      "functions": [
+        "releaseVideoUrls"
+      ],
+      "relevant_fields": {
+        "app": [
+          "objectURL",
+          "downloadURL"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "task": "Write only function releaseVideoUrls(). For each app.objectURL and app.downloadURL, if present call URL.revokeObjectURL on that URL. Then set both fields to null. Do not touch other state or UI. At most 8 lines.",
+      "behavior_checks": [
+        "release_urls"
+      ]
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "include_html": false,
+      "raw_source": true,
+      "context": "Existing app/ui state and helper signatures are supplied. Write only the requested complete named function. Do not redeclare app or ui.",
+      "system_contract": "Use function declaration syntax. Do not define other functions or new globals. Every local variable must use const or let.",
+      "name": "Video metadata ready",
+      "tokens": 700,
+      "functions": [
+        "videoMetadataReady"
+      ],
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "duration",
+          "start",
+          "end",
+          "filename"
+        ],
+        "ui": [
+          "preview",
+          "startInput",
+          "endInput",
+          "seekInput",
+          "clipLabel",
+          "durationLabel"
+        ]
+      },
+      "relevant_functions": [
+        "formatTime",
+        "setStatus",
+        "setBusy"
+      ],
+      "task": "Write only function videoMetadataReady(). Store ui.preview.duration seconds into app.duration. Set app.start=0, app.end=app.duration, app.loaded=true. Set ui.startInput.value=0, ui.endInput.value=app.duration, ui.seekInput.max=app.duration, ui.seekInput.value=0. Set ui.clipLabel.textContent=app.filename, ui.durationLabel.textContent=formatTime(app.duration). Finally call setBusy(false), setStatus Ready, updateTimeline(), updateText(). Last two helpers are supplied later; do not implement them. No new variables, event handlers, URLs or other functions. At most 18 lines."
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "include_html": false,
+      "raw_source": true,
+      "context": "Existing app/ui state and helper signatures are supplied. Write only the requested complete named function. Do not redeclare app or ui.",
+      "system_contract": "Use function declaration syntax. Do not define other functions or new globals. Every local variable must use const or let.",
+      "name": "Video load failure",
+      "tokens": 180,
+      "functions": [
+        "videoLoadFailed"
+      ],
+      "relevant_fields": {
+        "app": [
+          "loaded"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "setStatus",
+        "setBusy"
+      ],
+      "task": "Write only function videoLoadFailed(). Set app.loaded=false; call setBusy(false); call setStatus with a descriptive video loading error and true. At most 5 lines.",
+      "behavior_checks": [
+        "video_load_error"
+      ],
+      "behavior_dependencies": [
+        "setBusy",
+        "setStatus"
+      ]
     },
     {
       "name": "Impor media asli",
       "file": "app.js",
       "kind": "js",
-      "tokens": 1100,
+      "tokens": 600,
       "functions": [
         "loadVideo"
       ],
-      "task": "Write only complete loadVideo(file), at most 35 lines. file is a File, not a string. Return while app.busy. Reject absent file or MIME not starting video/ with setStatus error, keeping old video. Revoke existing app.objectURL and app.downloadURL if present. Set app.objectURL using URL.createObjectURL(file), app.filename=file.name, app.loaded=false; hide ui.downloadLink. Assign ui.preview.onloadedmetadata: set app.duration from ui.preview.duration, app.loaded=true, app.start=0, app.end=app.duration; copy bounds into ui.startInput.value and ui.endInput.value; set ui.seekInput.max=app.duration and value=0; ui.clipLabel.textContent=app.filename; ui.durationLabel.textContent=formatTime(app.duration); call setBusy(false), setStatus Ready, updateTimeline(), updateText(). Assign ui.preview.onerror to clear app.loaded, call setBusy(false), setStatus error. Set ui.preview.src=app.objectURL last. No autoplay, recorder, export, DOM creation, globals, other functions or initialization calls. Use only existing app/ui state and browser URL API. Functions updateTimeline() and updateText() are supplied later.",
+      "task": "Write only complete function loadVideo(file), at most 15 lines. Return if app.busy. If file absent or file.type does not start video/, call setStatus error and return, without changing old state. Otherwise call releaseVideoUrls(); set app.objectURL=URL.createObjectURL(file), app.filename=file.name, app.loaded=false. Hide ui.downloadLink. Assign ui.preview.onloadedmetadata=videoMetadataReady and ui.preview.onerror=videoLoadFailed. Assign ui.preview.src=app.objectURL last. Do not call callbacks immediately. No autoplay, new helpers, variables, handlers, recorder or export.",
       "required_patterns": [
         "URL\\.createObjectURL\\s*\\(",
         "\\b(?:onloadedmetadata|loadedmetadata)\\b",
@@ -1026,28 +1119,22 @@
         "app": [
           "busy",
           "loaded",
-          "duration",
-          "start",
-          "end",
           "filename",
-          "objectURL",
-          "downloadURL"
+          "objectURL"
         ],
         "ui": [
           "preview",
-          "startInput",
-          "endInput",
-          "seekInput",
-          "clipLabel",
-          "durationLabel",
           "downloadLink"
         ]
       },
       "relevant_functions": [
-        "formatTime",
-        "setStatus",
-        "setBusy"
-      ]
+        "releaseVideoUrls",
+        "videoMetadataReady",
+        "videoLoadFailed",
+        "setStatus"
+      ],
+      "raw_source": true,
+      "system_contract": " Existing app and ui are already declared outside this function. Do not declare local replacements. Every new variable must use const or let. Output only the requested function, without JSON or sample calls."
     },
     {
       "name": "Playback dan scrub",

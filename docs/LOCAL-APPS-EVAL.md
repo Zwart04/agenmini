@@ -542,3 +542,57 @@ Tes antar-backend memverifikasi jalur harness, bukan kualitas semua provider
 online atau kemampuan setara model besar. Web dan Telegram menggunakan
 agent.Turn yang sama. Tidak ada implementasi editor jadi yang disisipkan oleh
 evaluator, dan sumber hasil model tidak diperbaiki manual agar benchmark lolos.
+
+### Fungsi kecil, binding callable dan state bersama
+
+Bagian tertentu dapat meminta sumber JavaScript langsung (`raw_source`),
+tanpa string JSON. Format sumber disimpan dalam bukti dan replay cache;
+kode tetap ditulis model, lalu diperiksa. Untuk fungsi yang tidak memerlukan
+HTML, prompt tidak mengulang permintaan aplikasi lengkap: tugas bagian dan
+kontrak dependensi sudah memuat kebutuhan yang relevan.
+
+Parser mengenali fungsi deklarasi, arrow function, dan function expression
+yang diikat ke nama tingkat terluar. Signature callable pada metadata dapat
+dinormalisasi, tetapi byte kode keluaran tidak ditulis ulang. Helper bertes
+dapat dipilih dari satu deklarasi variabel yang lengkap menggunakan rentang
+AST aslinya; deklarasi dengan beberapa binding tidak dipotong secara tebakan.
+Kode yang sekadar memberi angka/objek pada nama fungsi tidak dihitung callable.
+
+Guard mendeteksi binding app/ui yang menimpa state bersama, termasuk parameter,
+destructuring, variabel lokal, dan catch. Deklarasi state pertama tetap boleh.
+Penimpaan state meminta regenerasi fungsi lengkap, bukan dua patch tanpa
+perubahan. Impor dipisah menjadi releaseVideoUrls, videoMetadataReady,
+videoLoadFailed, dan loadVideo. Tidak ada implementasi helper yang disisipkan.
+
+Tes perilaku releaseVideoUrls memeriksa empat kombinasi URL: setiap URL yang
+ada benar-benar dicabut tepat sekali, kedua field dikosongkan, state lain
+dipertahankan. Tes videoLoadFailed memakai helper busy/status hasil model
+yang sudah divalidasi untuk memastikan loaded/busy dibersihkan dan kelas
+error diaktifkan. Fixture tersebut hanya penguji, tidak dikirim dalam aplikasi.
+Tes ini belum menggantikan impor dan ekspor di browser nyata.
+
+Bukti inferensi Qwen3.5 0.8B Q8_0 CPU, reasoning 256:
+
+- `v36` gagal setelah 85,4 detik: variabel blocked tidak didefinisikan;
+  patch tidak mengubah kode. Keluaran langsung lebih pendek, belum benar.
+- `v37` gagal setelah 119,3 detik karena UI lokal bernilai null.
+- `v38` kontrol busy lolos semua keadaan dalam strict mode, tetapi impor
+  tetap gagal setelah 189,4 detik karena helper tambahan dan field rekaan.
+- `v39` gagal setelah 125,9 detik. Metadata memakai binding arrow yang belum
+  dikenali; respons berikutnya menambah export default yang tidak cocok.
+- `v40` lolos sintaks hingga helper galat, gagal impor setelah 144,4 detik.
+  Inspeksi sumber menemukan app/ui lokal kosong pada metadata. Guard baru
+  menolak bagian tersebut meskipun pemeriksaan sintaks sebelumnya lolos.
+- `v41` menolak cache pembersihan URL karena penimpaan app; gagal 48,8 detik.
+- `v42` metadata memakai state bersama dengan benar, tetapi impor gagal
+  setelah 139,8 detik. Inspeksi menemukan URL tidak dicabut dan penanda error
+  tidak dipasang; keduanya kini mempunyai tes perilaku yang terpisah.
+
+- `v43` pembersihan URL lolos empat kombinasi tes perilaku, bukan hanya sintaks.
+  Putaran gagal setelah 78,0 detik pada penandaan error. Regenerasi penimpaan
+  state ternyata belum aktif karena error ditambahkan setelah keputusan awal;
+  urutannya diperbaiki dan diuji pada ketiga backend.
+- `v44` tetap gagal setelah 55,2 detik. Regenerasi sudah berjalan, tetapi model
+  memakai app.setBusy/app.setStatus yang tidak ada dan kembali menimpa app.
+
+**178 tes terkait lolos di Windows.** Editor lengkap tetap belum terverifikasi.

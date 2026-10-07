@@ -6,7 +6,7 @@ They are not a browser, and passing them cannot prove import/export behavior.
 import json
 from . import tools
 
-CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy'}
+CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error'}
 RUNNER = r'''
 const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
@@ -32,6 +32,8 @@ process.stdin.on('end',()=>{
       function assert(value,message){if(!value)failures.push(message);}
     `;
     const cases={
+      release_urls:`const revoked=[];const URL={revokeObjectURL(value){revoked.push(value);}};for(const [objectURL,downloadURL] of [['blob:a','blob:b'],['blob:a',null],[null,'blob:b'],[null,null]]){revoked.length=0;app.loaded=true;app.busy=true;app.objectURL=objectURL;app.downloadURL=downloadURL;releaseVideoUrls();assert(JSON.stringify(revoked.sort())===JSON.stringify([objectURL,downloadURL].filter(Boolean).sort()),'releaseVideoUrls must revoke each existing URL exactly once; actual='+JSON.stringify(revoked));assert(app.objectURL===null&&app.downloadURL===null,'releaseVideoUrls must clear both URL fields');assert(app.loaded===true&&app.busy===true,'releaseVideoUrls must preserve loaded/busy state');}`,
+      video_load_error:`app.loaded=true;app.busy=true;videoLoadFailed();assert(app.loaded===false,'videoLoadFailed must clear app.loaded');assert(app.busy===false,'videoLoadFailed must clear busy using setBusy');assert(ui.status.textContent.length>0&&ui.status.classList.contains('error'),'videoLoadFailed must set a nonempty error status with error class');`,
       normalize_seconds:`for(const value of [NaN,Infinity,-Infinity,-1,-0.1,null,undefined,'65',{},true])assert(normalizeSeconds(value)===0,'normalizeSeconds invalid input '+String(value)+' must return 0');for(let i=0;i<41;i++){const value=(i*83+7)/3;const actual=normalizeSeconds(value);assert(actual===Math.floor(value),'normalizeSeconds('+value+') must return '+Math.floor(value)+' [observed '+JSON.stringify(actual)+']');}`,
       seconds_clock:`for(const total of [0,1,9,59,60,65,599,3599,3600,...Array.from({length:41},(_,i)=>i*83+7)]){const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');const actual=secondsToClock(total);assert(actual===expected,'secondsToClock('+total+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}`,
       time_format:`for(const [value,expected] of [[0,'00:00'],[65,'01:05'],[65.9,'01:05'],[-1,'00:00'],[NaN,'00:00'],[Infinity,'00:00'],[3599,'59:59']]) {const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}for(let i=0;i<41;i++){const value=(i*83+7)/3;const total=Math.floor(value);const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}`,
