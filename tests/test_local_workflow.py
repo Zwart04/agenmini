@@ -5,9 +5,10 @@ from app import agent,db,tools,config
 from test_harnesses import isolated
 
 @pytest.mark.asyncio
-async def test_generated_program_requires_source_review_before_execution(isolated,monkeypatch):
-    db.set_setting('llm_backend','local');db.set_setting('harness_mode','assisted');db.set_setting('full_access','0')
-    bot=db.bot('orchestrator');bot.update(backend='local',tools=['edit_project_file','run_python'])
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_generated_program_requires_source_review_before_execution(isolated,monkeypatch,backend):
+    db.set_setting('llm_backend',backend);db.set_setting('harness_mode','assisted');db.set_setting('full_access','0')
+    bot=db.bot('orchestrator');bot.update(backend=backend,tools=['edit_project_file','run_python'])
     async def generate(ctx,folder,path,instructions):
         config.WORK_DIR.mkdir(parents=True,exist_ok=True)
         (config.WORK_DIR/path).write_text('assert 2+2==4\n')
@@ -18,9 +19,10 @@ async def test_generated_program_requires_source_review_before_execution(isolate
     assert result['approval'] and result['meta']['status']=='paused'
 
 @pytest.mark.asyncio
-async def test_print_only_model_code_cannot_claim_assertions_passed(isolated,monkeypatch):
-    db.set_setting('llm_backend','local');db.set_setting('harness_mode','assisted');db.set_setting('full_access','1')
-    bot=db.bot('orchestrator');bot.update(backend='local',tools=['edit_project_file','run_python'])
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_print_only_model_code_cannot_claim_assertions_passed(isolated,monkeypatch,backend):
+    db.set_setting('llm_backend',backend);db.set_setting('harness_mode','assisted');db.set_setting('full_access','1')
+    bot=db.bot('orchestrator');bot.update(backend=backend,tools=['edit_project_file','run_python'])
     async def generate(ctx,folder,path,instructions):
         config.WORK_DIR.mkdir(parents=True,exist_ok=True)
         (config.WORK_DIR/path).write_text('print("All tests passed")\n')
@@ -31,9 +33,10 @@ async def test_print_only_model_code_cannot_claim_assertions_passed(isolated,mon
     assert result['meta']['status']=='failed' and not result['meta']['files']
 
 @pytest.mark.asyncio
-async def test_nested_uncalled_assertions_are_really_executed(isolated,monkeypatch):
-    db.set_setting('llm_backend','local');db.set_setting('harness_mode','assisted');db.set_setting('full_access','1')
-    bot=db.bot('orchestrator');bot.update(backend='local',tools=['edit_project_file','run_python'])
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_nested_uncalled_assertions_are_really_executed(isolated,monkeypatch,backend):
+    db.set_setting('llm_backend',backend);db.set_setting('harness_mode','assisted');db.set_setting('full_access','1')
+    bot=db.bot('orchestrator');bot.update(backend=backend,tools=['edit_project_file','run_python'])
     async def generate(ctx,folder,path,instructions):
         config.WORK_DIR.mkdir(parents=True,exist_ok=True)
         (config.WORK_DIR/path).write_text('def total(n): return 1\ndef tests():\n    assert total(10)==17\n')

@@ -496,7 +496,7 @@ class Turn:
                 mid=db.add_message(chat['id'],'assistant',answer,meta);result={'text':answer,'message_id':mid,'meta':meta}
                 await self.on_event('done',result);return result
         code_file=re.search(r'\b(?:buat(?:kan)?|create)\s+(?:berkas|file)\s+[`\"\']?([\w-]+\.py)\b',text,re.I)
-        if profiles.assisted() and llm.active_backend()=='local' and code_file and 'edit_project_file' in bot['tools'] and not extra_msgs and not getattr(self,'project_folder',None):
+        if profiles.assisted() and code_file and 'edit_project_file' in bot['tools'] and not extra_msgs and not getattr(self,'project_folder',None):
             from . import config
             filename=code_file.group(1)
             if not (config.WORK_DIR/filename).exists():

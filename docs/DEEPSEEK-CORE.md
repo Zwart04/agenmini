@@ -21,6 +21,12 @@ and authentication belong to the model adapter, not the core workflow.
 Checks may reject or request repair of a model's source; they must not replace
 a failed implementation with an evaluator-authored application template.
 Passing a dispatch test proves shared routing, not equivalent model quality.
+The guided standalone Python-file path also applies to all three backends:
+model-written source → syntax checks → permission → execute assertions →
+model repair from actual errors. Print-only claims cannot count as passed tests,
+and repairs must preserve existing assertion expressions. This path is enabled
+in the assisted profile, not the empty profile. Some local adapter optimizations
+(smaller tool menus and sampling) remain model-specific.
 An interrupted started call has unknown outcome: inspect its state, never
 automatically replay a potentially mutating call. Existing interrupted tasks
 still use project checkpoints; this journal does not silently resume them.
