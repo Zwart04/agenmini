@@ -14,7 +14,7 @@ DEFAULT_MODEL = "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"
 def private_path(arc: str) -> bool:
     parts = Path(arc).parts
     name = Path(arc).name.lower()
-    return (name.startswith('.env') and name != '.env.standalone.example') or name.endswith(('.pem','.key','.sqlite','.sqlite3','.db')) or any(p in ('data','dist','.git','.local-tools','node_modules') or p.startswith(('.test-tmp','.test-temp','.tmp')) for p in parts)
+    return (name.startswith('.env') and name != '.env.standalone.example') or name.endswith(('.pem','.key','.sqlite','.sqlite3','.db')) or any(p in ('data','dist','.git','.local-tools','_rilis','node_modules') or p.startswith(('.test-tmp','.test-temp','.tmp')) for p in parts)
 
 
 def add(tar: tarfile.TarFile, path: Path, arc: str):

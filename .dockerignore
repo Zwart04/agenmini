@@ -17,3 +17,5 @@ dist/
 output/
 **/*.pem
 **/*.key
+
+_rilis/

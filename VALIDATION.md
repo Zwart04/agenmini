@@ -2,7 +2,7 @@
 
 ## Keamanan dan self-improve - 7 Oktober 2026
 
-56 tes terarah lulus di Windows: origin browser, throttle login, penolakan berkas
+57 tes terarah lulus di Windows: origin browser, throttle login, penolakan berkas
 privat dalam packaging, koreksi yang benar-benar ditemukan lagi melalui FTS,
 penyaringan token/private key, alur review/rollback, Telegram dan journal agent.
 Gitleaks memeriksa semua refs; tujuh false positive/upstream constants ditinjau

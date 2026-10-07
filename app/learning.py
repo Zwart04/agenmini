@@ -4,7 +4,7 @@ import re
 import time
 from . import db, memory
 
-SECRET = re.compile(r'(?is)(?:-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----|https?://[^\s/:]+:[^\s/@]+@[^\s]+|github_pat_[A-Za-z0-9_]{20,}|bearer\s+\S+|(?:api[_ -]?key|password|kata\s+sandi|token|secret)\s*[=:]\s*\S+|\bsk-[\w-]{12,}|\bgh[pousr]_[\w]{12,}|\b\d{8,}:[\w-]{20,})')
+SECRET = re.compile(r"""(?is)(?:-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----|https?://[^\s/:]+:[^\s/@]+@[^\s]+|github_pat_[A-Za-z0-9_]{20,}|bearer\s+\S+|(?:api[_ -]?key|password|kata\s+sandi|token|secret)["']?\s*[=:]\s*["']?\S+|\bsk-[\w-]{12,}|\bgh[pousr]_[\w]{12,}|\bhf_[A-Za-z0-9]{20,}|\b\d{8,}:[\w-]{20,})""")
 FAILED = re.compile(r'(?i)^(?:Error:|Galat:|Tool |Wrong arguments|Tidak ada hasil|Tidak disimpan)|\[kode keluar (?!0\])')
 
 

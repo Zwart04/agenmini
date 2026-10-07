@@ -14,6 +14,7 @@
 | agen*, installer-*, build_*.py | Perintah layanan dan packaging; letak dipertahankan agar update kompatibel |
 | .local-tools/ | Alat pengembangan/model yang diunduh; lokal, diabaikan Git, tidak ikut installer |
 | data/ atau DATA_DIR | Riwayat, akun, ingatan, skill, backup; privat, bukan kode |
+| _rilis/ | Arsip lokal untuk rollback; privat, tidak ikut Git/Docker/installer |
 | dist/ | Hasil build yang bisa dibuat ulang; diabaikan Git |
 
 Tes dan alat evaluasi yang reusable dipertahankan. Folder .test-tmp*, .test-temp*,

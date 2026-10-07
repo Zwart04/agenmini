@@ -222,3 +222,9 @@ def test_skill_cannot_embed_credentials(isolated):
     with pytest.raises(ValueError):
         memory.save_skill('shared','Laporan','menulis laporan','read_file lalu gunakan api_key=sk-private-test-credential-123456')
     assert not db.one('SELECT id FROM skills')
+
+
+def test_json_credential_keys_are_redacted_from_memory(isolated):
+    memory.add_memory('shared','pelajaran','Gunakan laporan dan {"api_key": "private-owner-value-12345"}')
+    stored=db.one('SELECT text FROM memories ORDER BY id DESC LIMIT 1')['text']
+    assert 'private-owner-value' not in stored
