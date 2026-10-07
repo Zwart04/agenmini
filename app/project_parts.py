@@ -34,8 +34,9 @@ def html_source_schema(item):
     if item.get('kind') not in ('node','panel') or not root:return None
     classname=re.escape(root)
     attribute='(?:"'+classname+'(?: [^"<>]*)?"|\''+classname+'(?: [^\'<>]*)?\')'
-    alternatives=[r'<'+tag+r' class='+attribute+r'[^>]*>[\s\S]*</'+tag+r'>'
-                  for tag in ('section','div','aside','header','footer','main')]
+    allowed_tags=('section','div','aside','header','footer','main')
+    tags=(item['root_tag'],) if item.get('root_tag') in allowed_tags else allowed_tags
+    alternatives=[r'<'+tag+r' class='+attribute+r'[^>]*>[\s\S]*</'+tag+r'>' for tag in tags]
     schema={'type':'object','properties':{'source':{'type':'string','pattern':'^(?:'+'|'.join(alternatives)+')$'}},
             'required':['source'],'additionalProperties':False}
     return schema
@@ -98,6 +99,8 @@ def part_contract_errors(source, item):
                 def handle_starttag(self,tag,attrs):
                     attributes=dict(attrs);classes=(attributes.get('class') or '').split()
                     if strict_fragment and item['root_class'] in classes:self.roots+=1
+                    if strict_fragment and item['root_class'] in classes and item.get('root_tag') and tag!=item['root_tag']:
+                        errors.append('Root class '+item['root_class']+' must use tag '+item['root_tag']+'.')
                     if strict_fragment and len(attrs)!=len(attributes):errors.append('Duplicate HTML attributes are not allowed in the fragment.')
                     parent_classes=self.stack[-1][1] if self.stack else []
                     for selector,required in parents.items():

@@ -397,3 +397,12 @@ evaluasi terhenti dengan sumber tidak layak, bukan editor sukses. Guard fragment
 kini memeriksa penutup eksplisit yang seimbang, atribut unik, dan satu root.
 Kontrak timeline juga memeriksa heading dan parent kontrolnya. **145 tes
 harness/proyek lolos di Windows**; uji ulang model nyata masih diperlukan.
+
+`v17` tetap gagal setelah 97,5 detik: koreksi atribut timeline merusak markup,
+dikembalikan ke sumber awal, lalu regenerasi JSON terpotong. Root tag yang
+sudah disebut dalam tugas sekarang dapat dibatasi secara eksplisit oleh schema
+dan guard, tanpa menawarkan alternatif tag yang tidak diminta. Timeline
+memakai `section`; isi implementasi tetap ditulis model. Putaran `v18` sedang
+diuji. Kelulusan guard bukan bukti layout atau fungsi; pemeriksaan sumber awal
+`v18` masih menemukan pesan kosong yang ditulis sebagai atribut, bukan teks
+terlihat. Aplikasi belum dinyatakan layak.

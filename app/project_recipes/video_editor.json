@@ -208,7 +208,8 @@
           "role",
           "aria-label"
         ]
-      }
+      },
+      "root_tag": "section"
     },
     {
       "name": "Theme / *",

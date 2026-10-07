@@ -46,6 +46,12 @@ def test_html_schema_constrains_root_without_supplying_panel_implementation():
         with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':source},schema)
     assert 'video' not in json.dumps(schema) and 'playBtn' not in json.dumps(schema)
     assert project_parts.html_source_schema({**item,'kind':'js'}) is None
+    exact={**item,'root_tag':'section'}
+    exact_schema=project_parts.html_source_schema(exact)
+    jsonschema.validate({'source':'<section class="viewer"><p>Model content</p></section>'},exact_schema)
+    with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':'<aside class="viewer"></aside>'},exact_schema)
+    assert 'aside' not in json.dumps(exact_schema)
+    assert project_parts.part_contract_errors('<aside class="viewer"></aside>',exact)==['Root class viewer must use tag section.']
 
 
 @pytest.mark.asyncio
