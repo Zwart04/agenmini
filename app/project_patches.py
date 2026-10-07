@@ -41,6 +41,7 @@ def failing_lines(source, errors):
             collect(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
             if css_lines:continue
         named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden)\s+expected',error))
+        named.update(re.findall(r"SyntaxError: Identifier '([A-Za-z_$][\w$]*)' has already been declared",error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
         # A generic structural error can concern another line. Do not prevent
         # that repair merely because a separate error happens to name an ID.
@@ -117,11 +118,14 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
             {'role':'user','content':json.dumps({'errors':errors,'task':task,'source':source},ensure_ascii=False)}
         ],max_tokens=220+reasoning_allowance,temperature=.2)
+    # A cut-off diagnosis is evidence of a failed reasoning attempt, not a
+    # trustworthy plan to inject into the next request. Preserve it in logs.
     plan=(diagnosis or {}).get('content','')[:1800]
+    complete_plan=plan if (diagnosis or {}).get('stats',{}).get('finish_reason') not in ('length','max_tokens') else ''
     result=await llm.chat([
         {'role':'system','content':('You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
         {'role':'user','content':json.dumps({'source':source,'errors':errors,'contracts':contracts,'task':task,
-            **({'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':plan} if plan else {})},ensure_ascii=False)}
+            **({'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
     if diagnosis:
         result['repair_plan']={'text':plan,'sha256':digest(plan),'model':diagnosis.get('stats',{}).get('served_model',''),

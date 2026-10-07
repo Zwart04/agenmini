@@ -23,6 +23,136 @@ def test_recipe_is_instructions_not_runtime_source():
     assert not project_parts.supports('Build image converter with export')
 
 
+def test_css_schema_constrains_structure_without_providing_declarations():
+    import jsonschema
+    item={'kind':'css','file':'style.css','css_selectors':['input[type="file"]']}
+    schema=project_parts.css_source_schema(item)
+    actual='input[type="file"] {padding: 11px; color: mintcream;}'
+    jsonschema.validate({'source':actual},schema)
+    assert 'padding' not in json.dumps(schema) and 'mintcream' not in json.dumps(schema)
+    for invalid in ['.selector {color:red;}','input[type="file"]','input[type="file"] {color:red;']:
+        with pytest.raises(jsonschema.ValidationError):jsonschema.validate({'source':invalid},schema)
+    assert project_parts.css_source_schema({**item,'media_query':'(max-width:700px)'}) is None
+    assert project_parts.css_source_schema({**item,'kind':'js'}) is None
+
+
+def test_json_source_cache_replays_exact_decoded_model_bytes_and_patches():
+    item={'file':'style.css','kind':'css','task':'model task','css_selectors':['.actual']}
+    source='.actual {color: red;}'
+    raw=json.dumps({'source':source})
+    evidence={'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
+              'sha256':project_patches.digest(source),'raw_sha256':project_patches.digest(raw),'source_format':'json_source'}
+    saved={'source':source,'raw_source':raw,'evidence':evidence}
+    assert project_parts.reusable_part(saved,item)['content']==raw
+    assert project_parts.reusable_part({**saved,'source':'.actual {color: blue;}'},item) is None
+    assert project_parts.reusable_part({**saved,'raw_source':json.dumps({'source':'.invented {}'})},item) is None
+    patch=json.dumps({'edits':[{'line':1,'replace':'.actual {color: blue;}'}]})
+    corrected=project_patches.apply(source,patch)
+    chain=[{'base_sha256':project_patches.digest(source),'raw_sha256':project_patches.digest(patch),
+            'raw_patch':patch,'source_sha256':project_patches.digest(corrected)}]
+    saved={'source':corrected,'raw_source':patch,'origin_raw_source':raw,'repair_chain':chain,
+           'evidence':{**evidence,'sha256':project_patches.digest(corrected),'raw_sha256':project_patches.digest(patch)}}
+    reused=project_parts.reusable_part(saved,item)
+    assert reused['patched_source']==corrected and reused['source_format']=='json_source'
+    assert project_parts.reusable_part({**saved,'origin_raw_source':json.dumps({'source':'.invented {}'})},item) is None
+    for invalid in ['broken',json.dumps({'source':source,'other':'hidden code'}),json.dumps({'source':5}),'{"source":"first","source":"second"}']:
+        with pytest.raises(ValueError):project_parts.decode_source(invalid,'style.css','json_source')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_known_duplicate_declaration_is_repaired_by_model_and_rechecked(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Helper','file':'app.js','kind':'js','task':'Write helper','functions':['helper'],'include_html':False}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='function helper(value) {\nconst count = value;\nconst count = value + 1;\nreturn count;\n}'
+    patch=json.dumps({'edits':[{'line':3,'replace':''}]})
+    calls=[];events=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':source,'stats':{'finish_reason':'stop','served_model':backend}}
+        request=json.loads(messages[1]['content'])
+        assert request['source']==source
+        assert [line['line'] for line in request['numbered_lines']]==[2,3,4]
+        assert any("Identifier 'count' has already been declared" in error for error in request['errors'])
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']['line']['enum']==[2,3,4]
+        else:assert options['fmt']=='json'
+        return {'content':patch,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        events.append((kind,value))
+        if kind=='source_part':
+            assert value['source']==project_patches.apply(source,patch)
+            assert project_parts.reusable_part(value,{**item,'generation_contract_revision':2})['patched_source']==value['source']
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)
+    assert len(calls)==2
+    checks=[value for kind,value in events if kind=='source_check']
+    assert not checks[0]['passed'] and checks[1]['passed']
+
+
+def test_duplicate_repair_does_not_allow_general_broken_source_or_missing_function():
+    item={'kind':'js','functions':['helper']}
+    errors=["SyntaxError: Identifier 'count' has already been declared"]
+    assert project_parts.duplicate_declaration_repairable('function helper(){}',item,errors)
+    assert not project_parts.duplicate_declaration_repairable('helper(){}',item,errors)
+    assert not project_parts.duplicate_declaration_repairable('function helper(){}',item,['SyntaxError: Unexpected end of input'])
+    assert not project_parts.duplicate_declaration_repairable('function helper(){}',{**item,'kind':'css'},errors)
+
+
+def test_css_semantic_contract_rejects_actual_layout_drift_and_hidden_priority():
+    item={'kind':'css','css_selectors':['.viewer'],'css_declarations':{'display':'flex','min-width':'0'}}
+    assert project_parts.part_contract_errors('.viewer{display:grid;min-width:0}',item)
+    assert project_parts.part_contract_errors('.viewer{display:flex;min-width:0;background:white}',item)
+    assert not project_parts.part_contract_errors('.viewer{display:flex; min-width: /* prevent overflow */ 0;}',item)
+    assert project_parts.part_contract_errors('.viewer{display:grid!important;display:flex;min-width:0}',item)
+    hidden={'kind':'css','css_selectors':['[hidden]'],'css_declarations':{'display':'none !important'}}
+    assert project_parts.part_contract_errors('[hidden]{display:none}',hidden)
+    assert not project_parts.part_contract_errors('[hidden]{display:none!important}',hidden)
+    assert not project_parts.part_contract_errors('@media(max-width:700px){.viewer{display:flex;min-width:0}}',item)
+
+
+def test_viewer_contract_rejects_nested_transport_and_empty_media_src():
+    item={'kind':'panel','direct_parent_classes':{'#preview':'viewer-surface','.transport':'viewer','#playBtn':'transport'},'absent_attributes':{'preview':['src','controls']}}
+    invalid='<section class="viewer"><div class="viewer-surface"><video id="preview" src=""></video><div class="transport"><button id="playBtn">Play</button></div></div></section>'
+    errors=project_parts.part_contract_errors(invalid,item)
+    assert any('.transport must be a direct child' in error for error in errors)
+    assert any('must not have HTML attribute src' in error for error in errors)
+    valid='<section class="viewer"><div class="viewer-surface"><video id="preview"></video></div><div class="transport"><input type="range"><button id="playBtn">Play</button></div></section>'
+    assert not project_parts.part_contract_errors(valid,item)
+    assert not project_parts.part_contract_errors(valid.replace('<input type="range">','<input type="range"/>'),item)
+
+
+@pytest.mark.asyncio
+async def test_helper_feedback_includes_actual_values_without_splitting_source_strings():
+    errors=await project_checks.inspect_helper('function formatTime(value){return "wrong; value"}', 'time_format')
+    assert errors and len(errors)==12
+    assert all(' [observed "wrong; value"]' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed: formatTime(') for error in errors)
+    assert any('formatTime(65.9)' in error for error in errors)
+    assert any('formatTime(3599)' in error for error in errors)
+    assert project_parts.helper_failure_identity(errors[0])==project_parts.helper_failure_identity(errors[0].replace('wrong; value','different wrong result'))
+    assert project_parts.helper_failure_identity(errors[0])!=project_parts.helper_failure_identity(errors[1])
+
+
+@pytest.mark.asyncio
+async def test_truncated_diagnosis_is_retained_but_not_sent_as_patch_plan(monkeypatch):
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':'An incomplete model analysis','stats':{'finish_reason':'length','served_model':'selected-model'}}
+        assert 'repair_plan' not in json.loads(messages[1]['content'])
+        return {'content':json.dumps({'edits':[{'find':'wrong','replace':'model correction'}]})}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request('wrong',task='actual task',errors=['actual error'],contracts='',diagnose=True)
+    assert result['repair_plan']['text']=='An incomplete model analysis'
+    assert result['repair_plan']['finish_reason']=='length'
+    assert project_patches.apply('wrong',result['content'])=='model correction'
+
+
 def test_resume_requires_matching_model_source_and_task_hashes():
     item={'file':'app.js','task':'Write requested function'}
     source='model-authored source'
@@ -108,15 +238,15 @@ async def test_invalid_syntax_patch_is_rolled_back_before_next_model_repair(monk
     monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
     monkeypatch.setattr(llm,'active_backend',lambda:'local')
     original='.wrong {color:red;}'
-    responses=[original,json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;'}]}),'.correct {color:red;}']
+    responses=[json.dumps({'source':original}),json.dumps({'edits':[{'line':1,'replace':'.correct {color:red;'}]}),json.dumps({'source':'.correct {color:red;}'})]
     calls=[];events=[]
     async def model(messages,**options):
         if len(calls)>=2:
-            assert 'fmt' not in options
+            assert options['fmt']['json_schema']['name']=='css_source'
             assert 'Original source restored' in messages[1]['content']
             assert 'EOF reached' not in messages[1]['content']
             assert original not in messages[1]['content']
-        if 'fmt' in options:
+        if len(calls)==1:
             assert 'Output raw source only' not in json.loads(messages[1]['content'])['contracts']
         calls.append(messages)
         return {'content':responses[len(calls)-1],'stats':{'finish_reason':'stop','served_model':'fixture-model'}}
@@ -178,19 +308,20 @@ async def test_incomplete_source_is_regenerated_by_selected_model_instead_of_pat
     calls=[]
     async def model(messages,**options):
         calls.append(messages)
-        assert 'fmt' not in options
+        if backend=='local':assert options['fmt']['json_schema']['name']=='css_source'
+        else:assert options['fmt']=='json'
         assert 'Required selectors are literal CSS selectors' in messages[0]['content']
         assert '[hidden]' in messages[0]['content']
         if len(calls)==1:assert 'REQUIRED_SELECTORS' in messages[1]['content']
-        if len(calls)==1:return {'content':'[hidden]:','stats':{'finish_reason':'stop'}}
+        if len(calls)==1:return {'content':json.dumps({'source':'[hidden]:'}),'stats':{'finish_reason':'stop'}}
         assert '[hidden]:' not in messages[1]['content'] and 'CHECK ERRORS' in messages[1]['content']
-        return {'content':'[hidden] {display:none!important;}','stats':{'finish_reason':'stop','served_model':backend}}
+        return {'content':json.dumps({'source':'[hidden] {display:none!important;}'}),'stats':{'finish_reason':'stop','served_model':backend}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
     async def event(kind,value):
         if kind=='source_part':
             assert value['source']=='[hidden] {display:none!important;}'
-            assert value['raw_source']==value['source']
+            assert json.loads(value['raw_source'])['source']==value['source']
             assert not value.get('repair_chain')
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('requested application',object(),event)

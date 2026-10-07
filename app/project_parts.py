@@ -18,6 +18,45 @@ from . import llm, projects, tools, project_checks, project_patches
 part_cache = contextvars.ContextVar('model_source_part_cache', default={})
 
 
+def css_source_schema(item):
+    """Constrain one rule's syntax/selector, never supply declaration code."""
+    selectors=item.get('css_selectors',[])
+    if item.get('kind')!='css' or item.get('media_query') or len(selectors)!=1:return None
+    whitespace=r'[ \t\r\n]*'
+    pattern='^'+whitespace+re.escape(selectors[0])+whitespace+r'\{[^{}]+\}'+whitespace+'$'
+    return {'type':'object','properties':{'source':{'type':'string','pattern':pattern}},
+            'required':['source'],'additionalProperties':False}
+
+
+def decode_source(raw,path,source_format='raw'):
+    """Decode a model's source string verbatim; never fill in missing code."""
+    if source_format=='json_source':
+        def unique_pairs(pairs):
+            value={}
+            for key,item in pairs:
+                if key in value:raise ValueError('Duplicate source response key.')
+                value[key]=item
+            return value
+        value=json.loads(raw,object_pairs_hook=unique_pairs)
+        if not isinstance(value,dict) or set(value)!={'source'} or not isinstance(value['source'],str):
+            raise ValueError('Expected exactly one model-written source string.')
+        return value['source']
+    if source_format!='raw':raise ValueError('Unknown model source format.')
+    return projects.unwrap_file(raw,path)
+
+
+def duplicate_declaration_repairable(source,item,errors):
+    """Only a known parser error in complete named JS functions is patchable."""
+    if item.get('kind')!='js' or not item.get('functions'):return False
+    if not all(re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source) for fn in item['functions']):return False
+    return any(re.search(r"SyntaxError: Identifier '[A-Za-z_$][\w$]*' has already been declared",error) for error in errors)
+
+
+def helper_failure_identity(error):
+    """Changing a wrong value is not a new failing case; case coverage is stable."""
+    return error.split(' [observed ',1)[0].split('; actual=',1)[0]
+
+
 def part_system(kind):
     instruction={
         'document':'HTML document only. Empty body. No CSS or JavaScript implementation.',
@@ -37,6 +76,23 @@ def part_contract_errors(source, item):
     errors=[]
     if item.get('kind') in ('document','node','panel','shell','shellchunk'):
         doc=projects.Document();doc.feed(source)
+        if item.get('direct_parent_classes'):
+            parents=item['direct_parent_classes']
+            class ParentCheck(HTMLParser):
+                stack=[]
+                def handle_starttag(self,tag,attrs):
+                    attributes=dict(attrs);classes=(attributes.get('class') or '').split()
+                    parent_classes=self.stack[-1][1] if self.stack else []
+                    for selector,required in parents.items():
+                        matches=selector.startswith('#') and attributes.get('id')==selector[1:] or selector.startswith('.') and selector[1:] in classes
+                        if matches and required not in parent_classes:errors.append(selector+' must be a direct child of class '+required+'; current parent classes: '+str(parent_classes))
+                    if tag not in {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}:self.stack.append((tag,classes))
+                def handle_startendtag(self,tag,attrs):
+                    before=len(self.stack);self.handle_starttag(tag,attrs);del self.stack[before:]
+                def handle_endtag(self,tag):
+                    for index in range(len(self.stack)-1,-1,-1):
+                        if self.stack[index][0]==tag:del self.stack[index:];break
+            ParentCheck().feed(source)
         if doc.inline_styles:errors.append('No inline style attributes. Use semantic hidden/disabled attributes; styling belongs in style.css.')
         if doc.inline_handlers:errors.append('No inline event handlers. Event listeners belong in app.js; do not call undeclared helpers from HTML.')
         for ident,attrs in item.get('present_attributes',{}).items():
@@ -86,6 +142,25 @@ def part_contract_errors(source, item):
         for required in item['css_selectors']:
             if not split_selector(required)<=selectors:
                 errors.append('Missing CSS selector '+required+'; preserve its exact punctuation, including IDs (#), classes (.), attribute brackets and descendant spaces.')
+        if item.get('css_declarations'):
+            expected=item['css_declarations']
+            def normalized(value):
+                return re.sub(r'\s*([(),])\s*',r'\1',' '.join(value.strip().lower().split()))
+            def declarations(rules):
+                for rule in rules:
+                    if rule.type=='qualified-rule':
+                        props={};priorities={}
+                        for declaration in tinycss2.parse_declaration_list(rule.content,skip_comments=True,skip_whitespace=True):
+                            if declaration.type!='declaration':continue
+                            name=declaration.lower_name
+                            if priorities.get(name) and not declaration.important:continue
+                            priorities[name]=declaration.important
+                            props[name]=tinycss2.serialize([token for token in declaration.value if token.type!='comment']).strip()+(' !important' if declaration.important else '')
+                        for name,value in expected.items():
+                            if normalized(props.get(name,''))!=normalized(value):errors.append('CSS property '+name+' must be '+value+'; observed '+repr(props.get(name,'missing'))+'.')
+                        for name in props.keys()-expected.keys():errors.append('Unrequested CSS property '+name+' changes the specified layout; omit it from this part.')
+                    elif rule.type=='at-rule' and rule.content is not None:declarations(tinycss2.parse_rule_list(rule.content,skip_comments=True,skip_whitespace=True))
+            declarations(tinycss2.parse_stylesheet(source,skip_comments=True,skip_whitespace=True))
         if item.get('css_generic_font'):
             # A syntactically valid multiword custom family can silently fall
             # back to Times. This task explicitly requests a system font.
@@ -139,14 +214,22 @@ def reusable_part(saved, item):
     if evidence.get('raw_sha256') and evidence['raw_sha256']!=hashlib.sha256(raw.encode()).hexdigest():return None
     chain=saved.get('repair_chain',[])
     origin=saved.get('origin_raw_source')
+    source_format=evidence.get('source_format','raw')
     if chain:
         try:
-            selector=(lambda value:extract_node(value,item['root_class'])) if item.get('root_class') else None
+            def selector(value):
+                selected=decode_source(value,item['file'],source_format)
+                return extract_node(selected,item['root_class']) if item.get('root_class') else selected
             if project_patches.replay(origin,chain,item['file'],selector)!=source:return None
         except (ValueError,KeyError,TypeError):return None
         if raw!=chain[-1]['raw_patch']:return None
     elif origin is not None:return None
+    elif source_format=='json_source':
+        try:
+            if decode_source(raw,item['file'],source_format)!=source:return None
+        except (ValueError,TypeError):return None
     return {'content':raw,'stats':{'served_model':evidence.get('model',''),'reused':True},
+            'source_format':source_format,
             **({'patched_source':source,'repair_chain':chain,'origin_raw_source':origin} if chain else {})}
 
 
@@ -230,6 +313,7 @@ async def generate(brief,ctx,on_event=None):
             context.pop('current_html');context.pop('previous_source')
             context.pop('owner_goal')
             context['required_selectors']=item.get('css_selectors',[])
+            context['required_declarations']=item.get('css_declarations',{})
             # The part already names its exact selectors. Unrelated selectors
             # invite small models to style the whole application again.
         if kind=='js':
@@ -245,10 +329,11 @@ async def generate(brief,ctx,on_event=None):
         system=part_system(kind)
         if kind=='css':
             system+=' Required selectors are literal CSS selectors, not placeholders: '+json.dumps(item.get('css_selectors',[]))+'.'
+            if item.get('css_declarations'):system+=' Use exactly the required CSS properties/values; do not add other declarations.'
         if 'state_writes' in item:
             system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False
+        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw'
         for attempt in range(3):
             response=reusable_part(part_cache.get().get(step),item) if attempt==0 else None
             patch_error='';patch_base=None;previous_errors=list(errors)
@@ -259,10 +344,18 @@ async def generate(brief,ctx,on_event=None):
                         contracts=(js_contract_context(prior,item.get('relevant_fields'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
                 else:
-                    response=await llm.chat([{'role':'system','content':system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3)
+                    schema=css_source_schema(item)
+                    generation_system=system
+                    options={}
+                    if schema:
+                        generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete CSS rule as a string. No other keys, fences or explanations.')
+                        generation_system+=' The source string must match this schema: '+json.dumps(schema,ensure_ascii=False)
+                        options['fmt']={'type':'json_schema','json_schema':{'name':'css_source','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+                    response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
+                    response['source_format']='json_source' if schema else 'raw'
             raw=response.get('content','');stats=response.get('stats',{})
             if response.get('patched_source') is not None:
-                source=response['patched_source'];repair_chain=response['repair_chain'];origin_raw=response['origin_raw_source']
+                source=response['patched_source'];repair_chain=response['repair_chain'];origin_raw=response['origin_raw_source'];source_format=response.get('source_format','raw')
             elif patch_base is not None:
                 try:
                     import jsonschema
@@ -274,7 +367,10 @@ async def generate(brief,ctx,on_event=None):
                 except (ValueError,jsonschema.ValidationError) as exc:
                     source=patch_base;patch_error='Patch rejected: '+str(exc)[:400]
             else:
-                source=projects.unwrap_file(raw,path);repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel') else None
+                source_format=response.get('source_format','raw')
+                try:source=decode_source(raw,path,source_format)
+                except (ValueError,TypeError) as exc:source='';patch_error='Source response rejected: '+str(exc)[:400]
+                repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel') else None
             extraction_error=''
             if kind=='document':
                 try:source=document_container(source)
@@ -284,7 +380,7 @@ async def generate(brief,ctx,on_event=None):
                 except ValueError as exc:extraction_error=str(exc)
             await emit('source_attempt',{'index':step,'attempt':attempt,'raw_source':raw,'source':source,'stats':stats,'part':name,
                 'response_kind':'model_patch' if patch_base is not None else 'reused_model_patch' if response.get('patched_source') is not None else 'source',
-                'patch_error':patch_error,'repair_chain':[dict(entry) for entry in repair_chain],
+                'patch_error':patch_error,'source_format':source_format,'repair_chain':[dict(entry) for entry in repair_chain],
                 **({'repair_plan':response['repair_plan']} if response.get('repair_plan') else {})})
             await emit('code',{'path':root+'/'+path,'content':(prior+'\n'+source).strip() if kind not in ('shell','panel') else source,'draft':True,'part':name})
             errors=[]
@@ -334,8 +430,8 @@ async def generate(brief,ctx,on_event=None):
                     for check in item.get('behavior_checks',[]):
                         errors+=await project_checks.inspect_helper(source,check)
             errors=list(dict.fromkeys(errors))
-            old_cases={error for error in previous_errors if error.startswith('Helper behavior failed: ')}
-            new_cases={error for error in errors if error.startswith('Helper behavior failed: ')}
+            old_cases={helper_failure_identity(error) for error in previous_errors if error.startswith('Helper behavior failed: ')}
+            new_cases={helper_failure_identity(error) for error in errors if error.startswith('Helper behavior failed: ')}
             regression=bool(patch_base is not None and old_cases and new_cases-old_cases)
             await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
@@ -349,7 +445,7 @@ async def generate(brief,ctx,on_event=None):
                 # Exact edits are useful for a valid source with a failing
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
-                source_patchable=not syntax_bad and not missing_structure and not patch_error and bool(source)
+                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors)) and not missing_structure and not patch_error and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'…')
@@ -357,8 +453,9 @@ async def generate(brief,ctx,on_event=None):
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Return raw source only, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(errors)+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
+        if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
         await emit('source_part',{'index':step,'source':source,'raw_source':raw,'evidence':evidence[-1],
             **({'origin_raw_source':origin_raw,'repair_chain':repair_chain} if repair_chain else {})})

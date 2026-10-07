@@ -298,3 +298,63 @@ Pemeriksaan routing mencakup model lokal/API online/router. Tes respons stub
 tidak membuktikan mutu model online, dan putaran CPU nyata ini tidak membuktikan
 model sekitar 1B dapat menghasilkan aplikasi setara CapCut. Jalur source-parts
 tetap eksperimen opt-in; tidak diaktifkan sebagai default pengguna.
+
+## Keluaran CSS terstruktur
+
+Aturan CSS tunggal dapat diminta sebagai objek JSON dengan satu string
+`source`. Pada llama.cpp, schema membatasi selector literal yang sudah ada di
+kontrak dan bentuk satu blok kurung; properti/nilai tetap ditulis oleh model.
+Pada API/router, format JSON diminta dan hasil tetap diperiksa setelah respons.
+Schema tidak memuat deklarasi atau implementasi aplikasi. Aturan media tetap
+memakai jalur sumber biasa.
+
+Ini constrained decoding, bukan training bobot atau template aplikasi.
+[Dokumentasi JSON Schema llama.cpp](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md#json-schemas--gbnf)
+menjelaskan bahwa schema membatasi keluaran dan perlu dijelaskan juga di prompt.
+Evaluator menyimpan JSON mentah, string sumber hasil decoding, format sumber,
+hash dan patch model. Reuse memeriksa kembali string/patch persis tersebut;
+JSON rusak atau berisi kunci tambahan tidak dipasang sebagai kode.
+
+Qwen 0.8B Q8 `video-qwen08q8-parts-thinking256-v9` berhasil menyelesaikan
+delapan bagian HTML, seluruh 41 aturan CSS desktop/mobile, state dan referensi
+DOM, kemudian **gagal** pada fungsi waktu karena variabel dideklarasikan dua
+kali. Percobaan `v10` menghasilkan fungsi valid sintaks tetapi salah untuk
+pecahan detik/durasi panjang; patch model merusak kurung lalu dikembalikan.
+
+Guard kini mengizinkan patch untuk galat parser deklarasi ganda yang diketahui
+pada fungsi JS bernama lengkap, lalu memeriksa ulang seluruh sintaks sebelum
+menerima sumber. Galat sintaks lain tetap memakai regenerasi bagian lengkap.
+Diagnosis model yang terpotong disimpan sebagai bukti, tetapi tidak diteruskan
+sebagai rencana yang dapat dipercaya. Kasus helper mencatat nilai aktual,
+bukan hanya nilai yang diharapkan; hasil salah yang berubah nilainya tetap
+dianggap kasus gagal yang sama saat memeriksa regresi.
+
+Pada `v11`, konteks fungsi waktu diperkecil dan respons awal lolos semua kasus
+selain input negatif (`-1` menghasilkan `-1:-1`). Model masih gagal memperbaiki
+kasus tersebut dan kembali mendeklarasikan variabel yang sama. Ini tetap
+**gagal**, bukan editor berfungsi. Pembanding LFM 1.17B `video-lfm-parts-v8`
+gagal pada dokumen, dan DeepSeek Coder 1.3B `video-deepseek13-parts-v15` gagal
+pada header. Sebanyak **127 tes lokal** terkait harness/proyek lolos; ini
+tidak menggantikan bukti model nyata atau uji browser aplikasi lengkap.
+
+Review browser draft UI `v11` merakit hanya bagian model yang lolos provenance,
+tanpa menambahkan helper atau runtime buatan evaluator. Desktop 1280px memakai
+font sistem dan tidak melebar horizontal, tetapi kontrol transport berada di
+dalam area video. Pada viewport 390px, scroll width mencapai **457px**; layout
+mobile **gagal**. Screenshot disimpan lokal sebagai
+`browser-desktop-ui-failed.jpg` dan `browser-mobile-ui-failed.jpg`, bersama
+`browser-ui-review.json`. Ini review tampilan parsial, bukan uji editor berfungsi.
+
+Pemeriksaan HTML kini memverifikasi hubungan parent langsung antara area video,
+transport dan kontrol, serta menolak `src` kosong sebelum video diimpor.
+Kontrak CSS kini memeriksa properti/nilai desain yang sudah diminta di brief,
+bukan sekadar selector dan sintaks. Properti tambahan yang mengubah layout
+ditolak; prioritas `!important` juga diperiksa sesuai cascade. Kontrak ini
+meminta model memperbaiki kodenya, tidak menulis CSS pengganti. Sebanyak
+**129 tes lokal** terkait jalur tersebut lolos.
+
+Putaran Qwen `v12` **gagal** pada panel preview: model kembali menambahkan
+atribut `src`/`controls` dan tidak mempertahankan root `viewer`. Guard baru
+menahan markup tersebut. Editor belum lengkap, belum menghasilkan ZIP yang
+layak, dan belum lulus impor/playback/trim/ekspor di browser. Bukti draft UI
+di atas tetap disimpan sebagai kegagalan, bukan screenshot demo sukses.

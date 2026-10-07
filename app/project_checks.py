@@ -32,12 +32,13 @@ process.stdin.on('end',()=>{
       function assert(value,message){if(!value)failures.push(message);}
     `;
     const cases={
-      time_format:`for(const [value,expected] of [[0,'00:00'],[65,'01:05'],[65.9,'01:05'],[-1,'00:00'],[NaN,'00:00'],[Infinity,'00:00'],[3599,'59:59']]) assert(formatTime(value)===expected,'formatTime('+value+') must return '+expected);for(let i=0;i<41;i++){const value=(i*83+7)/3;const total=Math.floor(value);const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');assert(formatTime(value)===expected,'formatTime('+value+') must return '+expected);}`,
+      time_format:`for(const [value,expected] of [[0,'00:00'],[65,'01:05'],[65.9,'01:05'],[-1,'00:00'],[NaN,'00:00'],[Infinity,'00:00'],[3599,'59:59']]) {const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}for(let i=0;i<41;i++){const value=(i*83+7)/3;const total=Math.floor(value);const expected=String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');const actual=formatTime(value);assert(actual===expected,'formatTime('+value+') must return '+expected+' [observed '+JSON.stringify(actual)+']');}`,
       status:`setStatus('failed',true);assert(ui.status.textContent==='failed'&&ui.status.classList.contains('error'),'Error text/class not set');setStatus('failed again',true);assert(ui.status.classList.contains('error'),'Repeated errors must keep error class');setStatus('ready');assert(ui.status.textContent==='ready'&&!ui.status.classList.contains('error'),'Success must clear previous error class');`,
       busy:`for(const loaded of [false,true])for(const flag of [false,true]){app.loaded=loaded;setBusy(flag);assert(app.loaded===loaded,'setBusy must preserve loaded state');assert(app.busy===flag,'busy state mismatch');assert(ui.fileInput.disabled===flag,'fileInput.disabled expected '+flag+' when busy='+flag+' loaded='+loaded+'; actual='+ui.fileInput.disabled);for(const id of ['playBtn','seekInput','startInput','endInput','exportBtn'])assert(ui[id].disabled===(flag||!loaded),id+'.disabled expected '+(flag||!loaded)+' when busy='+flag+' loaded='+loaded);assert(ui.cancelBtn.hidden===!flag,'Cancel visibility mismatch');}`
     };
     if(!Object.hasOwn(cases,check))throw new Error('Unknown behavioral check');
-    vm.runInContext(fixtures+'\n'+source+'\n'+cases[check]+"\nif(failures.length)throw new Error([...new Set(failures)].slice(0,12).join('; '));",context,{timeout:500});
+    const failures=JSON.parse(vm.runInContext(fixtures+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500}));
+    if(failures.length){console.error(JSON.stringify({helper_failures:failures}));process.exitCode=1;return;}
     console.log('behavioral helper check passed');
   }catch(error){console.error(error.message);process.exitCode=1;}
 });
@@ -58,4 +59,9 @@ async def inspect_helper(source, check):
     # Keep individual failing cases addressable. A repair must not solve one
     # case by breaking a previously passing case; exceptions remain failures.
     detail=result.split('\n',1)[1] if result.startswith('[kode keluar 1]\n') else result
+    try:
+        cases=json.loads(detail.strip()).get('helper_failures')
+        if isinstance(cases,list) and all(isinstance(case,str) for case in cases):
+            return ['Helper behavior failed: '+case for case in cases]
+    except (ValueError,AttributeError):pass
     return ['Helper behavior failed: '+case for case in detail[-1000:].strip().split('; ') if case]
