@@ -170,7 +170,8 @@ def _workpath(p: str) -> Path:
 def _ctx_workpath(ctx,path):
     folder=getattr(ctx,'project_folder',None)
     if not folder:return _workpath(path)
-    root=_workpath(folder);name=str(path or '.').strip('/')
+    folder=str(folder).replace('\\','/').strip('/')
+    root=_workpath(folder);name=str(path or '.').replace('\\','/').strip('/')
     if name==folder or name.startswith(folder+'/'):target=_workpath(name)
     else:target=_workpath(folder+'/'+name)
     if not target.is_relative_to(root):raise ValueError('Berkas harus tetap di dalam proyek aktif.')
@@ -671,6 +672,7 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
     # Include actual adjacent contracts: SQL columns and imported APIs must not be guessed.
     related={};remaining=1800 if llm.active_backend()=='local' else 12000
     candidates=[target.parent/name for name in ('db.py','models.py','schema.sql','config.py','auth.py','requirements.txt','package.json','pyproject.toml')]
+    if target.suffix in ('.js','.css'):candidates.insert(0,target.parent/'index.html')
     candidates += [target.parent.parent/name for name in ('requirements.txt','package.json','pyproject.toml')]
     for source in candidates:
         source=source.resolve()
@@ -689,7 +691,8 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
                        'Read expected outputs carefully. When repairing, compare the actual result to the expected result and correct the algorithm; preserve assertion expressions. '
                        'Place exact requested input/output assertions at module scope so they execute. '
                        'Tool names in the request refer to the surrounding agent, never functions to implement. Finish the source.')
-    source_messages=[{'role':'system','content':source_prompt},{'role':'user','content':json.dumps({'file':path,'task':instructions,'project':context,'current_source':original},ensure_ascii=False)}]
+    source_prompt+=' Preserve the exact owner requirements in owner_request; a short tool summary must not remove acceptance criteria. Implement only this file.'
+    source_messages=[{'role':'system','content':source_prompt},{'role':'user','content':json.dumps({'file':path,'task':instructions,'owner_request':getattr(ctx,'user_text','')[:4000],'project':context,'current_source':original},ensure_ascii=False)}]
     draft='';last_emit=0
     async def code_token(piece):
         nonlocal draft,last_emit
@@ -714,7 +717,7 @@ async def edit_project_file(ctx,folder='',path='',instructions='',**_):
         async with _project_command_lock:
             check=await _run_sandboxed(['node','--check','--input-type=module'],timeout=15,stdin=content.encode(),cwd=root,project=True)
         if not check.startswith('[kode keluar 0]'):return 'Error: sintaks JavaScript belum valid: '+check
-    await write_file(ctx,str(target.relative_to(config.WORK_DIR.resolve())),content)
+    await write_file(ctx,target.relative_to(config.WORK_DIR.resolve()).as_posix(),content)
     if target.read_text()!=content:return 'Error: verifikasi isi berkas gagal.'
     return 'Berkas diperbarui dan dibaca ulang: '+folder+'/'+path+' ('+str(len(content.encode()))+' byte). Jalankan build/test proyek; pemeriksaan sintaks belum membuktikan runtime.'
 

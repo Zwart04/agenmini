@@ -4,10 +4,24 @@ window.Workbench=(()=>{
  const accessButton=document.createElement('button');accessButton.id='chatAccess';accessButton.type='button';accessButton.className='btn sm';accessButton.textContent='Dengan izin';document.querySelector('.chat-model-bar').append(accessButton);
  let opened=false,file=null,dirty=false,timer=null,cursor=0,chat=null,loading=false,tab='code';const seen=new Set();
  const panel=document.querySelector('#workbench'),editor=document.querySelector('#wbEditor');
+ function syncEditor(){
+  const path=file?.path||'',lines=editor.value.split('\n');
+  document.querySelector('#wbLines').textContent=lines.map((_,i)=>i+1).join('\n');
+  document.querySelector('#wbFileName').textContent=path.split('/').at(-1)||'Ruang kerja';
+  document.querySelector('#wbFileName').title=path;
+  document.querySelector('#wbFileState').textContent=dirty?'Belum disimpan':file?.sha256?'Tersimpan':'Draf';
+  document.querySelector('#wbFileState').classList.toggle('is-dirty',dirty);
+  const ext=path.split('.').at(-1);document.querySelector('#wbLanguage').textContent=({js:'JavaScript',ts:'TypeScript',py:'Python',html:'HTML',css:'CSS',json:'JSON',md:'Markdown'})[ext]||'Teks';
+  position();
+ }
+ function position(){const prefix=editor.value.slice(0,editor.selectionStart).split('\n');document.querySelector('#wbPosition').textContent='Baris '+prefix.length+' · Kolom '+(prefix.at(-1).length+1)}
+ editor.addEventListener('scroll',()=>{document.querySelector('#wbLines').scrollTop=editor.scrollTop});
+ editor.addEventListener('click',position);editor.addEventListener('keyup',position);
+ editor.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();editor.setRangeText('  ',editor.selectionStart,editor.selectionEnd,'end');dirty=true;syncEditor()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();document.querySelector('#wbSave').click()}});
  const overlayMedia=matchMedia('(max-width:1200px)');
  function syncOverlay(){const overlay=opened&&overlayMedia.matches;document.querySelector('#app>main').inert=overlay;document.querySelector('#side').inert=overlay;panel.setAttribute('role',overlay?'dialog':'complementary');if(overlay)panel.setAttribute('aria-modal','true');else panel.removeAttribute('aria-modal')}
  overlayMedia.addEventListener('change',syncOverlay);
- const say=t=>{document.querySelector('#wbInfo').textContent=t};
+ const say=t=>{document.querySelector('#wbInfo').textContent=t;syncEditor()};
  function selectTab(name){tab=name;panel.querySelectorAll('[data-wb-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.wbTab===name)));panel.querySelectorAll('[data-wb-view]').forEach(v=>v.hidden=v.dataset.wbView!==name)}
  async function refresh(){if(loading)return;loading=true;try{const d=await api('/api/workbench/files'),s=document.querySelector('#wbFiles'),old=s.value;s.replaceChildren(new Option('Pilih berkas…',''));d.files.forEach(p=>s.add(new Option(p,p)));s.value=file?.path||old;window.refreshDesignControls?.();say(d.truncated?'Daftar dibatasi 300 berkas.':'Berkas ruang kerja · perubahan disimpan dengan pemeriksaan konflik.')}catch(e){say(e.message)}finally{loading=false}}
  async function choose(path){if(!path)return;if(dirty&&!(await uiConfirm('Ada perubahan belum disimpan. Buka berkas lain?')))return;try{file=await api('/api/workbench/file?path='+encodeURIComponent(path));editor.value=file.content;dirty=false;document.querySelector('#wbFiles').value=path;say(path);selectTab('code')}catch(e){say(e.message)}}

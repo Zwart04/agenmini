@@ -39,6 +39,23 @@ async def test_failed_tool_and_file_change_are_not_synthetic_success(isolated):
     finally:deepseek_core.current.reset(token)
     assert len([r for r in seen if r['kind']=='file/change'])==1
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('recover',[False,True])
+async def test_deferred_batch_action_is_partial_until_actually_executed(isolated,monkeypatch,recover):
+    from app import agent,llm
+    db.set_setting('harness_mode','assisted');db.set_setting('full_access','1');db.set_setting('max_steps','2');db.set_setting('self_improve','off')
+    bot=db.bot('orchestrator');bot.update(backend='online',tools=['write_file'])
+    calls=[{'name':'write_file','arguments':{'path':f'part{i}.txt','content':f'actual {i}'}} for i in range(9)]
+    replies=[{'content':'','tool_calls':calls}]
+    if recover:replies.append({'content':'','tool_calls':[calls[-1]]})
+    replies.append({'content':'Hasil tersedia.'})
+    async def model(*args,**kwargs):
+        response=replies.pop(0);response.setdefault('tool_calls',[]);return response
+    monkeypatch.setattr(llm,'chat',model)
+    result=await agent.Turn(bot,'web','batch-limit').run('Jalankan daftar tugas itu.')
+    assert result['meta']['status']==('done' if recover else 'partial')
+    assert (config.WORK_DIR/'part8.txt').exists()==recover
+
 def test_workbench_rejects_traversal_private_binary_and_symlinks(tmp_path,monkeypatch):
     monkeypatch.setattr(config,'WORK_DIR',tmp_path)
     for name in ('../app.py','.env','credentials.json','folder/token.txt','photo.png'):

@@ -13,6 +13,8 @@ Prompt memuat penanda acak agar hasil dan percakapan dapat dicocokkan.
 | Qwen3.5 0.8B, konteks diperkecil | Artefak lolos sintaks/ZIP; gagal perilaku browser | Uji terpisah, tidak dianggap lulus berdasarkan converter |
 | LFM2.5 1.2B Instruct QAD Q4_0 | Gagal kontrak antarberkas | Artefak lolos sintaks/ZIP; gagal perilaku browser |
 | LFM2.5 1.2B, guard HTML/kontrol | Gagal, tidak ada ZIP hasil | Gagal, tidak ada ZIP hasil |
+| Qwen3.5 0.8B, guard final (`2d2a07d7`) | Gagal: README terpotong; tidak ada ZIP hasil | Gagal: kontrol yang diminta belum lengkap |
+| LFM2.5 1.2B, pemulihan fence (`b03d9b71`) | Artefak lolos struktur; gagal unggah PNG valid di browser | Gagal: kontrol yang diminta belum lengkap |
 
 Browser nyata mengunggah PNG valid 32×16 ke converter Qwen (`a2ed35ac`).
 Aplikasi menampilkan “File tidak valid” dan menonaktifkan tombol konversi.
@@ -23,6 +25,12 @@ Browser nyata mengunggah teks “apel apel jeruk café 日本語” ke editor LF
 (`cc96a2e3`) lalu menekan Save. Console mengembalikan
 `TypeError: file.readAsText is not a function`. Replace-all, kontrol pencarian
 dan hitungan kata yang diminta belum lengkap. Ini **gagal**.
+
+Uji converter LFM setelah pemulihan fence mengunggah PNG valid 32×16 lalu
+menekan Convert. Aplikasi menampilkan “File must be a JPEG, PNG or WebP”
+karena membandingkan ekstensi terhadap MIME. Ini gagal. Uji perbaikan memakai
+agent.Turn juga menemukan jalur Windows diprefiks dua kali; bug aplikasi
+tersebut diperbaiki dan diberi tes regresi, bukan dianggap kesalahan model.
 
 Temuan tersebut menghasilkan guard per berkas, pemeriksaan kontrol yang
 diminta, penolakan HTML yang bercampur modul lain, pemulihan wrapper fence
@@ -51,3 +59,10 @@ Laporan, draft dan kode tetap dalam direktori temp yang dicetak evaluator.
 Uji browser independen tetap diperlukan. Model 0.8B/1.2B belum terbukti andal
 untuk kedua tugas ini; jangan menyamakan harness dengan training bobot atau
 kemampuan model besar.
+
+Perbaikan melalui agen nyata menemukan jalur Windows yang menggandakan folder
+proyek; normalisasi jalur diperbaiki dan diuji regresi. Percobaan berikutnya
+berhasil menulis berkas yang tepat, tetapi LFM tetap menghasilkan logika
+converter yang keliru dan respons JSON akhir invalid. Status tugas gagal,
+bukan bukti aplikasi bekerja. Permintaan asli pemilik kini disertakan dalam
+editor alat agar ringkasan model tidak menghilangkan kriteria fungsi.

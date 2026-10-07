@@ -645,7 +645,7 @@ class Turn:
                                      max_tokens=(1400 if llm.active_backend()=='local' else 3000) if getattr(self,'project_folder',None) else None)
                 res = await core.model(operation) if core else await operation
                 stats = res.get("stats", {})
-                calls = res["tool_calls"][:3]
+                calls = res.get("tool_calls") or []
                 if not calls and not last:
                     # Parse known but unavailable tools too, then enforce the bot's actual scope.
                     # This gives a useful tool error instead of looping on a valid raw tag.
@@ -700,7 +700,10 @@ class Turn:
                     name, args = c["name"], c["arguments"]
                     if call_index>=8:
                         if core:await core.rejected(name,'batch_limit')
-                        msgs.append({'role':'tool','tool_name':name,'content':'Error: batch limit of eight calls reached. This call was NOT executed. Request it in the next step if still needed.'})
+                        failure='Error: '+name+' was deferred by the eight-call batch limit; NOT executed.'
+                        failures.append(failure)
+                        if isinstance(args,dict):failures_by_scope.setdefault(tool_failure_scope(name,args),set()).add(failure)
+                        msgs.append({'role':'tool','tool_name':name,'content':failure+' Request it in the next step if still needed.'})
                         continue
                     validation = tools.validate_arguments(name, args)
                     if validation:

@@ -2,6 +2,8 @@
 
 Harness bawaan mengadaptasi inti kontrol DeepSeek ke Python: tindakan alat berurutan, identitas call/result, journal privat, deadline dan penanganan tindakan terputus tanpa replay otomatis. Mode Kosong tetap terpisah; runtime DeepSeek asli tetap pilihan eksternal yang dipasang saat dipilih. Atribusi MIT dan commit sumber disertakan dalam paket.
 
+Panggilan alat tidak lagi terpotong diam-diam pada tiga panggilan pertama. Batch dibatasi delapan secara eksplisit; tindakan yang ditunda tercatat parsial sampai benar-benar dijalankan. Jalur edit proyek Windows dinormalisasi agar folder tidak terduplikasi; editor JS membaca HTML aktual.
+
 Chat mendapat Panel kerja dengan editor ringan, perubahan sebelum/sesudah, draf kode langsung, preview offline terisolasi, Browser dan log. Editor menolak konflik dengan perubahan agen dan membuat salinan sebelum menyimpan. Preview memakai browser pengguna; panel Browser bukan mesin otomatisasi agen. Import module, backend dan situs yang menolak iframe memerlukan server/tab tersendiri. Model dan akses alat dapat dipilih pada chat.
 
 Maskot dari aset pengguna dibersihkan menjadi PNG transparan dan dianimasikan melalui CSS saat bekerja. Panel diperiksa pada desktop dan mobile 390 px, dengan kontrol custom, fokus modal dan dukungan reduced motion. Tidak menambah Monaco, Node service atau server animasi.

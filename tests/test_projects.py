@@ -131,6 +131,15 @@ async def test_project_paths_stay_in_assigned_folder(monkeypatch,tmp_path):
     for path in ('../../outside.txt','projects/active/../../outside.txt'):
         with pytest.raises(ValueError):tools._ctx_workpath(ctx,path)
 
+@pytest.mark.asyncio
+async def test_windows_project_path_is_not_prefixed_twice(monkeypatch,tmp_path):
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path)
+    ctx=context();ctx.project_folder='projects/active'
+    await tools.write_file(ctx,r'projects\active\result.txt','actual source')
+    assert (tmp_path/'projects/active/result.txt').read_text()=='actual source'
+    assert not (tmp_path/'projects/active/projects').exists()
+    assert await tools.read_file(ctx,r'projects\active\result.txt')=='actual source'
+
 
 def test_template_js_keeps_literal_newline_escapes():
     from app.site_layout import render
@@ -243,6 +252,20 @@ async def test_file_editor_supplies_actual_sql_contract(monkeypatch,tmp_path):
     result=await tools.edit_project_file(ctx,folder=tmp_path.name,path='backend/app/auth.py',instructions='Fix authentication')
     assert 'dibaca ulang' in result
     assert 'password_hash' in seen[0]['project']['related_source']['backend/app/db.py']
+
+@pytest.mark.asyncio
+async def test_javascript_editor_reads_actual_html_control_contract(monkeypatch,tmp_path):
+    (tmp_path/'index.html').write_text('<button id="downloadLink">Download</button>')
+    (tmp_path/'app.js').write_text('const old = 1;')
+    monkeypatch.setattr(config,'WORK_DIR',tmp_path.parent)
+    seen=[]
+    async def chat(messages,**kw):
+        seen.append(json.loads(messages[-1]['content']));return {'content':'const fixed = 2;'}
+    monkeypatch.setattr(llm,'chat',chat)
+    ctx=context('teknisi');ctx.user_text='Download must use the converted blob with MIME image/png, not the original file.'
+    await tools.edit_project_file(ctx,folder=tmp_path.name,path='app.js',instructions='Fix actual button handler')
+    assert '<button id="downloadLink">' in seen[0]['project']['related_source']['index.html']
+    assert 'converted blob with MIME image/png' in seen[0]['owner_request']
 
 @pytest.mark.asyncio
 async def test_python_semantic_syntax_error_cannot_replace_existing_file(monkeypatch,tmp_path):
