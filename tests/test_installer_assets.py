@@ -25,3 +25,11 @@ def test_installer_preserves_provider_logo_bytes():
     archive.seek(0)
     with tarfile.open(fileobj=archive) as tar:
         assert tar.extractfile('logo.png').read()==source.read_bytes()
+
+
+def test_installer_rejects_private_files_even_inside_source(tmp_path):
+    import pytest
+    for arc in ('app/.env.local','frontend/owner.key','gateway/session.sqlite','data/settings.json'):
+        source=tmp_path/'fixture';source.write_text('PRIVATE_TEST_ONLY')
+        with tarfile.open(fileobj=io.BytesIO(),mode='w') as archive:
+            with pytest.raises(ValueError):add(archive,source,arc)

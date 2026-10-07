@@ -867,7 +867,8 @@ async def feedback(message_id: int, good: bool, note: str = ""):
         if candidate and good and db.setting('self_improve') == 'confirmed':learning.review(candidate['id'],True)
     if note.strip():
         chat = db.one("SELECT bot_id FROM chats WHERE id=?", (m["chat_id"],))
-        memory.add_memory(chat["bot_id"], "pelajaran", "Koreksi pemilik: " + note.strip()[:600])
+        scope = memory.scopes_for(db.bot(chat["bot_id"]) or {"id":chat["bot_id"]})[0]
+        memory.add_memory(scope, "pelajaran", "Koreksi pemilik: " + learning.SECRET.sub("[rahasia dihapus]", note.strip())[:600])
 
 
 async def resolve_approval(approval_id: int, ok: bool, on_event=None) -> dict:

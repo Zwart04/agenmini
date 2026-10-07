@@ -14,3 +14,6 @@ Use a genuinely transparent background and modest transparent padding.
 Prompt 2: Clean up the exact cutout. Keep character design, pose, colors and
 connected shapes unchanged. Remove isolated specks and noisy halos, especially
 the floating white blob between the ears. Preserve smooth antialiased edges.
+
+Tema terang memakai rendering gelap melalui CSS invert; tema gelap memakai PNG
+asli. Satu aset transparan dan animasi transform, tanpa download kedua.

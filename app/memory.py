@@ -2,7 +2,7 @@
 
 - memories: fakta/preferensi/pelajaran. Dicari lewat FTS5 (tanpa model embedding, hemat RAM).
 - skills: "catatan cara" hasil belajar dari tugas yang berhasil. Dipakai ulang saat tugas mirip.
-- reflect(): sesudah tugas multi-langkah, model menilai dirinya sendiri dan menulis skill/pelajaran.
+- reflect(): fakta yang berdasar ucapan pemilik; skill melalui ledger bukti/review.
 - consolidate(): perapian malam — gabung yang dobel, matikan skill yang sering gagal, perbaiki langkahnya.
 """
 import json
@@ -76,7 +76,8 @@ def profile_memories(bot: dict, k: int = 6) -> list[dict]:
 
 def add_memory(scope: str, kind: str, text: str) -> tuple[int, bool]:
     """Simpan; kalau hampir sama dengan yang ada, perbarui saja. Kembalikan (id, baru?)."""
-    text = (text or "").strip()
+    from .learning import SECRET
+    text = SECRET.sub("[rahasia dihapus]", (text or "").strip())
     if len(text) < 4:
         return 0, False
     fq = fts_query(text)
@@ -121,6 +122,9 @@ def save_skill(scope: str, name: str, when_to_use: str, steps, source: str = "be
     if isinstance(steps, list):
         steps = "\n".join(f"{i + 1}. {str(s).strip()}" for i, s in enumerate(steps) if str(s).strip())
     name, when_to_use, steps = (name or "").strip()[:80], (when_to_use or "").strip()[:300], (steps or "").strip()[:1500]
+    from .learning import SECRET
+    if SECRET.search(name + "\n" + when_to_use + "\n" + steps):
+        raise ValueError("Simpan kredensial di Koneksi, bukan di skill.")
     if not name or not steps or len(steps) < 10:
         return 0, False
     for r in db.q("SELECT * FROM skills WHERE scope=?", (scope,)):

@@ -25,6 +25,12 @@ def build():
     if os.name!='nt':raise SystemExit('Windows build requires Windows')
     version=re.search(r'VERSION\s*=\s*"([^"]+)"',(ROOT/'app/__init__.py').read_text())[1]
     payload=ROOT/'windows/payload';shutil.rmtree(payload,ignore_errors=True);payload.mkdir(parents=True)
+    sys.path.insert(0,str(ROOT))
+    from build_installer import private_path
+    for folder in ('app','frontend'):
+        for file in (ROOT/folder).rglob('*'):
+            if file.is_symlink() or private_path(file.relative_to(ROOT).as_posix()):
+                raise ValueError('Private or symlink path in Windows payload')
     python_root=Path(sys.base_prefix)
     shutil.copytree(python_root,payload/'runtime',ignore=shutil.ignore_patterns('__pycache__','*.pyc','test','tests','cache','pip-selfcheck.json'))
     shutil.copytree(ROOT/'app',payload/'server/app',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
@@ -32,7 +38,7 @@ def build():
     for name in ('requirements.lock','README.md','CARA-PASANG-WINDOWS.txt','UNINSTALL.md','LICENSE'):
         if (ROOT/name).is_file():shutil.copy2(ROOT/name,payload/name)
     (payload/'docs').mkdir()
-    for name in ('DEEPSEEK-CORE.md','deepseek-harness.LICENSE','HARNESSES.md','BRANDING.md'):
+    for name in ('DEEPSEEK-CORE.md','deepseek-harness.LICENSE','HARNESSES.md','BRANDING.md','PROJECT-MAP.md','SECURITY-AUDIT.md'):
         shutil.copy2(ROOT/'docs'/name,payload/'docs'/name)
     shutil.copy2(ROOT/'host-integrations.py',payload/'server/host-integrations.py')
     shutil.copy2(ROOT/'windows/launcher.py',payload/'launcher.py')

@@ -1,4 +1,16 @@
-# Validasi Agen Mini 0.10.0
+# Validasi Agen Mini 0.10.1
+
+## Keamanan dan self-improve - 7 Oktober 2026
+
+56 tes terarah lulus di Windows: origin browser, throttle login, penolakan berkas
+privat dalam packaging, koreksi yang benar-benar ditemukan lagi melalui FTS,
+penyaringan token/private key, alur review/rollback, Telegram dan journal agent.
+Gitleaks memeriksa semua refs; tujuh false positive/upstream constants ditinjau
+secara spesifik, tanpa pengecualian folder. API secret-scanning GitHub nol alert.
+Source ZIP publik 0.10.0 diperiksa: hanya konstanta/fixture yang sama ditemukan,
+tidak ada berkas .env privat/DB/key dalam riwayat. OSV querybatch memeriksa 62
+paket Python dari requirements.lock; tidak ada advisory dikenal saat pemeriksaan.
+Ini bukan jaminan mutlak atau audit seluruh dependency sistem/provider.
 
 ## Inti DeepSeek dan panel kerja — 7 Oktober 2026
 

@@ -7,11 +7,19 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-FILES = ["app", "frontend", "gateway", "docs/DEEPSEEK-CORE.md", "docs/deepseek-harness.LICENSE", "docs/HARNESSES.md", "docs/BRANDING.md", "UNINSTALL.md", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
+FILES = ["app", "frontend", "gateway", "docs/DEEPSEEK-CORE.md", "docs/deepseek-harness.LICENSE", "docs/HARNESSES.md", "docs/BRANDING.md", "docs/PROJECT-MAP.md", "docs/SECURITY-AUDIT.md", "UNINSTALL.md", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
 DEFAULT_MODEL = "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"
 
 
+def private_path(arc: str) -> bool:
+    parts = Path(arc).parts
+    name = Path(arc).name.lower()
+    return (name.startswith('.env') and name != '.env.standalone.example') or name.endswith(('.pem','.key','.sqlite','.sqlite3','.db')) or any(p in ('data','dist','.git','.local-tools','node_modules') or p.startswith(('.test-tmp','.test-temp','.tmp')) for p in parts)
+
+
 def add(tar: tarfile.TarFile, path: Path, arc: str):
+    if private_path(arc) or path.is_symlink():
+        raise ValueError("Private/generated or symlink path cannot be packaged: " + arc)
     if path.is_dir():
         for p in sorted(path.iterdir()):
             if p.name in ("__pycache__",) or p.suffix == ".pyc":

@@ -12,6 +12,7 @@ import ssl
 import subprocess
 import time
 
+from urllib.parse import urlsplit
 from aiohttp import web
 
 from . import VERSION, agent, bench, config, db, hub, llm, telegram, tools
@@ -62,6 +63,17 @@ def verify_pw(pw: str) -> bool:
 @web.middleware
 async def auth_mw(request: web.Request, handler):
     p = request.path
+    # Reject cross-origin browser mutations, including same-site sibling hosts.
+    if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        origin = request.headers.get('Origin')
+        if request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return web.json_response({'error':'Permintaan lintas situs ditolak.'}, status=403)
+        if origin:
+            try: parsed = urlsplit(origin)
+            except ValueError:
+                return web.json_response({'error':'Origin tidak valid.'}, status=403)
+            if parsed.scheme != request.scheme or parsed.netloc != request.host or parsed.path or parsed.query or parsed.fragment:
+                return web.json_response({'error':'Origin tidak sesuai aplikasi.'}, status=403)
     if p == "/" or p.startswith("/static/") or p in ("/api/login", "/sehat", "/manifest.json"):
         return await handler(request)
     if not check_token(request.cookies.get(COOKIE, "")):
@@ -137,8 +149,14 @@ async def health(request):
 
 @routes.post("/api/login")
 async def login(request):
-    ip = request.headers.get("X-Forwarded-For", request.remote or "?")
+    ip = request.remote or "?"
+    # Direct TLS/loopback service: forwarded headers are not trusted identities.
     now = time.time()
+    if len(_fail) >= 1000:
+        for key in list(_fail):
+            if not any(now - t < 600 for t in _fail[key]): _fail.pop(key, None)
+        if ip not in _fail and len(_fail) >= 1000:
+            return web.json_response({"error":"Terlalu banyak percobaan. Coba lagi nanti."}, status=429)
     tries = [t for t in _fail.get(ip, []) if now - t < 600]
     if len(tries) >= 8:
         return web.json_response({"error": "Terlalu banyak percobaan. Tunggu 10 menit."}, status=429)
@@ -449,6 +467,9 @@ async def update_skill(request):
     old = db.one('SELECT * FROM skills WHERE id=?', (sid,))
     if not old:
         raise web.HTTPNotFound(text='Skill tidak ditemukan')
+    from .learning import SECRET
+    if any(SECRET.search(str(data.get(k,''))) for k in ('name','when_to_use','steps')):
+        raise ValueError('Simpan kredensial di Koneksi, bukan di skill.')
     for key, limit in (('name',100),('when_to_use',500),('steps',12000)):
         if key in data and (not isinstance(data[key],str) or len(data[key])>limit or (key in ('name','steps') and not data[key].strip())):
             raise ValueError('Isi skill tidak valid atau terlalu panjang.')

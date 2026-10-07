@@ -9,3 +9,11 @@ dist/
 .reference/
 .preview-data/
 .test-temp*/
+
+.env.*
+!.env.standalone.example
+.local-tools/
+.tmp*/
+output/
+**/*.pem
+**/*.key

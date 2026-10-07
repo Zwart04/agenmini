@@ -14,3 +14,11 @@ windows/payload/
 windows/node-download/
 gateway-dist/
 gateway/bin/
+
+# Private configuration, downloaded tools and generated evaluation output
+.env.*
+!.env.standalone.example
+*.pem
+*.key
+.local-tools/
+output/

@@ -1,0 +1,9 @@
+# Exact historical upstream public constants, disposable JWT fixtures, and prose false positive.
+# No path-wide exclusions. See docs/SECURITY-AUDIT.md.
+8772eb279a0e5fca227982b288f3b287d061d845:gateway/internal/handlers/media/voices.go:generic-api-key:36
+8772eb279a0e5fca227982b288f3b287d061d845:gateway/internal/providers/oauth.go:generic-api-key:47
+8772eb279a0e5fca227982b288f3b287d061d845:gateway/internal/providers/oauth.go:generic-api-key:57
+8772eb279a0e5fca227982b288f3b287d061d845:gateway/internal/providers/oauth.go:generic-api-key:63
+f41b382bbfd80d55f940b8f09484a00b7b71b4e2:VALIDATION.md:generic-api-key:105
+fc817c2af8940f2a7a5985624e233d4517ccd4f8:tests/test_control.py:generic-api-key:67
+fc817c2af8940f2a7a5985624e233d4517ccd4f8:tests/test_control.py:generic-api-key:69

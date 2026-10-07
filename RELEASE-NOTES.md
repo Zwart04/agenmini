@@ -1,3 +1,12 @@
+# Agen Mini 0.10.1
+
+- Maskot gelap otomatis di tema terang; satu PNG transparan.
+- Koreksi self-improve dicari sesuai scope ingatan bot; rahasia disaring.
+- App yang belum teruji perilakunya tidak dijadikan skill terverifikasi.
+- Proteksi origin browser dan throttle login terhadap forwarded header palsu.
+- Packaging menolak berkas privat/symlink; secret scan otomatis di GitHub.
+- Peta folder; tes reusable dan tool lokal dipertahankan.
+
 # Agen Mini 0.10.0
 
 Harness bawaan mengadaptasi inti kontrol DeepSeek ke Python: tindakan alat berurutan, identitas call/result, journal privat, deadline dan penanganan tindakan terputus tanpa replay otomatis. Mode Kosong tetap terpisah; runtime DeepSeek asli tetap pilihan eksternal yang dipasang saat dipilih. Atribusi MIT dan commit sumber disertakan dalam paket.

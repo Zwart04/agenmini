@@ -3,7 +3,7 @@ import hashlib
 import subprocess
 import zipfile
 from pathlib import Path
-from build_installer import main, ROOT
+from build_installer import main, ROOT, private_path
 
 
 def build():
@@ -20,7 +20,7 @@ def build():
     with zipfile.ZipFile(dist / 'agenmini-source.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
         for name in names:
             if not name: continue
-            if name == '.env' or name.startswith(('data/', 'dist/')): raise ValueError('Private/generated path is tracked: ' + name)
+            if private_path(name) or (ROOT / name).is_symlink(): raise ValueError('Private/generated path is tracked: ' + name)
             archive.write(ROOT / name, 'agenmini/' + name)
     with zipfile.ZipFile(dist / 'agenmini-frontend.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
         for name in names:

@@ -8,6 +8,8 @@ Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim b
 
 [Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
 
+[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md)
+
 ## Chat dan panel kerja
 
 ![Panel kode desktop](docs/screenshots/workbench-desktop-v010.jpg)

@@ -4,7 +4,7 @@ import re
 import time
 from . import db, memory
 
-SECRET = re.compile(r'(?i)(?:bearer\s+\S+|(?:api[_ -]?key|password|kata\s+sandi|token|secret)\s*[=:]\s*\S+|\bsk-[\w-]{12,}|\bgh[pousr]_[\w]{12,}|\b\d{8,}:[\w-]{20,})')
+SECRET = re.compile(r'(?is)(?:-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----|https?://[^\s/:]+:[^\s/@]+@[^\s]+|github_pat_[A-Za-z0-9_]{20,}|bearer\s+\S+|(?:api[_ -]?key|password|kata\s+sandi|token|secret)\s*[=:]\s*\S+|\bsk-[\w-]{12,}|\bgh[pousr]_[\w]{12,}|\b\d{8,}:[\w-]{20,})')
 FAILED = re.compile(r'(?i)^(?:Error:|Galat:|Tool |Wrong arguments|Tidak ada hasil|Tidak disimpan)|\[kode keluar (?!0\])')
 
 
@@ -23,7 +23,7 @@ def init():
 
 
 def evidence(meta):
-    if meta.get('tool_failures') or meta.get('status') in ('failed', 'partial', 'waiting', 'queued') or meta.get('approval'):
+    if meta.get('behavior_verified') is False or meta.get('tool_failures') or meta.get('status') in ('failed', 'partial', 'waiting', 'queued') or meta.get('approval'):
         return []
     return [r for r in meta.get('trace', []) if not r.get('cached') and r.get('hasil')
             and not FAILED.search(r['hasil']) and r.get('alat') not in ('review_recovery','propose_app_change')]

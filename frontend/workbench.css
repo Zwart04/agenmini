@@ -25,3 +25,8 @@
 .wb-editor-wrap{display:flex;flex:1;min-height:180px;overflow:hidden;background:var(--bg)}#wbLines{flex:none;width:48px;box-sizing:border-box;text-align:right;padding:18px 10px;margin:0;overflow:hidden;white-space:pre;user-select:none;color:var(--muted);background:var(--side);border-right:1px solid var(--line);font:13px/1.7 ui-monospace,Consolas,monospace}#wbEditor{min-width:0;width:0;outline-offset:-2px;padding-left:14px}
 .wb-editor-status{display:flex;gap:16px;padding:7px 12px;background:var(--side);border-top:1px solid var(--line);color:var(--muted);font-size:10px}.wb-editor-status #wbPosition{margin-left:auto}#wbInfo{background:var(--side)}#wbBrowse{background:var(--side);border-bottom:1px solid var(--line)}#wbLog li{padding:12px 0}#wbDiff{background:var(--soft);max-height:200px}
 @media(max-width:760px){.wb-actions .btn{padding:7px 9px;font-size:11px}#wbLines{width:38px;padding-right:8px}.wb-editor-status{gap:10px}.wb-file-bar{padding:9px 12px}}
+
+/* A dark rendering of the same transparent mascot, no second download. */
+:root .brand-mascot{filter:invert(1)}
+:root[data-theme=dark] .brand-mascot{filter:none}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .brand-mascot{filter:none}}

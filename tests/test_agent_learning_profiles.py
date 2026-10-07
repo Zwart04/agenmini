@@ -191,3 +191,34 @@ async def test_successful_tool_followed_by_model_error_is_not_learned(isolated,m
     assert result['meta']['status']=='failed' and result['meta']['trace']
     assert (config.WORK_DIR/'partial.txt').exists()
     assert learning.stage(result['message_id']) is None and not learning.evidence(result['meta'])
+
+
+def test_unverified_generated_app_never_becomes_verified_skill(isolated):
+    mid=completed()
+    db.run('UPDATE messages SET meta=? WHERE id=?',(json.dumps({'behavior_verified':False,'trace':[{'alat':'write_file','hasil':'Tersimpan'}]}),mid))
+    assert learning.stage(mid) is None
+
+
+@pytest.mark.asyncio
+async def test_explicit_taste_correction_is_recalled_without_credentials(isolated):
+    note='Untuk laporan produk selalu pakai bullet ringkas; api_key=sk-private-test-credential-123456'
+    await agent.feedback(completed(),False,note)
+    rows=memory.search_memories(db.bot('orchestrator'),'laporan produk bullet ringkas')
+    assert rows and 'bullet ringkas' in rows[0]['text']
+    assert all('sk-private' not in r['text'] for r in rows)
+
+
+def test_private_key_and_fine_grained_token_not_stored_as_memory(isolated):
+    value='github_pat_'+'x'*40
+    memory.add_memory('shared','pelajaran','Gunakan '+value+' lalu verifikasi laporan')
+    stored=db.one('SELECT text FROM memories ORDER BY id DESC LIMIT 1')['text']
+    assert value not in stored and 'verifikasi laporan' in stored
+    block='-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----'
+    memory.add_memory('shared','pelajaran','Akses '+block+' harus privat')
+    assert 'PRIVATE KEY' not in db.one('SELECT text FROM memories ORDER BY id DESC LIMIT 1')['text']
+
+
+def test_skill_cannot_embed_credentials(isolated):
+    with pytest.raises(ValueError):
+        memory.save_skill('shared','Laporan','menulis laporan','read_file lalu gunakan api_key=sk-private-test-credential-123456')
+    assert not db.one('SELECT id FROM skills')
