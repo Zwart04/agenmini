@@ -391,6 +391,17 @@ def js_shared_reference_errors(source, prior):
     return errors
 
 
+def js_prompt_context(prior, relevant=None, functions=None):
+    """Describe real outer symbols without resembling declarations to copy."""
+    contracts=json.loads(js_contract_context(prior,relevant,functions))
+    fields=[name+'.'+key for name,keys in contracts['globals'].items() for key in keys]
+    signatures=contracts['existing_functions']
+    return ('Existing outer state fields (already declared; do not redeclare app/ui):\n'+
+            ('\n'.join(fields) or '(none required)')+
+            '\nExisting standalone helper signatures (call these names directly, not app/ui methods):\n'+
+            ('\n'.join(signatures) or '(none required)'))
+
+
 def reusable_part(saved, item):
     """Reuse only unmodified model text for an identical task; validate it again."""
     if not saved:return None
@@ -406,7 +417,7 @@ def reusable_part(saved, item):
         try:
             def selector(value):
                 selected=decode_source(value,item['file'],source_format)
-                return extract_node(selected,item['root_class']) if item.get('root_class') else select_model_helper(selected,item)
+                return document_container(selected) if item.get('kind')=='document' else extract_node(selected,item['root_class']) if item.get('root_class') else select_model_helper(selected,item)
             if project_patches.replay(origin,chain,item['file'],selector)!=source:return None
         except (ValueError,KeyError,TypeError):return None
         if raw!=chain[-1]['raw_patch']:return None
@@ -455,6 +466,21 @@ def document_container(source):
     body=re.search(r'(<body\b[^>]*>).*?(</body\s*>)',source,re.I|re.S)
     if not body:raise ValueError('A complete body opening/closing pair is required; no tags can be invented by the assembler.')
     return source[:body.start()]+body[1]+'\n'+body[2]+source[body.end():]
+
+
+def document_asset_errors(source):
+    """Check each required asset independently, without generating markup."""
+    class Assets(HTMLParser):
+        def __init__(self):super().__init__();self.head=False;self.styles=0;self.scripts=0
+        def handle_starttag(self,tag,attrs):
+            if tag=='head':self.head=True
+            values=dict(attrs)
+            if self.head and tag=='link' and values.get('href')=='style.css' and 'stylesheet' in (values.get('rel') or '').lower().split():self.styles+=1
+            if self.head and tag=='script' and values.get('src')=='app.js' and 'defer' in values and values.get('type','').lower() in ('','text/javascript','application/javascript'):self.scripts+=1
+        def handle_endtag(self,tag):
+            if tag=='head':self.head=False
+    assets=Assets();assets.feed(source)
+    return ([f'Expected one stylesheet link href="style.css" in the head; found {assets.styles}.'] if assets.styles!=1 else [])+([f'Expected one classic deferred script src="app.js" in the head; found {assets.scripts}.'] if assets.scripts!=1 else [])
 
 
 def supports(brief):
@@ -519,7 +545,7 @@ async def generate(brief,ctx,on_event=None):
             # invite small models to style the whole application again.
         if kind=='js':
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
-            context['previous_source']=js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
+            context['previous_source']=js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
             if item.get('include_html') is False:
                 context.pop('current_html')
                 # A narrow helper contract is already derived from the owner
@@ -548,11 +574,11 @@ async def generate(brief,ctx,on_event=None):
                 response=next((reused for saved in candidates if (reused:=reusable_part(saved,item)) is not None),None)
             patch_error='';patch_base=None;previous_errors=list(errors)
             if response is None:
-                if attempt and source_patchable and (kind in ('css','node','panel') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
+                if attempt and source_patchable and (kind in ('css','node','panel','document') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=(js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
-                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True)
+                        contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
+                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,single_line=kind!='document')
                 else:
                     schema=None if item.get('raw_source') else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
                     generation_system=system
@@ -585,7 +611,7 @@ async def generate(brief,ctx,on_event=None):
                     source=select_model_helper(decoded,item)
                     initial_selection=('one exact parsed model-written helper span' if item.get('behavior_checks') else 'one exact function span from byte-identical whole-response repetition') if source!=decoded else ''
                 except (ValueError,TypeError) as exc:source='';patch_error='Source response rejected: '+str(exc)[:400]
-                repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel') else None
+                repair_chain=[];origin_raw=raw if kind in ('js','css','node','panel','document') else None
             extraction_error=''
             if kind=='document':
                 try:source=document_container(source)
@@ -611,14 +637,17 @@ async def generate(brief,ctx,on_event=None):
             if kind in ('shell','shellchunk','document','node'):
                 if kind=='shellchunk' and not re.match(r'\s*<(?:!?[a-zA-Z/])',source):errors.append('Output real HTML tags, not a verbal description.')
                 if kind=='shellchunk' and step==0 and re.search(r'</(?:body|html)>',source,re.I):errors.append('Opening fragment must stop at opening body; do not close the document yet.')
-                if kind in ('shell','document'):errors+=projects.inspect_html(source,strict=True)['errors']
+                if kind in ('shell','document'):
+                    html_structure_errors=projects.inspect_html(source,strict=True)['errors']
+                    errors+=html_structure_errors
+                    syntax_bad=syntax_bad or bool(html_structure_errors)
                 if kind=='document' and not re.search(r'<body\b[^>]*>\s*</body\s*>',source,re.I):errors.append('The document body must be empty. Only document structure and asset links belong here.')
                 if kind=='node' and item.get('slot')=='stage' and not re.fullmatch(r'\s*<(?:div|main)\b[^>]*>\s*</(?:div|main)\s*>\s*',source,re.I):errors.append('Output one empty stage div/main only.')
                 if re.search(r'<style\b',source,re.I):errors.append('No inline CSS. HTML shell only, stylesheet already linked.')
                 for slot in (recipe['panels'] if kind=='shell' else item.get('slots',[])):
                     if source.count('<!--panel:'+slot+'-->')!=1:errors.append('Include exactly one comment slot <!--panel:'+slot+'-->.')
                 d=projects.Document();d.feed(source)
-                if kind=='document' and not {'style.css','app.js'}<=set(d.resources):errors.append('Include stylesheet link href="style.css" and deferred script src="app.js" in the head.')
+                if kind=='document':errors+=document_asset_errors(source)
                 for ident,expected in item.get('controls',{}).items():
                     if ident not in d.ids or expected.get('tag') and d.elements.get(ident,{}).get('tag')!=expected['tag']:missing_structure=True
                     if any(d.elements.get(ident,{}).get(k)!=v for k,v in expected.items()):errors.append('Required shell control '+ident+' must be '+json.dumps(expected)+'.')
@@ -678,7 +707,7 @@ async def generate(brief,ctx,on_event=None):
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_contract_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')

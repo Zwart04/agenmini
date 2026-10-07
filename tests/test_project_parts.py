@@ -660,7 +660,7 @@ async def test_indexed_repair_can_change_five_controls_without_copying_function(
         if backend=='local':
             fields=options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']
             assert fields['line']['enum']==[1,2,3,4,5]
-            assert fields['replace']['pattern']=='^[^\r\n]*$'
+            assert 'pattern' not in fields['replace']
         else:assert options['fmt']=='json'
         return {'content':json.dumps({'edits':[{'line':i+1,'replace':'control'+str(i)+'.disabled = busy || !loaded;'} for i in range(5)]})}
     monkeypatch.setattr(llm,'chat',model)
@@ -1108,4 +1108,103 @@ async def test_shadowed_shared_state_requests_fresh_source_instead_of_patch(monk
             assert value['source']==responses[2]
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==3
+
+
+def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
+    prior='const app={loaded:false,busy:false};const ui={preview:null};function setBusy(flag){}const unused=()=>2;'
+    prompt=project_parts.js_prompt_context(prior,{'app':['loaded'],'ui':[]},['setBusy'])
+    assert 'app.loaded' in prompt and 'app.busy' not in prompt and 'ui.preview' not in prompt
+    assert 'function setBusy(flag)' in prompt and 'unused' not in prompt
+    assert 'not app/ui methods' in prompt and 'do not redeclare app/ui' in prompt
+    assert 'const app=' not in prompt and '"globals"' not in prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_document_asset_omission_uses_replayable_model_patch(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Document','kind':'document','file':'index.html','task':'Complete document with stylesheet and deferred script','tokens':250}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    raw='<!DOCTYPE html>\n<html>\n<head>\n<title>Model title</title>\n<meta name="viewport" content="width=device-width">\n<link rel="stylesheet" href="style.css">\n</head>\n<body>\n</body>\n</html>'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':raw,'stats':{'finish_reason':'stop'}}
+        request=json.loads(messages[1]['content'])
+        assert request['source']==project_parts.document_container(raw)
+        line=request['source'].splitlines().index('</head>')+1
+        return {'content':json.dumps({'edits':[{'line':line,'replace':'<script defer src="app.js"></script>\n</head>'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert '<title>Model title</title>' in value['source'] and 'script defer' in value['source']
+            assert value['origin_raw_source']==raw and len(value['repair_chain'])==1
+            assert project_parts.reusable_part(value,item)['patched_source']==value['source']
+            changed={**value,'origin_raw_source':raw.replace('Model title','Other title')}
+            assert project_parts.reusable_part(changed,item) is None
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('app',object(),event)
+    assert len(calls)==2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_indexed_patch_checks_line_boundaries_after_json_decoding(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    replacement='quoted="🎬";\nnext();'
+    async def model(messages,**options):
+        if backend=='local':assert 'pattern' not in options['fmt']['json_schema']['schema']['properties']['edits']['items']['properties']['replace']
+        return {'content':json.dumps({'edits':[{'line':1,'replace':replacement}]})}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request('wrong();',task='repair',errors=['wrong'],contracts='',indexed=True)
+    assert result.get('patch_validation_error')
+    result=await project_patches.request('wrong();',task='repair HTML',errors=['wrong'],contracts='',indexed=True,single_line=False)
+    assert not result.get('patch_validation_error')
+    for replacement in ('quoted="🎬";\n','quoted="🎬";\r'):
+        result=await project_patches.request('wrong();',task='repair',errors=['wrong'],contracts='',indexed=True)
+        assert result.get('patch_validation_error')
+
+
+def test_document_assets_only_report_missing_or_invalid_asset():
+    style='<link rel="stylesheet" href="style.css">'
+    script='<script src="app.js" defer></script>'
+    assert not project_parts.document_asset_errors('<head>'+style+script+'</head><body></body>')
+    errors=project_parts.document_asset_errors('<head>'+style+'</head><body></body>')
+    assert len(errors)==1 and 'script' in errors[0] and 'stylesheet' not in errors[0]
+    assert project_parts.document_asset_errors('<head>'+style+script.replace(' defer','')+'</head>')
+    assert project_parts.document_asset_errors('<head>'+style+script.replace(' defer',' defer type="module"')+'</head>')
+    assert project_parts.document_asset_errors('<head>'+style+'</head><body>'+script+'</body>')
+    assert project_parts.document_asset_errors('<head>'+style+script+script+'</head>')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_document_patch_cannot_destroy_previously_valid_structure(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Document','kind':'document','file':'index.html','task':'Write complete document','tokens':250}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    raw='<!DOCTYPE html>\n<html>\n<head>\n<title>Title</title>\n<meta name="viewport" content="width=device-width">\n<link rel="stylesheet" href="style.css">\n</head>\n<body>\n</body>\n</html>'
+    correct=raw.replace('</head>','<script defer src="app.js"></script>\n</head>')
+    calls=[];events=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':raw,'stats':{'finish_reason':'stop'}}
+        if len(calls)==2:return {'content':json.dumps({'edits':[{'line':10,'replace':'Close body and html'}]}),'stats':{'finish_reason':'stop'}}
+        assert 'Write a fresh complete source part' in messages[1]['content']
+        return {'content':correct,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        events.append((kind,value))
+        if kind=='source_part':
+            assert value['source']==project_parts.document_container(correct) and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('app',object(),event)
+    assert any(kind=='code' and value.get('restored') and value['content']==project_parts.document_container(raw) for kind,value in events)
     assert len(calls)==3

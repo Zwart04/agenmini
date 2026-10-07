@@ -596,3 +596,44 @@ Bukti inferensi Qwen3.5 0.8B Q8_0 CPU, reasoning 256:
   memakai app.setBusy/app.setStatus yang tidak ada dan kembali menimpa app.
 
 **178 tes terkait lolos di Windows.** Editor lengkap tetap belum terverifikasi.
+
+### Konteks simbol dan perbaikan dokumen
+
+Prompt JS kini membedakan field state luar yang sudah ada dari signature
+helper standalone. Nama helper dipanggil langsung, bukan sebagai app/ui
+method. Metadata AST untuk guard tidak berubah menjadi kode keluaran model.
+Pemilihan field/helper relevan tetap berlaku pada generasi dan perbaikan.
+
+Dokumen HTML yang utuh tetapi kehilangan aset dapat diperbaiki melalui
+edit baris hasil model. Provenance menyimpan sumber awal dan patch, termasuk
+replay melalui pemilihan container dokumen yang sama. HTML yang kehilangan
+struktur setelah patch dipulihkan sebelum model diminta menulis ulang.
+Guard aset melaporkan stylesheet atau script yang bermasalah secara terpisah;
+script harus satu, classic, deferred, dan berada di head. Aset dalam komentar,
+body, script module, atau duplikasi tidak dianggap memenuhi kontrak.
+
+Grammar patch lokal tidak lagi memakai regex string replacement yang dapat
+menelan batas kutip JSON. Batas baris dan pilihan nomor baris diperiksa setelah
+JSON diurai pada ketiga backend. Patch dokumen boleh memakai replacement
+multibaris; patch JS tetap dibatasi satu baris per edit. Fixture uji bukan kode
+hasil editor. Tidak ada perubahan manual pada runtime aplikasi hasil model.
+
+Bukti inferensi berikutnya:
+
+- Qwen `v45`: helper galat video akhirnya lolos dengan helper status/busy
+  hasil model, tetapi impor gagal setelah 116,0 detik: assignment tidak valid
+  dan penulisan ulang helper yang sudah ada. Editor belum terbentuk lengkap.
+- LFM2.5 1.17B Q4 CPU, profil lfm25, `v10`: gagal dokumen setelah 9,7 detik.
+  Tautan script hilang, lalu regenerasi kehilangan title. Seluruh percobaan
+  LFM dimulai dari awal tanpa cache atau campuran kode Qwen.
+- LFM `v11`: galat backend 500 format peg-native setelah 11,6 detik pada patch.
+- LFM `v12`: galat 500 tidak muncul, tetapi patch tidak mengubah kode; respons
+  berikutnya bukan dokumen lengkap. Gagal setelah 10,0 detik.
+- LFM `v13`: patch mengganti penutup HTML dengan teks instruksi, gagal setelah
+  14,5 detik. Pelanggaran struktur kini memicu rollback, bukan diterima sebagai
+  dasar patch berikutnya.
+- LFM `v14`: rollback berjalan, tetapi regenerasi tetap bukan HTML lengkap;
+  gagal setelah 9,8 detik. Perbaikan guard tidak sama dengan kelulusan model.
+
+**189 tes terkait lolos di Windows.** Impor, playback, trim, overlay, ekspor
+WebM baru dan tampilan editor lengkap tetap belum terbukti di browser nyata.

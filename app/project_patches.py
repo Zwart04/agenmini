@@ -168,7 +168,7 @@ def replay(origin_raw, chain, path, select_source=None):
     return source
 
 
-async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=False, indexed=False):
+async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=False, indexed=False, single_line=True):
     # Choices only describe existing text, never the correct replacement. A
     # bounded model can select a line or the whole part without inventing find
     # strings. Exact-match application still validates online/plain JSON output.
@@ -184,13 +184,17 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     elif indexed:
         schema['properties']['edits']['items']['properties']['line']['enum']=targets
         schema['properties']['edits']['maxItems']=min(8,len(targets))
-        schema['properties']['edits']['items']['properties']['replace']['pattern']='^[^\r\n]*$'
+        if single_line:schema['properties']['edits']['items']['properties']['replace']['pattern']='^[^\r\n]*$'
     else:
         if attribute_choices:
             choices=attribute_choices
             schema['properties']['edits']['items']['properties']['replace']['const']=''
         schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
-    fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':schema}} if llm.active_backend()=='local' else 'json'
+    wire_schema=json.loads(json.dumps(schema))
+    # Use the backend's escaped JSON string grammar. A broad replace pattern
+    # may swallow JSON quotes; enforce line boundaries after decoding instead.
+    wire_schema['properties']['edits']['items'].get('properties',{}).get('replace',{}).pop('pattern',None)
+    fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':wire_schema}} if llm.active_backend()=='local' else 'json'
     reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
     diagnosis=None
     if diagnose and not attribute_choices and not removal_choices:
@@ -211,10 +215,14 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         {'role':'user','content':json.dumps({'source':source,'errors':examples,'total_error_count':len(errors),'contracts':contracts,'task':task,
             **({'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
-    if attribute_choices or removal_choices:
+    if attribute_choices or removal_choices or indexed:
         import jsonschema
-        try:jsonschema.validate(json.loads(projects.unwrap_file(result.get('content',''),'patch.json')),schema)
-        except (ValueError,jsonschema.ValidationError):result['patch_validation_error']='Attribute edit must select listed existing spans and only delete them.'
+        try:
+            decoded=json.loads(projects.unwrap_file(result.get('content',''),'patch.json'))
+            jsonschema.validate(decoded,schema)
+            if indexed and not removal_choices and single_line and any('\n' in edit['replace'] or '\r' in edit['replace'] for edit in decoded['edits']):
+                raise ValueError('A single-line replacement cannot contain CR or LF.')
+        except (ValueError,jsonschema.ValidationError):result['patch_validation_error']='Indexed edit must use listed lines and respect replacement boundaries.' if indexed and not removal_choices else 'Attribute edit must select listed existing spans and only delete them.'
     if diagnosis:
         result['repair_plan']={'text':plan,'sha256':digest(plan),'model':diagnosis.get('stats',{}).get('served_model',''),
                                'finish_reason':diagnosis.get('stats',{}).get('finish_reason')}
