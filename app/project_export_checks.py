@@ -43,8 +43,10 @@ EXPORT_CASES = {
         events=[];job={video,timer:null,onSeeked:null};armSeekJob(job,target);
         assert(JSON.stringify(events)==='["listen","timer","assign"]'&&current===target,'armSeekJob must register event and timeout before assigning requested time, including zero');
         assert(job.timer===37&&timerMs===5000&&typeof job.onSeeked==='function','armSeekJob must store timer handle and a five-second failure timeout');
-        job.onSeeked();assert(events.at(-1)==='complete','seeked callback must delegate to completeSeekJob');
-        timerCallback();assert(events.at(-1).startsWith('fail:'),'timeout callback must delegate an Error to failSeekJob');
+        assert(typeof job.onSeeked==='function','armSeekJob must assign an actual seeked callback to job.onSeeked');
+        if(typeof job.onSeeked==='function'){job.onSeeked();assert(events.at(-1)==='complete','seeked callback must delegate to completeSeekJob');}
+        assert(typeof timerCallback==='function','armSeekJob must immediately call browser setTimeout, before any seeked event');
+        if(typeof timerCallback==='function'){timerCallback();assert(events.at(-1).startsWith('fail:'),'timeout callback must delegate an Error to failSeekJob');}
       }
       assignmentFailure=true;events=[];job={video,timer:null,onSeeked:null};armSeekJob(job,4);
       assert(events.at(-1)==='fail:Assignment blocked','assignment exception must delegate actual error to failSeekJob');

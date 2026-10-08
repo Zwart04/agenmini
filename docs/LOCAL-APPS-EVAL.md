@@ -1323,3 +1323,20 @@ regenerasi meng-clone argumen dan menulis ulang const. 226 tes regresi terkait
 lolos (121,62 detik). V106 memperjelas lima properti objek serta identitas
 argumen asli. Pesan penguji menyertakan properti dan nilai aktual, tanpa
 memberikan kode solusi. 39 tes terarah tetap lolos.
+
+V106 meloloskan makeSeekJob pada respons pertama model, sumber/hash asli
+disimpan pada parts/94.json. Run gagal setelah 117,3 detik pada clearSeekJob:
+tidak removeEventListener, mengakses video.seeked dan memakai truthiness untuk
+timer sehingga handle nol terlewat. V107 memperjelas kontrak properti job dan
+empat langkah cleanup. Tambahan jatah reasoning sudah ada pada jalur patch;
+masalah ini tidak dibuktikan sebagai kekurangan token. 39 tes tetap lolos.
+
+V107 meloloskan cleanup, completeSeekJob dan failSeekJob pada respons pertama.
+Empat job helper sudah model-authored dengan provenance asli; run gagal
+setelah 255,7 detik pada armSeekJob. Model mendeklarasikan ulang parameter,
+memperlakukan handle sebagai API dan menaruh assignment di dalam event.
+V108 memperjelas urutan langkah langsung versus callback dan bentuk argumen.
+Penguji tetap menolak callback/timer yang tidak terpasang, tetapi memeriksa
+keberadaannya sebelum mencoba memanggilnya agar galat fixture tidak menutupi
+penyebab awal. 40 tes terarah lolos, termasuk regresi diagnostik tersebut.
+CI Linux e04dfe2 berhasil: run 37740129877, 539 tes lolos (102,96 detik).

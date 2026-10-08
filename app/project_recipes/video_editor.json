@@ -2094,13 +2094,13 @@
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 300,
+      "tokens": 400,
       "functions": [
         "clearSeekJob"
       ],
-      "task": "Write only complete plain JavaScript function clearSeekJob(job). Clear job.timer with clearTimeout only when it is not null; zero is a valid handle. Remove job.onSeeked from job.video seeked event only when the handler is not null. Set timer and onSeeked to null. Retain video and both callbacks.",
+      "task": "Write only clearSeekJob(job). Perform these steps in order: 1. When job.timer is not null, call browser clearTimeout with job.timer. The value 0 must also be cleared. 2. When job.onSeeked is not null, call job.video.removeEventListener with event name seeked and the original job.onSeeked callback. Do this before clearing the callback property. 3. Set job.timer to null. 4. Set job.onSeeked to null. Do not assign job.video, job.resolve, job.reject or any other property. Do not use video.seeked or clone the job. No return value needed.",
       "parameters": {
-        "job": "Supplied argument; use directly without redeclaration or DOM lookup."
+        "job": "Existing object with timer (null or timeout handle including zero), onSeeked (null or event callback), video (element with removeEventListener), resolve and reject (callbacks). Use original properties directly."
       },
       "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
       "relevant_fields": {
@@ -2181,10 +2181,10 @@
       "functions": [
         "armSeekJob"
       ],
-      "task": "Write only complete plain JavaScript function armSeekJob(job,target). Store a callback on job.onSeeked that calls existing completeSeekJob(job). Register it on job.video seeked event. Store the handle of a 5000 ms setTimeout on job.timer; its callback calls failSeekJob(job,new Error with a descriptive timeout message). Only after both listener and timeout are armed, assign job.video.currentTime to target inside try/catch. In catch call failSeekJob(job,error) with the actual caught error. Do not play video or call success from a timer. Target zero is valid.",
+      "task": "Write named function armSeekJob(job,target), in four sequential steps. 1. Assign job.onSeeked a new function that calls existing completeSeekJob(job). 2. Immediately register that same job.onSeeked function on job.video using addEventListener for event name seeked. 3. Immediately call browser setTimeout with a function that calls failSeekJob(job,new Error with a timeout message), and delay 5000. Store the returned numeric handle in job.timer. 4. Immediately assign job.video.currentTime to target inside try/catch; catch passes the actual error to failSeekJob(job,error). Steps 2, 3 and 4 run directly in the outer function, not inside any callback. job.timer is only a handle, never an API object. Use existing parameters without declaring replacements. No playback, global assignments or nested listeners.",
       "parameters": {
-        "job": "Supplied argument; use directly without redeclaration or DOM lookup.",
-        "target": "Supplied argument; use directly without redeclaration or DOM lookup."
+        "job": "Existing mutable job object: video is the video element, onSeeked is initially null, timer is initially null. resolve/reject callbacks are retained by completeSeekJob/failSeekJob.",
+        "target": "Numeric requested seconds, including zero. Assign this actual number to the video currentTime after arming event and timer."
       },
       "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
       "relevant_fields": {

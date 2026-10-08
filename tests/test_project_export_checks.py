@@ -124,6 +124,15 @@ async def test_seek_jobs_compose_with_full_event_timeout_and_cleanup_cases():
     assert await project_checks.inspect_helper(workers.replace('clearTimeout(job.timer);','')+'\n'+wait,'video_export_wait')
 
 
+@pytest.mark.asyncio
+async def test_seek_arm_reports_absent_registration_before_fixture_callback_invocation():
+    errors=await project_checks.inspect_helper(
+        'function armSeekJob(job,target){try{job.video.currentTime=target;}catch(error){failSeekJob(job,error);}}', 'video_seek_arm')
+    assert any('assign an actual seeked callback' in error for error in errors)
+    assert any('immediately call browser setTimeout' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed:') for error in errors)
+
+
 def test_export_recipe_is_only_instructions_and_uses_all_lifecycle_checks():
     recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text(encoding='utf-8'))
     parts=[part for part in recipe['parts'] if any(check in REFERENCES for check in part.get('behavior_checks',[]))]
