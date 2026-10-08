@@ -1305,3 +1305,21 @@ V103 tidak digunakan sebagai pembanding seek: edit batas token tidak sengaja
 mengenai panel library, sehingga cache panel tidak cocok dan run gagal pada
 input berkas setelah 67,3 detik. Batas panel dikembalikan ke 650; hanya worker
 seek memakai 450. V104 melanjutkan checkpoint v102 dengan panel asli.
+
+V104 gagal setelah 124,2 detik. Respons model mencoba play dan timer sebagai
+pengganti event seek, lalu regenerasi menolak waktu nol dan tidak menjaga
+siklus reject/cleanup. V105 membagi job seek menjadi data, pembersihan handle,
+sukses, gagal dan pemasangan event, lalu menggabungkannya melalui Promise.
+Semua helper tetap ditulis model. Pemeriksaan gabungan tetap menguji seek
+sebelum assignment, timeout lima detik, cleanup dan galat assignment asli.
+39 tes terarah lolos; fixture/reference penguji tidak masuk prompt atau hasil
+aplikasi. CI Linux commit 78ec695 (run 37738491963) berhasil. V105 masih
+memerlukan hasil model nyata dan pengujian browser; editor belum dinyatakan
+selesai atau layak pakai.
+
+V105 gagal setelah 126,1 detik pada makeSeekJob: timer/onSeeked dibuat sebagai
+variabel lokal dan tidak masuk objek hasil; patch pertama tidak berubah,
+regenerasi meng-clone argumen dan menulis ulang const. 226 tes regresi terkait
+lolos (121,62 detik). V106 memperjelas lima properti objek serta identitas
+argumen asli. Pesan penguji menyertakan properti dan nilai aktual, tanpa
+memberikan kode solusi. 39 tes terarah tetap lolos.

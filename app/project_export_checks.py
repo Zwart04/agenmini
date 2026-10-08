@@ -1,6 +1,54 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_seek_job': r'''
+      for(const video of [{currentTime:0},{currentTime:3}]){
+        const resolve=()=>{},reject=()=>{},job=makeSeekJob(video,resolve,reject);
+        assert(job&&job.video===video&&job.resolve===resolve&&job.reject===reject,'makeSeekJob must retain supplied video and both callback identities');
+        assert(job.timer===null&&job.onSeeked===null,'makeSeekJob returned object must have timer=null and onSeeked=null properties; actual keys='+JSON.stringify(Object.keys(job))+' timer='+String(job.timer)+' onSeeked='+String(job.onSeeked));
+      }
+    ''',
+    'video_seek_clear': r'''
+      let cleared=[],removed=[];function clearTimeout(id){cleared.push(id);}
+      const window={clearTimeout};
+      for(const timer of [0,32,null]){
+        const handler=()=>{},resolve=()=>{},reject=()=>{},video={removeEventListener(name,fn){removed.push([name,fn]);}};
+        const job={video,resolve,reject,timer,onSeeked:handler};cleared=[];removed=[];clearSeekJob(job);
+        assert((timer===null?cleared.length===0:cleared.length===1&&cleared[0]===timer),'clearSeekJob must clear its timer, including handle zero');
+        assert(removed.length===1&&removed[0][0]==='seeked'&&removed[0][1]===handler,'clearSeekJob must remove the original named seeked handler');
+        assert(job.timer===null&&job.onSeeked===null&&job.video===video&&job.resolve===resolve&&job.reject===reject,'clearSeekJob must clear only its handles and retain supplied objects/callbacks');
+      }
+      const job={timer:null,onSeeked:null,video:{removeEventListener(){throw new Error('No listener to remove');}}};clearSeekJob(job);
+    ''',
+    'video_seek_complete': r'''
+      let log=[],job;function clearSeekJob(value){assert(value===job,'completion must clean the same seek job');log.push('clear');}
+      job={resolve(){log.push('resolve');},reject(){log.push('reject');}};
+      completeSeekJob(job);assert(JSON.stringify(log)==='["clear","resolve"]','completeSeekJob must clear handles before resolving, never reject');
+    ''',
+    'video_seek_fail': r'''
+      let log=[],job;const error=new Error('Actual seek failure');
+      function clearSeekJob(value){assert(value===job,'failure must clean the same seek job');log.push('clear');}
+      job={resolve(){log.push('resolve');},reject(value){assert(value===error,'failSeekJob must reject the actual supplied Error');log.push('reject');}};
+      failSeekJob(job,error);assert(JSON.stringify(log)==='["clear","reject"]','failSeekJob must clear handles before rejecting, never resolve');
+    ''',
+    'video_seek_arm': r'''
+      let events=[],timerCallback=null,timerMs=0,assignmentFailure=false,current=0,job;
+      function setTimeout(fn,ms){timerCallback=fn;timerMs=ms;events.push('timer');return 37;}
+      const window={setTimeout};
+      const video={addEventListener(name,fn){assert(name==='seeked'&&fn===job.onSeeked,'armSeekJob must register its stored seeked handler');events.push('listen');},
+        set currentTime(value){events.push('assign');if(assignmentFailure)throw new Error('Assignment blocked');current=value;},get currentTime(){return current;}};
+      function completeSeekJob(value){assert(value===job,'seeked callback must complete its original job');events.push('complete');}
+      function failSeekJob(value,error){assert(value===job&&error instanceof Error,'failure callback must receive original job and actual Error');events.push('fail:'+error.message);}
+      for(const target of [0,2.75]){
+        events=[];job={video,timer:null,onSeeked:null};armSeekJob(job,target);
+        assert(JSON.stringify(events)==='["listen","timer","assign"]'&&current===target,'armSeekJob must register event and timeout before assigning requested time, including zero');
+        assert(job.timer===37&&timerMs===5000&&typeof job.onSeeked==='function','armSeekJob must store timer handle and a five-second failure timeout');
+        job.onSeeked();assert(events.at(-1)==='complete','seeked callback must delegate to completeSeekJob');
+        timerCallback();assert(events.at(-1).startsWith('fail:'),'timeout callback must delegate an Error to failSeekJob');
+      }
+      assignmentFailure=true;events=[];job={video,timer:null,onSeeked:null};armSeekJob(job,4);
+      assert(events.at(-1)==='fail:Assignment blocked','assignment exception must delegate actual error to failSeekJob');
+    ''',
     'video_export_mime': r'''
       let supported=new Set(),probes=[];
       const MediaRecorder={isTypeSupported(...args){assert(args.length===1,'MediaRecorder.isTypeSupported must receive one complete MIME string');const value=args[0];probes.push(value);return supported.has(value);}};

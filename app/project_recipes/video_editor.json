@@ -2061,24 +2061,182 @@
       ]
     },
     {
-      "name": "Wait for video time with bounded events",
+      "name": "Create seek task data",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 240,
+      "functions": [
+        "makeSeekJob"
+      ],
+      "task": "Write function makeSeekJob(video,resolve,reject). Return one plain object with exactly five own properties: video is the original video argument, resolve is the original resolve callback, reject is the original reject callback, timer is null, onSeeked is null. timer and onSeeked must be properties of the returned object, not local variables. Preserve argument identities. No cloning, spreading, callbacks, timers or event APIs. This function only creates data.",
+      "parameters": {
+        "video": "Original video object; retain same object identity.",
+        "resolve": "Original callback function; retain same function identity.",
+        "reject": "Original callback function; retain same function identity."
+      },
+      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_job"
+      ],
+      "system_contract": "Begin with function makeSeekJob(video,resolve,reject). Output only this function, without types, imports, exports or global declarations."
+    },
+    {
+      "name": "Clear seek task handles",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 300,
+      "functions": [
+        "clearSeekJob"
+      ],
+      "task": "Write only complete plain JavaScript function clearSeekJob(job). Clear job.timer with clearTimeout only when it is not null; zero is a valid handle. Remove job.onSeeked from job.video seeked event only when the handler is not null. Set timer and onSeeked to null. Retain video and both callbacks.",
+      "parameters": {
+        "job": "Supplied argument; use directly without redeclaration or DOM lookup."
+      },
+      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_clear"
+      ],
+      "system_contract": "Begin with function clearSeekJob(job). Output only this function, without types, imports, exports or global declarations."
+    },
+    {
+      "name": "Complete seek task",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "completeSeekJob"
+      ],
+      "task": "Write only complete plain JavaScript function completeSeekJob(job). Call existing clearSeekJob with job, then call job.resolve without arguments. Never reject.",
+      "parameters": {
+        "job": "Supplied argument; use directly without redeclaration or DOM lookup."
+      },
+      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "clearSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_complete"
+      ],
+      "system_contract": "Begin with function completeSeekJob(job). Output only this function, without types, imports, exports or global declarations."
+    },
+    {
+      "name": "Reject seek task",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "failSeekJob"
+      ],
+      "task": "Write only complete plain JavaScript function failSeekJob(job,error). Call existing clearSeekJob with job, then call job.reject with the supplied error unchanged. Never resolve.",
+      "parameters": {
+        "job": "Supplied argument; use directly without redeclaration or DOM lookup.",
+        "error": "Supplied argument; use directly without redeclaration or DOM lookup."
+      },
+      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "clearSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_fail"
+      ],
+      "system_contract": "Begin with function failSeekJob(job,error). Output only this function, without types, imports, exports or global declarations."
+    },
+    {
+      "name": "Arm seek task events",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
       "tokens": 450,
-      "functions": ["waitForVideoTime"],
+      "functions": [
+        "armSeekJob"
+      ],
+      "task": "Write only complete plain JavaScript function armSeekJob(job,target). Store a callback on job.onSeeked that calls existing completeSeekJob(job). Register it on job.video seeked event. Store the handle of a 5000 ms setTimeout on job.timer; its callback calls failSeekJob(job,new Error with a descriptive timeout message). Only after both listener and timeout are armed, assign job.video.currentTime to target inside try/catch. In catch call failSeekJob(job,error) with the actual caught error. Do not play video or call success from a timer. Target zero is valid.",
+      "parameters": {
+        "job": "Supplied argument; use directly without redeclaration or DOM lookup.",
+        "target": "Supplied argument; use directly without redeclaration or DOM lookup."
+      },
+      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "completeSeekJob",
+        "failSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_arm"
+      ],
+      "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations."
+    },
+    {
+      "name": "Wait for video time with bounded events",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 260,
+      "functions": [
+        "waitForVideoTime"
+      ],
       "parameters": {
         "video": "Video element already passed into the function. Use this argument directly; do not declare or find another video.",
         "target": "Requested playback seconds, already validated. Zero is valid. Use this argument directly."
       },
-      "task": "Write concise plain JavaScript async waitForVideoTime(video,target), about 20 lines. Arguments already exist: use video directly. If absolute difference of currentTime and target is below .02, return without writes/listeners/timers. Otherwise return a new Promise with resolve and reject callbacks. In its callback: create local cleanup that clears timer and removes the named seeked handler; named seeked handler cleans up and resolves; add that listener; arm a 5000ms timer that cleans up and rejects Error; assign video.currentTime=target inside try/catch, cleaning up and rejecting actual assignment error. Assign time before waiting, outside the event handler. Never query document, redeclare video, add type annotations, or delay success by a timer.",
+      "task": "Write async waitForVideoTime(video,target). If the absolute difference between video.currentTime and target is below .02, return immediately without writes. Otherwise return a new Promise. In its executor, use existing makeSeekJob(video,resolve,reject) to create a local job, then call existing armSeekJob(job,target). These helpers already implement the bounded event and cleanup lifecycle. Do not duplicate their implementations, query DOM or play the video.",
       "context": "Standalone parameter-only browser helper. All variables and event callbacks are local to this function.",
-      "relevant_fields": {"app": [], "ui": []},
-      "relevant_functions": [],
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "makeSeekJob",
+        "armSeekJob"
+      ],
       "state_writes": [],
-      "behavior_checks": ["video_export_wait"],
-      "system_contract": "Start with async function waitForVideoTime(video,target). Plain JavaScript parameters without types; use supplied video directly. No DOM selectors, imports or exports. Keep concise and complete."
+      "behavior_checks": [
+        "video_export_wait"
+      ],
+      "system_contract": "Start with async function waitForVideoTime(video,target). Plain JavaScript parameters without types; use supplied video directly. No DOM selectors, imports or exports. Keep concise and complete.",
+      "behavior_dependencies": [
+        "makeSeekJob",
+        "clearSeekJob",
+        "completeSeekJob",
+        "failSeekJob",
+        "armSeekJob"
+      ]
     },
     {
       "name": "Wait for export trim start",
@@ -2099,8 +2257,17 @@
           "preview"
         ]
       },
-      "relevant_functions": ["waitForVideoTime"],
-      "behavior_dependencies": ["waitForVideoTime"],
+      "relevant_functions": [
+        "waitForVideoTime"
+      ],
+      "behavior_dependencies": [
+        "makeSeekJob",
+        "clearSeekJob",
+        "completeSeekJob",
+        "failSeekJob",
+        "armSeekJob",
+        "waitForVideoTime"
+      ],
       "state_writes": [],
       "system_contract": "Begin with async function seekExportStart(). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [

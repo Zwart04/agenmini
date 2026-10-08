@@ -8,6 +8,11 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_seek_job': 'function makeSeekJob(video,resolve,reject){return {video,resolve,reject,timer:null,onSeeked:null};}',
+    'video_seek_clear': "function clearSeekJob(job){if(job.timer!==null)clearTimeout(job.timer);if(job.onSeeked!==null)job.video.removeEventListener('seeked',job.onSeeked);job.timer=null;job.onSeeked=null;}",
+    'video_seek_complete': 'function completeSeekJob(job){clearSeekJob(job);job.resolve();}',
+    'video_seek_fail': 'function failSeekJob(job,error){clearSeekJob(job);job.reject(error);}',
+    'video_seek_arm': "function armSeekJob(job,target){job.onSeeked=()=>completeSeekJob(job);job.video.addEventListener('seeked',job.onSeeked);job.timer=setTimeout(()=>failSeekJob(job,new Error('Seek timeout')),5000);try{job.video.currentTime=target;}catch(error){failSeekJob(job,error);}}",
     'video_export_mime': """function chooseWebMMime(){
       for(const mime of ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'])if(MediaRecorder.isTypeSupported(mime))return mime;
       throw new Error('WebM is unsupported');
@@ -85,6 +90,11 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_seek_job', 'timer:null', 'timer:0'),
+    ('video_seek_clear', 'job.timer!==null', 'job.timer'),
+    ('video_seek_complete', 'clearSeekJob(job);job.resolve();', 'job.resolve();clearSeekJob(job);'),
+    ('video_seek_fail', 'job.reject(error)', 'job.reject(new Error("Other error"))'),
+    ('video_seek_arm', '5000', '500'),
     ('video_export_mime', "if(MediaRecorder.isTypeSupported(mime))", 'if(true)'),
     ('video_export_seek', "ui.preview.addEventListener('seeked',done,{once:true});", ''),
     ('video_export_seek', 'clearTimeout(timer);', ''),
@@ -101,6 +111,17 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 async def test_export_fixtures_reject_broken_behavior(check, old, new):
     assert old in REFERENCES[check]
     assert await project_checks.inspect_helper(REFERENCES[check].replace(old,new), check)
+
+
+@pytest.mark.asyncio
+async def test_seek_jobs_compose_with_full_event_timeout_and_cleanup_cases():
+    workers='\n'.join(REFERENCES[name] for name in (
+        'video_seek_job','video_seek_clear','video_seek_complete','video_seek_fail','video_seek_arm'))
+    wait='async function waitForVideoTime(video,target){if(Math.abs(video.currentTime-target)<.02)return;return new Promise((resolve,reject)=>{const job=makeSeekJob(video,resolve,reject);armSeekJob(job,target);});}'
+    assert not await project_checks.inspect_helper(workers+'\n'+wait,'video_export_wait')
+    caller='async function seekExportStart(){return waitForVideoTime(ui.preview,app.start);}'
+    assert not await project_checks.inspect_helper(workers+'\n'+wait+'\n'+caller,'video_export_seek')
+    assert await project_checks.inspect_helper(workers.replace('clearTimeout(job.timer);','')+'\n'+wait,'video_export_wait')
 
 
 def test_export_recipe_is_only_instructions_and_uses_all_lifecycle_checks():
