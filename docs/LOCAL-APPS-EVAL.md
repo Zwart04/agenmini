@@ -1340,3 +1340,12 @@ Penguji tetap menolak callback/timer yang tidak terpasang, tetapi memeriksa
 keberadaannya sebelum mencoba memanggilnya agar galat fixture tidak menutupi
 penyebab awal. 40 tes terarah lolos, termasuk regresi diagnostik tersebut.
 CI Linux e04dfe2 berhasil: run 37740129877, 539 tes lolos (102,96 detik).
+
+V108 gagal setelah 258,0 detik. Respons awal benar pada listener, timeout dan
+assignment, tetapi tidak menyimpan return value setTimeout ke job.timer.
+Patch menyalin ulang sumber; regenerasi menduplikasi helper dan terpotong.
+V109 memberi diagnostik nilai aktual pada handle/delay. Penguji memakai
+handle 0, 37 dan 311 dan menolak nilai hardcode atau handle yang tidak
+disimpan. 42 tes terarah lolos. CI Linux 4af6317 berhasil: run 37741033009,
+540 tes lolos (98,19 detik). Semua hasil ini tetap belum membuktikan editor
+lengkap; ekspor nyata dan UI/browser belum lulus.

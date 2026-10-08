@@ -32,17 +32,19 @@ EXPORT_CASES = {
       failSeekJob(job,error);assert(JSON.stringify(log)==='["clear","reject"]','failSeekJob must clear handles before rejecting, never resolve');
     ''',
     'video_seek_arm': r'''
-      let events=[],timerCallback=null,timerMs=0,assignmentFailure=false,current=0,job;
-      function setTimeout(fn,ms){timerCallback=fn;timerMs=ms;events.push('timer');return 37;}
+      let events=[],timerCallback=null,timerMs=0,assignmentFailure=false,current=0,job,returnedHandle=0;
+      function setTimeout(fn,ms){timerCallback=fn;timerMs=ms;events.push('timer');return returnedHandle;}
       const window={setTimeout};
       const video={addEventListener(name,fn){assert(name==='seeked'&&fn===job.onSeeked,'armSeekJob must register its stored seeked handler');events.push('listen');},
         set currentTime(value){events.push('assign');if(assignmentFailure)throw new Error('Assignment blocked');current=value;},get currentTime(){return current;}};
       function completeSeekJob(value){assert(value===job,'seeked callback must complete its original job');events.push('complete');}
       function failSeekJob(value,error){assert(value===job&&error instanceof Error,'failure callback must receive original job and actual Error');events.push('fail:'+error.message);}
-      for(const target of [0,2.75]){
+      for(const [target,handle] of [[0,0],[2.75,37],[4,311]]){
+        returnedHandle=handle;timerCallback=null;timerMs=0;
         events=[];job={video,timer:null,onSeeked:null};armSeekJob(job,target);
         assert(JSON.stringify(events)==='["listen","timer","assign"]'&&current===target,'armSeekJob must register event and timeout before assigning requested time, including zero');
-        assert(job.timer===37&&timerMs===5000&&typeof job.onSeeked==='function','armSeekJob must store timer handle and a five-second failure timeout');
+        assert(job.timer===returnedHandle,'job.timer expected the handle returned immediately by browser setTimeout: '+returnedHandle+'; actual='+String(job.timer));
+        assert(timerMs===5000,'setTimeout delay expected 5000 milliseconds; actual='+timerMs);
         assert(typeof job.onSeeked==='function','armSeekJob must assign an actual seeked callback to job.onSeeked');
         if(typeof job.onSeeked==='function'){job.onSeeked();assert(events.at(-1)==='complete','seeked callback must delegate to completeSeekJob');}
         assert(typeof timerCallback==='function','armSeekJob must immediately call browser setTimeout, before any seeked event');

@@ -95,6 +95,8 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_seek_complete', 'clearSeekJob(job);job.resolve();', 'job.resolve();clearSeekJob(job);'),
     ('video_seek_fail', 'job.reject(error)', 'job.reject(new Error("Other error"))'),
     ('video_seek_arm', '5000', '500'),
+    ('video_seek_arm', 'job.timer=setTimeout', 'setTimeout'),
+    ('video_seek_arm', 'job.timer=setTimeout', 'job.timer=37;setTimeout'),
     ('video_export_mime', "if(MediaRecorder.isTypeSupported(mime))", 'if(true)'),
     ('video_export_seek', "ui.preview.addEventListener('seeked',done,{once:true});", ''),
     ('video_export_seek', 'clearTimeout(timer);', ''),
