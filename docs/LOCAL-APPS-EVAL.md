@@ -866,3 +866,20 @@ ekspor dan browser end-to-end belum lulus; editor tidak dinyatakan selesai.
 
 214 tes terkait Windows lolos pada perubahan v66. CI Linux commit 56c0bfd
 lolos 465 tes (sebelum perubahan konteks contoh pada v66).
+
+## Penghubung trim dan pecahan detik
+
+Instruksi validateTrim diubah menjadi dua cabang perilaku yang eksplisit
+dan mempertahankan state luar. v67 menghasilkan penghubung yang memanggil
+applyTrim/rejectTrim dengan benar, tetapi parsing menggunakan parseInt
+menghilangkan pecahan detik. Tes menolak keluaran itu; patch pertama hanya
+menghapus baris kosong dan belum memperbaiki perilaku.
+
+Enam tes trim/recipe lolos setelah perubahan instruksi. CI Linux pada
+commit 7b39e36 lolos 468 tes; bukan bukti editor hasil model sudah berfungsi.
+
+V67 berakhir setelah 333,5 detik dengan kesalahan pecahan detik yang sama.
+Pesan validasi kini memuat pasangan waktu yang diharapkan dan tersimpan,
+dengan identitas kasus stabil saat nilai aktual berubah. Tes regresi
+memastikan parseInt ditolak untuk 1,25 sampai 3,75 detik dan diagnosis
+menampilkan nilai 1 dan 3 yang benar-benar tersimpan.

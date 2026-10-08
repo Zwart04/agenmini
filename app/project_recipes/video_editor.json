@@ -1536,7 +1536,7 @@
       "functions": [
         "validateTrim"
       ],
-      "task": "Write only function validateTrim(), at most 6 lines. Parse ui.startInput.value and ui.endInput.value with Number into local start/end variables. Return a ternary expression: condition is isTrimRange(start,end,app.duration), true branch calls applyTrim(start,end), false branch calls rejectTrim(). These helpers already implement all side effects. No other functions, globals, imports, comments or direct state updates.",
+      "task": "Implement complete function validateTrim() with no parameters. Read the two existing controls ui.startInput.value and ui.endInput.value, converting each to a number in local variables. Ask existing isTrimRange whether those numbers are valid for app.duration. When valid, call existing applyTrim with the two numbers and return its result. Otherwise call existing rejectTrim with no arguments and return its result. Both branches must invoke their helper. Do not implement validation or side effects yourself; the three helpers already do that. Use the existing outer app and ui objects.",
       "relevant_fields": {
         "app": [
           "duration"
@@ -1561,7 +1561,8 @@
         "reportTrim",
         "applyTrim",
         "rejectTrim"
-      ]
+      ],
+      "state_writes": []
     },
     {
       "name": "Render actual timeline",

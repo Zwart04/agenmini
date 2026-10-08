@@ -1369,6 +1369,10 @@ async def test_trim_composition_preserves_last_valid_bounds_and_busy_export_guar
     assert not await project_checks.inspect_helper(apply,'trim_apply')
     assert not await project_checks.inspect_helper(reject,'trim_reject')
     assert not await project_checks.inspect_helper(predicate+apply+reject+validate,'video_trim')
+    decimal_errors=await project_checks.inspect_helper(predicate+apply+reject+validate.replace('Number(', 'parseInt('),'video_trim')
+    assert any('expected [1.25,3.75]; actual=[1,3]' in e for e in decimal_errors)
+    assert all('actual=' not in project_parts.helper_failure_identity(e) for e in decimal_errors)
+
     assert await project_checks.inspect_helper(apply.replace('disabled=app.busy','disabled=false'),'trim_apply')
     assert await project_checks.inspect_helper(reject.replace('return false;','app.start=0;return false;'),'trim_reject')
     assert await project_checks.inspect_helper(predicate+apply+reject+validate.replace('Number(ui.startInput.value)','ui.startInput.value'),'video_trim')
