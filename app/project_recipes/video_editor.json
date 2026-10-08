@@ -1404,31 +1404,101 @@
       ]
     },
     {
-      "name": "Apply valid trim",
+      "name": "Store trim bounds",
       "file": "app.js",
       "kind": "js",
-      "tokens": 260,
+      "tokens": 140,
       "raw_source": true,
       "include_html": false,
       "functions": [
-        "applyTrim"
+        "storeTrim"
       ],
-      "task": "Write only plain JavaScript function applyTrim(start,end), at most 10 lines. Perform these operations in order: assign the argument start to app.start; assign the argument end to app.end; assign app.busy to ui.exportBtn.disabled; call the already implemented setStatus exactly once with a success message containing the numeric difference end-start and seconds; call standalone updateTimeline() once; return Boolean true. updateTimeline is implemented later. Output only this complete function, using existing helpers.",
+      "task": "Write only JavaScript function storeTrim(start,end), at most 4 lines. Assign argument start to app.start and argument end to app.end. These existing properties are writable. Only these two assignments inside the function.",
       "relevant_fields": {
         "app": [
           "start",
-          "end",
+          "end"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "trim_store"
+      ]
+    },
+    {
+      "name": "Refresh trim export control",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 120,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "refreshTrimExport"
+      ],
+      "task": "Write only JavaScript function refreshTrimExport(), at most 3 lines. Its only statement assigns app.busy to ui.exportBtn.disabled. Use the existing objects and spell the property paths completely.",
+      "relevant_fields": {
+        "app": [
           "busy"
         ],
         "ui": [
           "exportBtn"
         ]
       },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "trim_export"
+      ]
+    },
+    {
+      "name": "Report selected duration",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 200,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "reportTrim"
+      ],
+      "task": "Write only JavaScript function reportTrim(start,end), at most 4 lines. Call the existing setStatus once, with a message containing the numeric difference end-start followed by seconds, and false as the error flag. Then call standalone updateTimeline() once; it is implemented later. Only these two calls.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
       "relevant_functions": [
         "setStatus"
       ],
       "behavior_checks": [
+        "trim_report"
+      ]
+    },
+    {
+      "name": "Apply valid trim",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 180,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "applyTrim"
+      ],
+      "task": "Write only JavaScript function applyTrim(start,end), at most 6 lines. In order: call storeTrim(start,end); call refreshTrimExport(); call reportTrim(start,end); return Boolean true. These helpers already implement the actions. Output the function, no globals or other functions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "storeTrim",
+        "refreshTrimExport",
+        "reportTrim"
+      ],
+      "behavior_checks": [
         "trim_apply"
+      ],
+      "behavior_dependencies": [
+        "storeTrim",
+        "refreshTrimExport",
+        "reportTrim"
       ]
     },
     {
@@ -1485,6 +1555,9 @@
       ],
       "behavior_dependencies": [
         "isTrimRange",
+        "storeTrim",
+        "refreshTrimExport",
+        "reportTrim",
         "applyTrim",
         "rejectTrim"
       ]

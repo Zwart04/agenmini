@@ -1445,3 +1445,23 @@ async def test_patch_introducing_execution_error_still_rolls_back(monkeypatch,tm
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
     assert restored==[bad] and len(calls)==3
+
+
+@pytest.mark.asyncio
+async def test_trim_operations_preserve_state_and_compose_without_fixture_replacements():
+    store='function storeTrim(start,end){app.start=start;app.end=end;}'
+    export='function refreshTrimExport(){ui.exportBtn.disabled=app.busy;}'
+    report='function reportTrim(start,end){setStatus(String(end-start)+" seconds",false);updateTimeline();}'
+    apply='function applyTrim(start,end){storeTrim(start,end);refreshTrimExport();reportTrim(start,end);return true;}'
+    assert not await project_checks.inspect_helper(store,'trim_store')
+    assert not await project_checks.inspect_helper(export,'trim_export')
+    assert not await project_checks.inspect_helper(report,'trim_report')
+    assert not await project_checks.inspect_helper(store+export+report+apply,'trim_apply')
+    assert await project_checks.inspect_helper(store.replace('app.end=end','app.end=start'),'trim_store')
+    assert await project_checks.inspect_helper(export.replace('app.busy','false'),'trim_export')
+    assert await project_checks.inspect_helper(report.replace('end-start','start-end'),'trim_report')
+
+    for expression in ['start-end','(end-start)*10','(end-start)+0.01']:
+        incorrect=report.replace('end-start',expression)
+        assert await project_checks.inspect_helper(incorrect,'trim_report')
+        assert await project_checks.inspect_helper(store+export+incorrect+apply,'trim_apply')

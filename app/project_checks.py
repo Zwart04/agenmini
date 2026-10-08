@@ -6,7 +6,7 @@ They are not a browser, and passing them cannot prove import/export behavior.
 import json
 from . import tools
 
-CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek', 'video_play_started', 'video_play_failed', 'video_start', 'video_pause', 'trim_range', 'trim_apply', 'trim_reject', 'video_trim'}
+CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek', 'video_play_started', 'video_play_failed', 'video_start', 'video_pause', 'trim_range', 'trim_apply', 'trim_reject', 'video_trim', 'trim_store', 'trim_export', 'trim_report'}
 RUNNER = r'''
 const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
@@ -30,6 +30,10 @@ process.stdin.on('end',()=>{
       const document={getElementById(id){return ui[id]||null;},querySelector(selector){return selector.startsWith('#')?ui[selector.slice(1)]||null:null;}};
       const failures=[];
       function assert(value,message){if(!value)failures.push(message);}
+      function reportsDuration(message,duration){
+        const numbers=String(message).match(/[+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)/g)||[];
+        return numbers.length===1&&Number(numbers[0])===duration;
+      }
     `;
 
     const playbackFixtures=`
@@ -79,8 +83,11 @@ process.stdin.on('end',()=>{
     `;
 
     const cases={
+      trim_store:`app.busy=true;app.loaded=true;for(const [start,end] of [[0,10],[1.25,3.75]]){storeTrim(start,end);assert(app.start===start&&app.end===end,'storeTrim must assign its arguments to app.start and app.end');assert(app.busy===true&&app.loaded===true,'storeTrim must preserve unrelated state');}`,
+      trim_export:`app.start=1;app.end=8;for(const busy of [false,true]){app.busy=busy;ui.exportBtn.disabled=!busy;refreshTrimExport();assert(ui.exportBtn.disabled===busy,'refreshTrimExport must copy app.busy to ui.exportBtn.disabled');assert(app.busy===busy&&app.start===1&&app.end===8,'refreshTrimExport must preserve state');}`,
+      trim_report:`for(const [start,end] of [[0,10],[1.25,3.75]]){calls.errors.length=0;const before=calls.timeline;reportTrim(start,end);assert(calls.errors.length===1&&reportsDuration(calls.errors[0][0],end-start)&&calls.errors[0][1]!==true,'reportTrim must report end-start as a success message once');assert(calls.timeline===before+1,'reportTrim must call updateTimeline once');}`,
       trim_range:`for(const [start,end,duration,expected] of [[0,10,10,true],[1.25,3.75,10,true],[9,10,10,true],[-1,2,10,false],[3,3,10,false],[4,2,10,false],[0,11,10,false],[0,1,0,false],[NaN,2,10,false],[0,NaN,10,false],[0,2,NaN,false],[0,2,Infinity,false],[-Infinity,2,10,false],[0,Infinity,10,false],['0',2,10,false],[0,'2',10,false],[0,2,'10',false],[null,2,10,false]]){const actual=isTrimRange(start,end,duration);assert(actual===expected,'isTrimRange('+[start,end,duration].map(v=>JSON.stringify(v)).join(',')+') expected Boolean '+expected+' [observed '+JSON.stringify(actual)+']');}`,
-      trim_apply:`for(const busy of [false,true])for(const [start,end] of [[0,10],[1.25,3.75]]){app.busy=busy;app.start=4;app.end=5;const before=calls.timeline;calls.errors.length=0;assert(applyTrim(start,end)===true,'applyTrim must return Boolean true');assert(app.start===start&&app.end===end,'applyTrim must store the supplied start/end');assert(ui.exportBtn.disabled===busy,'applyTrim must disable export only while busy');assert(calls.timeline===before+1,'applyTrim must updateTimeline once');assert(calls.errors.length===1&&String(calls.errors[0][0]).includes(String(end-start))&&calls.errors[0][1]!==true,'applyTrim must report the selected numeric duration as success');}`,
+      trim_apply:`for(const busy of [false,true])for(const [start,end] of [[0,10],[1.25,3.75]]){app.busy=busy;app.start=4;app.end=5;const before=calls.timeline;calls.errors.length=0;assert(applyTrim(start,end)===true,'applyTrim must return Boolean true');assert(app.start===start&&app.end===end,'applyTrim must store the supplied start/end');assert(ui.exportBtn.disabled===busy,'applyTrim must disable export only while busy');assert(calls.timeline===before+1,'applyTrim must updateTimeline once');assert(calls.errors.length===1&&reportsDuration(calls.errors[0][0],end-start)&&calls.errors[0][1]!==true,'applyTrim must report the selected numeric duration as success');}`,
       trim_reject:`app.start=1;app.end=8;app.loaded=true;app.busy=false;ui.exportBtn.disabled=false;assert(rejectTrim()===false,'rejectTrim must return Boolean false');assert(ui.exportBtn.disabled===true,'rejectTrim must disable export');assert(app.start===1&&app.end===8&&app.loaded===true&&app.busy===false,'rejectTrim must preserve existing state');assert(calls.timeline===0,'rejectTrim must preserve the previous timeline');assert(calls.errors.length===1&&String(calls.errors[0][0]).length>0&&calls.errors[0][1]===true,'rejectTrim must report an error');`,
       video_trim:`app.duration=10;app.loaded=true;for(const [start,end,valid] of [['0','10',true],['1.25','3.75',true],['-1','2',false],['3','3',false],['4','2',false],['0','11',false],['abc','2',false],['0','Infinity',false]])for(const busy of [false,true]){app.busy=busy;app.start=1;app.end=8;ui.startInput.value=start;ui.endInput.value=end;ui.exportBtn.disabled=false;const before=calls.timeline;calls.errors.length=0;const actual=validateTrim();assert(actual===valid,'validateTrim('+JSON.stringify([start,end])+') expected Boolean '+valid+' [observed '+JSON.stringify(actual)+']');if(valid){assert(app.start===Number(start)&&app.end===Number(end),'valid trim must store parsed seconds');assert(ui.exportBtn.disabled===busy,'valid trim must preserve busy restriction');assert(calls.timeline===before+1,'valid trim must update timeline once');}else{assert(app.start===1&&app.end===8,'invalid trim must preserve previous valid bounds');assert(ui.exportBtn.disabled===true,'invalid trim must disable export');assert(calls.timeline===before,'invalid trim must preserve timeline');assert(calls.errors.some(([,error])=>error===true),'invalid trim must report an error');}}`,
       video_play_started:`ui.playBtn.textContent='Play';playbackStarted();assert(ui.playBtn.textContent==='Pause','playbackStarted must show Pause');assert(calls.play===0&&calls.pause===0&&calls.errors.length===0,'playbackStarted must only update the label');`,
@@ -105,7 +112,7 @@ process.stdin.on('end',()=>{
       result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
       if(typeof result!=='string')throw new Error('Playback did not settle with an immediately resolved or rejected play promise');
     }else{
-      result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
+      result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim','trim_report'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
     }
     const failures=JSON.parse(result);
     if(!Array.isArray(failures))throw new Error(failures.execution_error||'Helper checks did not complete');

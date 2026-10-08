@@ -1,5 +1,14 @@
 # Peta project Agen Mini
 
+Folder utama di komputer ini: `C:\Users\Zwart\Downloads\Coding AI\agenmini`.
+Kode, dokumentasi, alat revisi, model lokal dan hasil benchmark proyek ini
+dikumpulkan di folder tersebut. Tidak perlu membuat salinan folder proyek baru.
+
+Hasil web buatan model: `.local-tools/hasil-uji-web/`. Setiap percobaan mempunyai
+folder sendiri agar sumber dan kegagalannya dapat ditelusuri. Folder percobaan
+belum tentu berisi aplikasi selesai; periksa `results.json` dan laporan
+`docs/LOCAL-APPS-EVAL.md` sebelum menganggapnya hasil yang sudah lulus.
+
 | Folder/berkas | Isi |
 | --- | --- |
 | app/ | Backend Python: agen, harness, ingatan, skill, Telegram dan API |

@@ -806,3 +806,24 @@ async, bukan hanya ReferenceError sinkron. Semua keluaran tetap ditolak
 sampai tidak ada galat; perbaikan ini tidak melewati pemeriksaan perilaku.
 
 **209 tes terkait lolos di Windows** setelah perbaikan klasifikasi galat.
+
+## Pemisahan operasi trim dan pemeriksaan durasi
+
+v62 gagal setelah 88,5 detik pada applyTrim: penyimpanan nilai, pesan durasi
+dan pembatas ekspor saat busy belum benar. Operasi ini kemudian dipisahkan
+menjadi storeTrim, refreshTrimExport dan reportTrim, dengan pemeriksaan
+gabungan applyTrim tetap dijalankan. Ini instruksi bagi model, bukan kode
+runtime buatan evaluator.
+
+v63 (Qwen3.5 0.8B Q8_0, thinking 256) berhasil menghasilkan storeTrim yang
+lolos pemeriksaan, tetapi gagal setelah 136,9 detik pada refreshTrimExport.
+Model membalik arah penugasan; perbaikannya belum menjaga state dan kontrol
+ekspor. Tidak ada editor lengkap yang lulus dari percobaan ini.
+
+Tes negatif menemukan bahwa pemeriksaan pesan durasi berbasis substring
+dapat menerima -10 sebagai 10. Pemeriksaan sekarang membandingkan satu
+nilai numerik bertanda secara utuh; durasi negatif, kelipatan sepuluh dan
+nilai yang meleset ditolak pada helper maupun komposisinya.
+
+210 tes terkait lolos di Windows. CI Linux pada commit 07b52ec sebelumnya
+lolos 463 tes; angka itu belum mencakup pemisahan operasi trim terbaru.
