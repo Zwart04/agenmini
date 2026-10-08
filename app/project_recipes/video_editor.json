@@ -1220,29 +1220,41 @@
       }
     },
     {
-      "name": "Play and pause",
+      "name": "Playback success label",
       "file": "app.js",
       "kind": "js",
-      "tokens": 550,
-      "functions": [
-        "togglePlay"
-      ],
-      "task": "Write ONLY async function togglePlay(), at most 18 lines. Return immediately if !app.loaded or app.busy. Inside the function, const preview=ui.preview. If preview.paused is false: call preview.pause(), set ui.playBtn.textContent to Play, and return. Otherwise, if preview.currentTime < app.start OR >= app.end, set preview.currentTime=app.start. Then try await preview.play(); only after successful await, set ui.playBtn.textContent to Pause. Catch any error: setStatus(error.message,true) and restore label Play. No globals, other helpers, handlers or timers.",
-      "required_patterns": [
-        "\\bpreview\\.play\\s*\\(",
-        "\\bpreview\\.pause\\s*\\("
-      ],
+      "tokens": 120,
       "raw_source": true,
       "include_html": false,
+      "functions": [
+        "playbackStarted"
+      ],
+      "task": "Write only function playbackStarted(), at most 3 lines. Set ui.playBtn.textContent to the string Pause. No other actions or helpers.",
       "relevant_fields": {
-        "app": [
-          "loaded",
-          "busy",
-          "start",
-          "end"
-        ],
+        "app": [],
         "ui": [
-          "preview",
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_play_started"
+      ]
+    },
+    {
+      "name": "Playback error label",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 180,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "playbackFailed"
+      ],
+      "task": "Write only function playbackFailed(error), at most 4 lines. Call existing setStatus(error.message,true). Set ui.playBtn.textContent to the string Play. No other actions, imports or helpers.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
           "playBtn"
         ]
       },
@@ -1250,7 +1262,96 @@
         "setStatus"
       ],
       "behavior_checks": [
+        "video_play_failed"
+      ]
+    },
+    {
+      "name": "Start video playback",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 300,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "startPlayback"
+      ],
+      "task": "Write only function startPlayback(), at most 7 lines. Use const preview=ui.preview inside. If preview.currentTime < app.start OR preview.currentTime >= app.end, set preview.currentTime to app.start. Return the Promise from preview.play(), chained with then(playbackStarted) and catch(playbackFailed), passing the existing function references as callbacks. No async/await, pause calls, imports, globals or other helpers. Callbacks handle labels and errors.",
+      "relevant_fields": {
+        "app": [
+          "start",
+          "end"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "playbackStarted",
+        "playbackFailed"
+      ],
+      "behavior_checks": [
+        "video_start"
+      ],
+      "behavior_dependencies": [
+        "playbackStarted",
+        "playbackFailed"
+      ]
+    },
+    {
+      "name": "Pause video playback",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 180,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "pausePlayback"
+      ],
+      "task": "Write only function pausePlayback(), at most 4 lines. Call ui.preview.pause() once. Set ui.playBtn.textContent to the string Play. Do not seek, play, return a Promise, or call other helpers.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "preview",
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_pause"
+      ]
+    },
+    {
+      "name": "Toggle playback",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 220,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "togglePlay"
+      ],
+      "task": "Write JavaScript function togglePlay(), at most 5 lines. First statement: return immediately when app.loaded is false OR app.busy is true. Second statement: return a JavaScript ternary expression. Condition: ui.preview.paused. True branch: call startPlayback(). False branch: call pausePlayback(). Both helpers already exist. No other statements, comments, async, imports, globals or functions. Output a complete function declaration, not pseudocode.",
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "startPlayback",
+        "pausePlayback"
+      ],
+      "behavior_checks": [
         "video_playback"
+      ],
+      "behavior_dependencies": [
+        "playbackStarted",
+        "playbackFailed",
+        "startPlayback",
+        "pausePlayback"
       ]
     },
     {

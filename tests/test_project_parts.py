@@ -1330,3 +1330,22 @@ async def test_noop_patch_keeps_valid_source_for_bounded_diagnosed_retry(monkeyp
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
     assert len(calls)==4
+
+
+@pytest.mark.asyncio
+async def test_decomposed_playback_validates_callbacks_and_their_real_composition():
+    started='function playbackStarted(){ui.playBtn.textContent="Pause";}'
+    failed='function playbackFailed(error){setStatus(error.message,true);ui.playBtn.textContent="Play";}'
+    start='function startPlayback(){const preview=ui.preview;if(preview.currentTime<app.start||preview.currentTime>=app.end)preview.currentTime=app.start;return preview.play().then(playbackStarted).catch(playbackFailed);}'
+    pause='function pausePlayback(){ui.preview.pause();ui.playBtn.textContent="Play";}'
+    toggle='function togglePlay(){if(!app.loaded||app.busy)return;if(ui.preview.paused)return startPlayback();pausePlayback();}'
+    assert not await project_checks.inspect_helper(started,'video_play_started')
+    assert not await project_checks.inspect_helper(failed,'video_play_failed')
+    assert not await project_checks.inspect_helper(pause,'video_pause')
+    assert not await project_checks.inspect_helper(started+failed+start,'video_start')
+    assert not await project_checks.inspect_helper(started+failed+start+pause+toggle,'video_playback')
+    assert await project_checks.inspect_helper(started.replace('Pause','Play'),'video_play_started')
+    assert await project_checks.inspect_helper(failed.replace('error.message','"generic error"'),'video_play_failed')
+    assert await project_checks.inspect_helper(started+failed+start.replace('.catch(playbackFailed)',''),'video_start')
+    assert await project_checks.inspect_helper(started+failed+start.replace('preview.currentTime>=app.end','preview.currentTime>app.end'),'video_start')
+    assert await project_checks.inspect_helper(pause.replace('pause()','play()'),'video_pause')

@@ -706,3 +706,31 @@ terakhir, tetap dalam batas tiga percobaan bagian. Patch ditulis model,
 perilaku diperiksa ulang, dan provenance hanya mencatat perubahan sah.
 
 **201 tes terkait lolos di Windows** termasuk retry patch tanpa perubahan.
+
+
+v53 gagal setelah 166,7 detik: kedua patch tetap tidak mengubah deklarasi
+fungsi yang kehilangan async. Jalur perbaikan bekerja sesuai batas, tetapi
+model belum berhasil memperbaiki sumber. Tidak ada ZIP editor yang diklaim
+layak dari percobaan ini.
+
+Commit 3137455 lolos **455 tes Linux** di GitHub Actions run 37714830909,
+beserta pemeriksaan installer, supervisor, host setup, build gateway dan
+pemindaian rahasia. Pengujian ini tidak mengakses VPS pengguna dan tidak
+menggantikan benchmark perilaku editor di browser.
+
+
+v54 memakai instruksi Promise chain, tetapi tetap gagal setelah 109,2 detik:
+model memakai Play sebagai identifier yang tidak ada. Playback kemudian
+dipisah menjadi callback sukses, callback galat, start, pause dan toggle.
+Setiap operasi memiliki pemeriksaan perilaku; pemeriksaan start/toggle
+menggabungkan helper hasil model yang telah lolos, bukan callback produksi
+buatan evaluator. Uji penolakan Promise, batas trim dan guard tetap berlaku.
+
+**202 tes terkait lolos di Windows** setelah pengujian komposisi playback.
+
+
+v55 menyelesaikan callback sukses, callback galat, start dan pause dengan
+kode asli Qwen 0.8B, semuanya lolos pemeriksaan perilaku. Pemeriksaan start
+memakai kedua callback model yang benar-benar dihasilkan. Toggle gagal
+setelah 230,5 detik karena cabang playing tidak memanggil pause. Editor
+lengkap tetap belum lolos; scrub, timeline dan ekspor belum teruji nyata.
