@@ -35,7 +35,7 @@ try{
   }
   walk(ast);console.log(JSON.stringify({methods:[...bad]}));
  }else if(input.mode==='contracts'){
-  const globals={},functions=[],shadowed=new Set();
+  const globals={},functions=[],shadowed=new Set(),members=new Set();
   function bindingNames(node){
    if(!node)return [];
    if(node.type==='Identifier')return [node.name];
@@ -47,6 +47,10 @@ try{
   }
   function walk(node){
    if(!node||typeof node!=='object')return;
+   if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&['app','ui'].includes(node.object.name)){
+    const key=node.computed?node.property.type==='Literal'?node.property.value:null:node.property.name;
+    if(typeof key==='string')members.add(JSON.stringify([node.object.name,key]));
+   }
    let names=[];
    if(node.type==='VariableDeclarator')names=bindingNames(node.id);
    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))names=[...bindingNames(node.id),...node.params.flatMap(bindingNames)];
@@ -64,7 +68,7 @@ try{
    }
    if(node.type==='FunctionDeclaration')functions.push(input.source.slice(node.start,node.body.start).trim());
   }
-  console.log(JSON.stringify({globals,existing_functions:functions,shadowed_state:[...shadowed]}));
+  console.log(JSON.stringify({globals,existing_functions:functions,shadowed_state:[...shadowed],shared_members:[...members].map(value=>JSON.parse(value))}));
  }else{
  const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
  const spans=choices.map(n=>input.source.slice(n.start,n.end));
@@ -199,9 +203,9 @@ def select_model_helper(source,item):
     return span
 
 
-def parsed_js_contracts(source):
+def parsed_js_contracts(source, include_members=False):
     """Read top-level property names through syntax, never execute declarations."""
-    if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[]}
+    if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[],**({'shared_members':[]} if include_members else {})}
     if len(source.encode())>65536:return None
     try:
         result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
@@ -210,7 +214,9 @@ def parsed_js_contracts(source):
             **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
         if result.returncode:return None
         value=json.loads(result.stdout)
-        if set(value)=={'globals','existing_functions','shadowed_state'}:return value
+        if set(value)=={'globals','existing_functions','shadowed_state','shared_members'}:
+            if not include_members:value.pop('shared_members')
+            return value
     except (OSError,subprocess.TimeoutExpired,ValueError):pass
     return None
 
@@ -461,10 +467,10 @@ def js_contract_context(prior, relevant=None, functions=None):
 def js_shared_reference_errors(source, prior):
     fields=json.loads(js_contract_context(prior))['globals']
     errors=[]
-    parsed=parsed_js_contracts(source)
+    parsed=parsed_js_contracts(source,include_members=True)
     if parsed is not None:
         errors += ['Do not shadow existing shared state '+name+'; use the outer declaration.' for name in parsed['shadowed_state'] if name in fields]
-    for obj,key in sorted(set(re.findall(r'\b(app|ui)\.(\w+)',source))):
+    for obj,key in sorted({tuple(pair) for pair in parsed.get('shared_members',[])} if parsed is not None else set()):
         if obj in fields and key not in fields[obj]:
             errors.append('Undefined shared field '+obj+'.'+key+'; use the declared contracts.')
     for fake in ('createMediaSource','createMediaDestination'):

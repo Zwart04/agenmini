@@ -73,6 +73,9 @@ REFERENCES = {
     }""",
 }
 
+REFERENCES['video_export_wait']=REFERENCES['video_export_seek'].replace(
+    'seekExportStart()', 'waitForVideoTime(video,target)').replace('ui.preview','video').replace('app.start','target')
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check', list(REFERENCES))
@@ -107,6 +110,15 @@ def test_export_recipe_is_only_instructions_and_uses_all_lifecycle_checks():
     assert all(part['raw_source'] and part['include_html'] is False for part in parts)
     assert all('source' not in part for part in parts)
     assert not any(source in json.dumps(recipe) for source in REFERENCES.values())
+
+
+def test_shared_reference_validation_uses_ast_not_comments_or_file_strings():
+    prior='const app={start:0};const ui={preview:null};'
+    source="function f(){const a='./app.js',b='ui.js';/* app.wrong;ui.wrong */return ui.preview;}"
+    assert project_parts.js_shared_reference_errors(source,prior)==[]
+    for access in ['app.bad','app["bad"]','ui.bad','ui["bad"]']:
+        assert any('Undefined shared field' in error for error in project_parts.js_shared_reference_errors('function f(){return '+access+';}',prior))
+    assert project_parts.parsed_js_contracts(source)=={'globals':{},'existing_functions':['function f()'],'shadowed_state':[]}
 
 
 @pytest.mark.asyncio

@@ -13,13 +13,14 @@ EXPORT_CASES = {
         assert(actual===expected,'chooseWebMMime expected first supported literal '+JSON.stringify(expected)+' for available types '+JSON.stringify(values)+'; actual='+JSON.stringify(actual));
         assert(probes.every(value=>['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].includes(value)),'chooseWebMMime must probe actual WebM MIME types');
       }
-      supported.clear();let rejected=false;try{chooseWebMMime();}catch(error){rejected=!!error.message;}
-      assert(rejected,'chooseWebMMime must reject when no WebM MIME is supported');
+      supported.clear();let rejected=false,returned;try{returned=chooseWebMMime();}catch(error){rejected=!!error.message;}
+      assert(rejected,'chooseWebMMime expected throw Error after every support probe returned false; actual='+JSON.stringify(returned));
     ''',
     'video_export_seek': r'''
       const timers=new Map(),listeners=new Map();let nextTimer=1,time=0,assignError=false,writes=[];
       function setTimeout(fn,ms){const id=nextTimer++;timers.set(id,{fn,ms});return id;}
       function clearTimeout(id){timers.delete(id);}
+      const window={setTimeout,clearTimeout};
       ui.preview={get currentTime(){return time;},set currentTime(value){if(assignError)throw new Error('Cannot seek this clip');writes.push({value,armed:listeners.has('seeked')});time=value;},
         addEventListener(name,fn,options){listeners.set(name,{fn,once:!!options?.once});},
         removeEventListener(name,fn){if(listeners.get(name)?.fn===fn)listeners.delete(name);}};
@@ -162,3 +163,10 @@ EXPORT_CASES = {
 }
 
 ASYNC_EXPORT_CHECKS = {'video_export_seek', 'video_export_audio', 'video_export_orchestration'}
+
+# The parameter-only worker and app-level caller face the same seek lifecycle
+# cases. No behavior is removed when the model writes these as separate parts.
+EXPORT_CASES['video_export_wait']=EXPORT_CASES['video_export_seek'].replace(
+    'await seekExportStart()', 'await waitForVideoTime(ui.preview,app.start)').replace(
+    'const pending=seekExportStart()', 'const pending=waitForVideoTime(ui.preview,app.start)')
+ASYNC_EXPORT_CHECKS.add('video_export_wait')

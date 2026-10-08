@@ -1275,3 +1275,33 @@ evaluator dan export checks) lolos di Windows dalam 144,86 detik. Seluruh
 workflow commit ae833eb—Tests Linux, Secret scan, Windows installer dan
 Original harness runtimes—juga telah berhasil. Perubahan selektor berikutnya
 memerlukan pemeriksaan CI pada commitnya sendiri.
+
+CI Linux untuk selektor literal commit 568450a berhasil: run 37736874293,
+526 tes lolos dalam 122,81 detik. V100 masih gagal setelah 235,5 detik karena
+model mengembalikan false ketika semua probe codec menolak. Task/diagnostik
+menjelaskan bahwa setelah loop harus throw; jumlah kandidat bukan hasil probe.
+V101 meloloskan MIME pada respons pertama model, tanpa patch. Run berhenti
+setelah 168,6 detik pada seek: import/export module tidak sesuai script klasik,
+kemudian respons terakhir hanya menunggu timer dan tidak melakukan seek.
+
+V102 memisahkan waitForVideoTime(video,target) dari pemanggil seekExportStart.
+Kedua helper tetap menghadapi kasus seek/timeout/cleanup yang sama; pemanggil
+juga diperiksa bersama worker model aslinya. 28 tes terarah lolos. Diagnostik
+shared fields kini berasal dari AST MemberExpression (termasuk bracket string),
+bukan substring dalam komentar atau nama berkas app.js/ui.js. Tidak menghapus
+prefix module dari sumber model; model harus memperbaiki sumbernya sendiri.
+
+Sesudah pemisahan worker seek dan diagnostik AST, 215 tes regresi terkait
+lolos di Windows (112,39 detik). File benchmark v102 masih terpisah di
+.local-tools/hasil-uji-web; hasil ini tidak menandai video editor selesai.
+
+V102 gagal setelah 195,8 detik: worker mendeklarasikan ulang parameter video,
+kemudian menulis annotation TypeScript dan blok querySelector berulang.
+V103 menghilangkan simbol tipe dari deskripsi parameter dan meminta Promise
+langsung dari argumen yang sudah ada, tanpa pencarian elemen atau penulisan
+ulang sumber oleh evaluator. Kasus seek/timeout/cleanup tetap sama.
+
+V103 tidak digunakan sebagai pembanding seek: edit batas token tidak sengaja
+mengenai panel library, sehingga cache panel tidak cocok dan run gagal pada
+input berkas setelah 67,3 detik. Batas panel dikembalikan ke 650; hanya worker
+seek memakai 450. V104 melanjutkan checkpoint v102 dengan panel asli.

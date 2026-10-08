@@ -2047,7 +2047,8 @@
       "functions": [
         "chooseWebMMime"
       ],
-      "task": "Write chooseWebMMime(). Three complete candidate strings, in this exact order: [\"video/webm;codecs=vp9,opus\", \"video/webm;codecs=vp8,opus\", \"video/webm\"]. For each candidate, call MediaRecorder.isTypeSupported with that one complete string argument. Return the first supported candidate. Plain video/webm is the LAST fallback, never the first. If all probes are false, throw an Error; never return an error string. Keep concise.",
+      "task": "Define function named exactly chooseWebMMime(). Locally declare ordered candidate strings [\"video/webm;codecs=vp9,opus\", \"video/webm;codecs=vp8,opus\", \"video/webm\"]. Loop over them: call MediaRecorder.isTypeSupported(candidate) with one complete string; on true return that candidate immediately. After the loop, unconditionally throw an Error. The array is always nonempty: its length does not tell whether any probe succeeded. Do not return false or an unsupported fallback. Do not instantiate MediaRecorder. Keep concise.",
+      "context": "Self-contained codec selection helper. Use browser MediaRecorder.isTypeSupported and local candidate data. No app or ui state.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -2060,16 +2061,36 @@
       ]
     },
     {
+      "name": "Wait for video time with bounded events",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": ["waitForVideoTime"],
+      "parameters": {
+        "video": "Video element already passed into the function. Use this argument directly; do not declare or find another video.",
+        "target": "Requested playback seconds, already validated. Zero is valid. Use this argument directly."
+      },
+      "task": "Write concise plain JavaScript async waitForVideoTime(video,target), about 20 lines. Arguments already exist: use video directly. If absolute difference of currentTime and target is below .02, return without writes/listeners/timers. Otherwise return a new Promise with resolve and reject callbacks. In its callback: create local cleanup that clears timer and removes the named seeked handler; named seeked handler cleans up and resolves; add that listener; arm a 5000ms timer that cleans up and rejects Error; assign video.currentTime=target inside try/catch, cleaning up and rejecting actual assignment error. Assign time before waiting, outside the event handler. Never query document, redeclare video, add type annotations, or delay success by a timer.",
+      "context": "Standalone parameter-only browser helper. All variables and event callbacks are local to this function.",
+      "relevant_fields": {"app": [], "ui": []},
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": ["video_export_wait"],
+      "system_contract": "Start with async function waitForVideoTime(video,target). Plain JavaScript parameters without types; use supplied video directly. No DOM selectors, imports or exports. Keep concise and complete."
+    },
+    {
       "name": "Wait for export trim start",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 550,
+      "tokens": 160,
       "functions": [
         "seekExportStart"
       ],
-      "task": "Write async seekExportStart(). If preview currentTime is within .02 seconds of app.start, resolve immediately without listeners or timers. Otherwise await a Promise: attach seeked listener before assigning ui.preview.currentTime=app.start. Resolve on seeked. Reject after 5000ms. Remove listener and clear timeout on success, timeout, or assignment exception. Reject actual assignment error. Keep app state and all controls unchanged.",
+      "task": "Write async seekExportStart(). Return the Promise from existing standalone waitForVideoTime(ui.preview,app.start). This helper already implements bounded seek events and cleanup. Only call it with the existing preview and selected trim start; keep state unchanged.",
       "relevant_fields": {
         "app": [
           "start"
@@ -2078,7 +2099,8 @@
           "preview"
         ]
       },
-      "relevant_functions": [],
+      "relevant_functions": ["waitForVideoTime"],
+      "behavior_dependencies": ["waitForVideoTime"],
       "state_writes": [],
       "system_contract": "Begin with async function seekExportStart(). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [
