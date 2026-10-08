@@ -101,13 +101,14 @@ process.stdin.on('end',()=>{
     if(!Object.hasOwn(cases,check)&&!['video_playback','video_start'].includes(check))throw new Error('Unknown behavioral check');
     let result;
     if(['video_playback','video_start'].includes(check)){
-      vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+(check==='video_start'?startCases:playbackCases)+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify(['Playback threw: '+error.message]);});",context,{timeout:500});
+      vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+(check==='video_start'?startCases:playbackCases)+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Playback threw: '+error.message});});",context,{timeout:500});
       result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
       if(typeof result!=='string')throw new Error('Playback did not settle with an immediately resolved or rejected play promise');
     }else{
       result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
     }
     const failures=JSON.parse(result);
+    if(!Array.isArray(failures))throw new Error(failures.execution_error||'Helper checks did not complete');
     if(failures.length){console.error(JSON.stringify({helper_failures:failures}));process.exitCode=1;return;}
     console.log('behavioral helper check passed');
   }catch(error){console.error(error.message);process.exitCode=1;}
@@ -134,4 +135,4 @@ async def inspect_helper(source, check):
         if isinstance(cases,list) and all(isinstance(case,str) for case in cases):
             return ['Helper behavior failed: '+case for case in cases]
     except (ValueError,AttributeError):pass
-    return ['Helper behavior failed: '+case for case in detail[-1000:].strip().split('; ') if case]
+    return ['Helper execution failed: '+case for case in detail[-1000:].strip().split('; ') if case]

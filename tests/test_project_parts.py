@@ -1117,8 +1117,8 @@ def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
     prior='const app={loaded:false,busy:false};const ui={preview:null};function setBusy(flag){}const unused=()=>2;'
     prompt=project_parts.js_prompt_context(prior,{'app':['loaded'],'ui':[]},['setBusy'])
     assert 'app.loaded' in prompt and 'app.busy' not in prompt and 'ui.preview' not in prompt
-    assert 'function setBusy(flag)' in prompt and 'unused' not in prompt
-    assert 'not app/ui methods' in prompt and 'do not redeclare app/ui' in prompt
+    assert 'setBusy(flag)' in prompt and 'function setBusy' not in prompt and 'unused' not in prompt
+    assert 'not app/ui methods' in prompt and 'Keep existing app/ui objects' in prompt
     assert 'const app=' not in prompt and '"globals"' not in prompt
 
 
@@ -1372,3 +1372,76 @@ async def test_trim_composition_preserves_last_valid_bounds_and_busy_export_guar
     assert await project_checks.inspect_helper(apply.replace('disabled=app.busy','disabled=false'),'trim_apply')
     assert await project_checks.inspect_helper(reject.replace('return false;','app.start=0;return false;'),'trim_reject')
     assert await project_checks.inspect_helper(predicate+apply+reject+validate.replace('Number(ui.startInput.value)','ui.startInput.value'),'video_trim')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_repaired_runtime_error_can_reveal_later_assertions_without_rollback(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Apply trim','file':'app.js','kind':'js','task':'Apply validated trim and report duration','functions':['applyTrim'],'raw_source':True,'include_html':False,'behavior_checks':['trim_apply']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    bad='function applyTrim(start,end){\n app.start=start;app.end=end;\n ui.exportBtn.disabled=busy;\n setStatus("Success",false);\n updateTimeline();return true;\n}'
+    fixed=bad.replace('disabled=busy','disabled=app.busy').replace('setStatus("Success",false);','setStatus(String(end-start)+" seconds",false);')
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:content=bad
+        elif len(calls)==2:content=json.dumps({'edits':[{'line':3,'replace':' ui.exportBtn.disabled=app.busy;'}]})
+        elif len(calls)==3:
+            request=json.loads(messages[1]['content'])
+            assert 'disabled=app.busy' in request['source']
+            content='The execution error is fixed; the status message still needs the selected numeric duration.'
+        else:content=json.dumps({'edits':[{'line':4,'replace':' setStatus(String(end-start)+" seconds",false);'}]})
+        return {'content':content,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='code' and value.get('restored'):
+            pytest.fail('A repaired execution error must not be rolled back merely because later assertions can now run')
+        if kind=='source_part':
+            assert value['source']==fixed and len(value['repair_chain'])==2
+            assert project_patches.replay(bad,value['repair_chain'],'app.js')==fixed
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==4
+
+
+@pytest.mark.asyncio
+async def test_helper_execution_errors_are_distinct_from_completed_assertions():
+    errors=await project_checks.inspect_helper('function isVideoFile(file){return missingName;}','video_file')
+    assert errors and all(e.startswith('Helper execution failed: ') for e in errors)
+    assert project_patches.failing_lines('function f(){\n return missingName;\n}',errors)==[2]
+    errors=await project_checks.inspect_helper('function isVideoFile(){return false;}','video_file')
+    assert errors and all(e.startswith('Helper behavior failed: ') for e in errors)
+    errors=await project_checks.inspect_helper('async function togglePlay(){throw new Error("unexpected failure");}','video_playback')
+    assert errors and all(e.startswith('Helper execution failed: ') for e in errors)
+
+
+@pytest.mark.asyncio
+async def test_patch_introducing_execution_error_still_rolls_back(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME safely','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    bad='function isVideoFile(file){return false;}'
+    good='function isVideoFile(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}'
+    calls=[];restored=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:content=bad
+        elif len(calls)==2:content=json.dumps({'edits':[{'line':1,'replace':'function isVideoFile(file){return missingName;}'}]})
+        else:
+            assert 'Write a fresh complete source part' in messages[1]['content']
+            content=good
+        return {'content':content,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='code' and value.get('restored'):restored.append(value['content'])
+        if kind=='source_part':
+            assert value['source']==good and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert restored==[bad] and len(calls)==3

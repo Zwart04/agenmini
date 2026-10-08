@@ -248,7 +248,7 @@ def part_system(kind):
         'shellchunk':'One HTML fragment only for this task. No styles or other panels.',
         'panel':'One balanced HTML panel fragment. No document, styles or scripts.',
         'css':'Complete CSS rules only: exact selector, opening brace, property/value declarations with colons and semicolons, then closing brace. A selector alone is not a rule. Match the actual HTML. No markup or JavaScript.',
-        'js':'Complete JavaScript functions exactly as requested. Reuse previous state. No global redeclarations, Node exports or copied previous functions.',
+        'js':'Complete plain browser JavaScript functions exactly as requested, for a classic script. Reuse previous state and call existing helpers. No TypeScript annotations, imports, exports, global redeclarations or copied previous functions.',
         'md':'Short honest Markdown instructions.'
     }[kind]
     return 'You write one source part. Output raw source only, without explanations or fences. '+instruction
@@ -434,10 +434,10 @@ def js_prompt_context(prior, relevant=None, functions=None):
     """Describe real outer symbols without resembling declarations to copy."""
     contracts=json.loads(js_contract_context(prior,relevant,functions))
     fields=[name+'.'+key for name,keys in contracts['globals'].items() for key in keys]
-    signatures=contracts['existing_functions']
-    return ('Existing outer state fields (already declared; do not redeclare app/ui):\n'+
+    signatures=[re.sub(r'^(?:async\s+)?function\s+','',signature) for signature in contracts['existing_functions']]
+    return ('Read and write these existing state properties as required by the task. Keep existing app/ui objects:\n'+
             ('\n'.join(fields) or '(none required)')+
-            '\nExisting standalone helper signatures (call these names directly, not app/ui methods):\n'+
+            '\nAlready implemented helpers: call these names directly, not app/ui methods. Do not define them again:\n'+
             ('\n'.join(signatures) or '(none required)'))
 
 
@@ -730,7 +730,11 @@ async def generate(brief,ctx,on_event=None):
             errors=list(dict.fromkeys(errors))
             old_cases={helper_failure_identity(error) for error in previous_errors if error.startswith('Helper behavior failed: ')}
             new_cases={helper_failure_identity(error) for error in errors if error.startswith('Helper behavior failed: ')}
-            regression=bool(patch_base is not None and old_cases and new_cases-old_cases)
+            old_execution_failed=any(error.startswith('Helper execution failed: ') for error in previous_errors)
+            new_execution_failed=any(error.startswith('Helper execution failed: ') for error in errors)
+            # A thrown helper has not reached every assertion. Newly reached
+            # failures after fixing it are not evidence of a regression.
+            regression=bool(patch_base is not None and old_cases and not old_execution_failed and (new_execution_failed or new_cases-old_cases))
             await emit('source_check',{'index':step,'attempt':attempt,'part':name,'source_sha256':project_patches.digest(source),
                 'passed':not errors,'errors':errors,'checks':item.get('behavior_checks',[])})
             if (syntax_bad or missing_structure or regression) and patch_base is not None and not patch_error:

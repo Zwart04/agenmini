@@ -103,7 +103,7 @@ def failing_lines(source, errors):
             if css_lines:continue
         named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden|busy|loaded)\s+expected',error))
         named.update(re.findall(r"SyntaxError: Identifier '([A-Za-z_$][\w$]*)' has already been declared",error))
-        named.update(re.findall(r'(?:ReferenceError:|Helper behavior failed:)\s*([A-Za-z_$][\w$]*) is not defined\b',error))
+        named.update(re.findall(r'(?:ReferenceError:|Helper behavior failed:|Helper execution failed:)\s*([A-Za-z_$][\w$]*) is not defined\b',error))
         named.update(re.findall(r'Call standalone helper ([A-Za-z_$][\w$]*) directly',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must not use a self-closing HTML tag',error))

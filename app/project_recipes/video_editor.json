@@ -1393,7 +1393,7 @@
       "functions": [
         "isTrimRange"
       ],
-      "task": "Write only JavaScript function isTrimRange(start,end,duration), at most 5 lines. Return Boolean true only when all three arguments are finite numbers and 0 <= start < end <= duration. Otherwise return false. Do not coerce strings or access globals. Use Number.isFinite and separate comparisons joined with logical AND; JavaScript cannot use chained comparisons.",
+      "task": "Write one complete JavaScript function named isTrimRange(start,end,duration). Its body has a single return statement combining these six Boolean tests with logical AND: Number.isFinite(start); Number.isFinite(end); Number.isFinite(duration); start >= 0; start < end; end <= duration. The result must be Boolean. Output only this function.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -1413,7 +1413,7 @@
       "functions": [
         "applyTrim"
       ],
-      "task": "Write only function applyTrim(start,end), at most 7 lines. Store start/end in app.start/app.end. Set ui.exportBtn.disabled to app.busy. Call setStatus with a success message containing the numeric value end-start and seconds. Call standalone updateTimeline() once; it is implemented later. Return Boolean true. No validation, other helpers, globals or imports.",
+      "task": "Write only plain JavaScript function applyTrim(start,end), at most 10 lines. Perform these operations in order: assign the argument start to app.start; assign the argument end to app.end; assign app.busy to ui.exportBtn.disabled; call the already implemented setStatus exactly once with a success message containing the numeric difference end-start and seconds; call standalone updateTimeline() once; return Boolean true. updateTimeline is implemented later. Output only this complete function, using existing helpers.",
       "relevant_fields": {
         "app": [
           "start",

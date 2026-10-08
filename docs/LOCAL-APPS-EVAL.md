@@ -753,3 +753,56 @@ Gabungan validator memakai helper yang benar-benar dihasilkan model.
 Render timeline tetap harus ditulis model dan dibuktikan di browser.
 
 **204 tes terkait lolos di Windows** untuk perubahan validasi trim ini.
+
+
+v57 gagal setelah 119,5 detik: predicate menerima start negatif, lalu patch
+model merusak struktur fungsi. Harness memulihkan sumber sebelum patch.
+Spesifikasi predicate diperjelas menjadi enam syarat Boolean terpisah;
+implementasi dan perbaikannya tetap harus ditulis oleh model terpilih.
+
+
+v58 meloloskan predicate trim, tetapi penerapan rentang gagal setelah 126,0
+detik. Model menulis TypeScript dan pengulangan setStatus, sehingga sumber
+tidak diterima sebagai JavaScript browser. Commit b7bfbff lolos **458 tes
+Linux**, Actions run 37716940077.
+
+Pemeriksaan ulang [model card resmi Qwen3.5 0.8B](https://huggingface.co/Qwen/Qwen3.5-0.8B)
+pada 8 Oktober 2026 mengonfirmasi profil thinking untuk precise coding
+sesuai parameter yang dipakai. Model card juga menyebut varian 0.8B lebih
+rentan terhadap thinking loops, serta menyediakan profil non-thinking text.
+Pembanding non-thinking dimulai dari awal tanpa cache kode thinking agar
+hasil sampling tidak tercampur dalam satu klaim benchmark.
+
+
+Pembanding non-thinking v59 dari awal gagal dalam 18,1 detik pada dokumen:
+viewport, title dan aset tidak lengkap setelah percobaan perbaikan. Mode ini
+belum menghasilkan editor yang lebih baik pada benchmark tersebut.
+
+Konteks helper sekarang menampilkan nama callable tanpa awalan deklarasi
+function, agar model tidak terdorong mendefinisikan ulang implementasi lama.
+Instruksi bahasa menegaskan JavaScript browser classic tanpa anotasi
+TypeScript. 204 tes Windows tetap lolos setelah perubahan konteks ini.
+
+
+v60 menghasilkan JavaScript tanpa anotasi TypeScript, tetapi tetap gagal
+setelah 104,3 detik: nilai start/end, pembatas busy dan durasi pesan tidak
+diterapkan, sedangkan kedua patch tidak mengubah sumber. Konteks properti
+kemudian diperjelas bahwa nilai boleh dibaca/ditulis sesuai tugas sambil
+mempertahankan objek app/ui yang sudah ada. Guard terhadap shadowing objek
+state tetap berjalan; ini perubahan instruksi, bukan pengisian kode model.
+
+
+v61 menyimpan start/end dengan benar tetapi gagal setelah 111,1 detik karena
+memakai busy tanpa app. Kedua patch tidak mengubah baris tersebut.
+
+Audit jalur pemulihan menemukan bug terpisah yang direproduksi dengan tes:
+setelah ReferenceError diperbaiki, assertion yang baru dapat dijalankan
+keliru dianggap regresi dan patch dipulihkan. Pemeriksaan kini membedakan
+galat eksekusi dari kegagalan assertion yang selesai. Tes lokal/online/router
+membuktikan dua patch bertahap dapat diperiksa dan direplay tanpa rollback
+keliru. Patch yang memperkenalkan galat eksekusi ke helper yang sebelumnya
+menyelesaikan seluruh pemeriksaan tetap dipulihkan. Tes juga mencakup galat
+async, bukan hanya ReferenceError sinkron. Semua keluaran tetap ditolak
+sampai tidak ada galat; perbaikan ini tidak melewati pemeriksaan perilaku.
+
+**209 tes terkait lolos di Windows** setelah perbaikan klasifikasi galat.
