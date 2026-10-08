@@ -1560,6 +1560,16 @@ async def test_timeline_primitives_and_composition_keep_literal_text_and_percent
     assert all('left expected' not in error for error in wrong_class)
 
     assert await project_checks.inspect_helper(element+head.replace("+'%'","+'px'"),'timeline_playhead')
+    assert not await project_checks.inspect_helper(element.replace('textContent','innerText'),'timeline_element')
+    assert not await project_checks.inspect_helper(element.replace('e.className=className;','e.classList.add(className);'),'timeline_element')
+    assert not await project_checks.inspect_helper(element.replace('e.className=className;',"e.classList.add('temporary');e.classList.remove('temporary');e.classList.toggle(className,true);"),'timeline_element')
+
+    decimal=element+head.replace(")+'%'", ").toFixed(1)+'%'")
+    assert '.toFixed(1)' in decimal
+    assert not await project_checks.inspect_helper(decimal,'timeline_playhead')
+    wrong_return=await project_checks.inspect_helper(element+head.replace('return e;','return e.style.left;'),'timeline_playhead')
+    assert wrong_return and all('must return a DOM element' in e for e in wrong_return)
+
     assert await project_checks.inspect_helper(element+video.replace('app.end-app.start','app.end'),'timeline_video_clip')
     assert await project_checks.inspect_helper(element+text.replace('return null','return false'),'timeline_text_clip')
     assert await project_checks.inspect_helper(element+head+track.replace('if(clip)lane.appendChild(clip);',''),'timeline_track')

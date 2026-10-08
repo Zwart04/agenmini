@@ -962,3 +962,33 @@ menghasilkan hanya kegagalan className. Tiga tes timeline lolos sesudahnya.
 Fixture juga membedakan setAttribute class yang sah dari className yang
 bukan atribut kelas HTML. CI Linux df91625 sebelumnya lolos 471 tes.
 Editor lengkap belum lulus; pengujian browser/ekspor nyata masih diperlukan.
+
+## Elemen DOM, teks literal, dan hasil helper
+
+v74 gagal setelah 120,2 detik pada playhead: posisi diletakkan dalam teks
+markup, bukan properti style elemen. Kontrak pemanggil kemudian menjelaskan
+bahwa makeTimelineElement mengembalikan elemen DOM dan argumen teksnya
+selalu literal. v75 akhirnya menulis playhead yang benar pada percobaan
+ketiga. Kode model dan pemeriksaan posisi/kelas tersimpan dalam jurnal.
+
+v75 berhenti pada klip video setelah 180,8 detik. Posisi kiri keliru dan
+mengandung titik koma sebagai bagian nilai CSS. Fixture sebelumnya juga
+keliru tidak mengenali innerText yang sah; kini innerText diperlakukan
+sebagai teks, seperti textContent. Persentase numerik setara (misalnya
+25.0%) diterima, sedangkan px, nilai salah dan persen bertitik koma tetap
+ditolak. Return string CSS mendapat pesan wajib mengembalikan elemen DOM,
+bukan galat akses properti yang tidak jelas. Tes mencakup variasi tersebut.
+
+Pemeriksaan ulang sumber klip video nyata hanya melaporkan posisi kiri
+yang salah, tanpa lagi menuduh teks aman sebagai galat. 218 tes terkait
+Windows lolos. CI Linux commit 4a9905f berhasil; unduhan log terputus
+sehingga jumlah tes Linux tidak diklaim dari run itu.
+
+V76 gagal setelah 130,3 detik karena fixture belum memiliki classList.add.
+Fixture kini mendukung add/remove/contains/toggle yang mengikuti className.
+Tiga tes timeline lolos sesudahnya, termasuk jalur className, atribut class,
+classList, innerText dan variasi persen. Pemeriksaan ulang sumber model v76
+tidak lagi melempar galat API: ia melaporkan lebar 10% yang seharusnya
+100%/40%, kiri 2,5% yang seharusnya 25%, serta teks durasi total yang keliru
+menggantikan durasi terpilih. Jadi sumber model tetap gagal karena perilaku
+aktualnya, bukan karena API DOM yang sah tidak tersedia pada fixture.

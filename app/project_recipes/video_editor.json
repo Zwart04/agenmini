@@ -1596,7 +1596,7 @@
       "functions": [
         "makeTimelinePlayhead"
       ],
-      "task": "Implement only makeTimelinePlayhead(). Call existing makeTimelineElement with div, playhead and empty text. Set the returned element style.left to ui.preview.currentTime divided by app.duration times 100, followed by the percent sign. Return the element. Duration is positive. Do not append it anywhere.",
+      "task": "Write complete function makeTimelinePlayhead() with no parameters. Obtain a DOM element from makeTimelineElement using tag div, CSS class playhead and empty text. Store that returned element in a local variable. Assign its style.left property to the calculated percentage ui.preview.currentTime / app.duration * 100 followed by %. Return the same element. Output JavaScript only. No HTML strings, children, extra labels or other functions.",
       "relevant_fields": {
         "app": [
           "duration"
@@ -1614,7 +1614,8 @@
       "behavior_checks": [
         "timeline_playhead"
       ],
-      "state_writes": []
+      "state_writes": [],
+      "system_contract": "makeTimelineElement returns a DOM element; its third argument sets plain text, never HTML. CSS belongs on properties of the returned element.style object."
     },
     {
       "name": "Timeline video clip",
