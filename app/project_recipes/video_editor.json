@@ -29,7 +29,7 @@
       "file": "index.html",
       "kind": "document",
       "tokens": 250,
-      "task": "Write a complete HTML document with title Clip Mini, UTF-8 charset, viewport, link to style.css, deferred script app.js. Body has class app and is entirely empty. Close body and html. No inline styles or implementation."
+      "task": "Write a complete HTML document. Head must contain title Clip Mini, UTF-8 charset, viewport, one stylesheet link with href style.css, and one script element with src app.js and the defer attribute. The external script is REQUIRED even though inline JavaScript is forbidden. Body has class app and is entirely empty. Close head, body and html. Output HTML only."
     },
     {
       "name": "Header",
@@ -2186,12 +2186,13 @@
         "job": "Existing mutable job object: video is the video element, onSeeked is initially null, timer is initially null. resolve/reject callbacks are retained by completeSeekJob/failSeekJob.",
         "target": "Numeric requested seconds, including zero. Assign this actual number to the video currentTime after arming event and timer."
       },
-      "context": "Small standalone browser helper with supplied arguments. No application state or DOM lookup.",
+      "context": "The supplied validated helper implementations came from the same model. Read how cleanup uses job.timer and job.onSeeked. Only implement armSeekJob; reuse these helpers by calling them, without defining or copying them.",
       "relevant_fields": {
         "app": [],
         "ui": []
       },
       "relevant_functions": [
+        "clearSeekJob",
         "completeSeekJob",
         "failSeekJob"
       ],
@@ -2199,7 +2200,12 @@
       "behavior_checks": [
         "video_seek_arm"
       ],
-      "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations."
+      "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations.",
+      "include_helper_sources": [
+        "clearSeekJob",
+        "completeSeekJob",
+        "failSeekJob"
+      ]
     },
     {
       "name": "Wait for video time with bounded events",

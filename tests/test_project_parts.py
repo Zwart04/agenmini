@@ -1301,6 +1301,42 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('has_markup',[False,True])
+async def test_structured_html_prose_falls_back_to_raw_model_markup_only(monkeypatch,tmp_path,backend,has_markup):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Header','kind':'node','file':'index.html','slot':'header','root_class':'topbar',
+          'task':'Write a header with class topbar and h1 Model header.','tokens':250}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[];attempts=[]
+    bad='<header class="topbar">' if has_markup else 'HTML fragment with the requested header'
+    actual='<header class="topbar"><h1>Model header</h1></header>'
+    async def model(messages,**options):
+        calls.append(options)
+        assert actual not in messages[1]['content']
+        if len(calls)==1:
+            assert options.get('fmt')
+            content=json.dumps({'source':bad})
+        else:
+            assert bool(options.get('fmt')) is has_markup
+            content=json.dumps({'source':actual}) if has_markup else actual
+        return {'content':content,'stats':{'finish_reason':'stop','served_model':'test-model'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_attempt':attempts.append(value)
+        if kind=='source_part':
+            assert value['source']==actual
+            assert value['raw_source']==(json.dumps({'source':actual}) if has_markup else actual)
+            assert value['evidence'].get('source_format','raw')==('json_source' if has_markup else 'raw')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==2 and attempts[0]['source']==bad
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
 async def test_validated_helper_context_survives_patch_and_fresh_regeneration(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     parts=[{'name':'MIME helper','file':'app.js','kind':'js','task':'Recognize video MIME','functions':['allowedMime'],'raw_source':True,'include_html':False},

@@ -291,7 +291,7 @@ def repair_contracts(item):
 
 def part_system(kind):
     instruction={
-        'document':'HTML document only. Empty body. No CSS or JavaScript implementation.',
+        'document':'Complete HTML document with empty body. Put the required stylesheet link and external deferred script element in head. External asset links are required HTML markup. No inline CSS or inline JavaScript implementation.',
         'node':'One HTML fragment only. No document, styles or scripts.',
         'shell':'Complete HTML document with empty comment slots. No panel implementations or styles.',
         'shellchunk':'One HTML fragment only for this task. No styles or other panels.',
@@ -678,7 +678,7 @@ async def generate(brief,ctx,on_event=None):
             isolated=kind=='js' and item.get('relevant_fields')=={'app':[],'ui':[]} and item.get('relevant_functions')==[]
             system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' Do not use shared app/ui state. Complete const literal data needed by this helper may accompany it; no executable top-level side effects.' if isolated and item.get('preserve_literal_constants') else ' Do not use or create any global state.' if isolated else ' All app state is read-only in this function. Do not assign or reset app properties.')
         if item.get('system_contract'):system+=' '+item['system_contract']
-        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection=''
+        source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection='';prefer_raw_html=False
         for attempt in range(3):
             response=None
             if attempt==0:
@@ -693,7 +693,7 @@ async def generate(brief,ctx,on_event=None):
                         contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n'+validated_helper_context(item,helper_sources)+'\n' if kind=='js' else '')+json.dumps(repair_contracts(item)),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,single_line=kind!='document')
                 else:
-                    schema=None if item.get('raw_source') else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
+                    schema=None if item.get('raw_source') or prefer_raw_html else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
                     generation_system=system
                     options={}
                     if schema:
@@ -829,6 +829,12 @@ async def generate(brief,ctx,on_event=None):
                 previous_helper={helper_failure_identity(error) for error in previous_errors if error.startswith(('Helper behavior failed:','Helper execution failed:'))}
                 current_helper={helper_failure_identity(error) for error in errors if error.startswith(('Helper behavior failed:','Helper execution failed:'))}
                 if patch_base is not None and previous_helper and current_helper==previous_helper:source_patchable=False
+            # Some small models fill the structured source field with a prose
+            # description. Ask for actual markup without that envelope on the
+            # next bounded attempt. Never replace prose with evaluator HTML,
+            # or relax the element/attribute/assembly checks.
+            if kind in ('node','panel','shell','shellchunk','document') and source_format=='json_source' and not re.search(r'<[A-Za-z][^>]*>',source):
+                prefer_raw_html=True;source_patchable=False
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'â€¦')

@@ -1349,3 +1349,29 @@ handle 0, 37 dan 311 dan menolak nilai hardcode atau handle yang tidak
 disimpan. 42 tes terarah lolos. CI Linux 4af6317 berhasil: run 37741033009,
 540 tes lolos (98,19 detik). Semua hasil ini tetap belum membuktikan editor
 lengkap; ekspor nyata dan UI/browser belum lulus.
+
+V109 gagal setelah 186,6 detik. Respons awal memakai let timerHandle dan
+mengembalikannya, tidak menyimpan job.timer. Patch menghapus whitespace saja;
+regenerasi mengeksekusi callback completion secara langsung dan terpotong.
+Percobaan pembanding video-lfm-current-v1 menggunakan LFM2.5 1.17B Q4 CPU
+dengan sampling lfm25 pada harness/checker/recipe yang sama. Dimulai kosong;
+tidak memakai checkpoint/sumber Qwen atau mengganti hasil dengan template.
+Hasil pembanding ini harus ditunggu, bukan diasumsikan lebih baik.
+
+video-lfm-current-v1 gagal pada Document setelah 11,8 detik: app.js tidak
+ditautkan. Prompt dokumen sekarang membedakan tautan eksternal wajib dari
+implementasi inline yang dilarang. v2 meloloskan dokumen model tetapi gagal
+header setelah 14,9 detik: JSON source berisi deskripsi, bukan HTML.
+Fallback generik meminta sumber mentah pada sisa attempt hanya ketika
+respons HTML terstruktur tidak berisi tag. Tidak mengubah markup yang sudah
+ada menjadi raw atau menurunkan pemeriksaan atribut/kontrol. 16 tes terarah
+lolos untuk local/online/router stub dan kasus prose versus markup rusak.
+v3 membuktikan fallback menghasilkan markup model asli, tetapi header belum
+memuat kontrol wajib; tetap gagal setelah 11,1 detik. 235 tes regresi terkait
+lolos (88,80 detik).
+
+Qwen V110 kembali memakai checkpoint Qwen V109, tanpa sumber LFM. Helper arm
+memperoleh konteks opt-in berisi implementasi clear/complete/fail yang sudah
+ditulis dan lolos oleh model yang sama, agar kontrak handle terlihat dari
+pemakaiannya. Ini memakai mekanisme validated_helper_context yang ada;
+bukan implementasi reference milik tes atau kode solusi evaluator.
