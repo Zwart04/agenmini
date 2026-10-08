@@ -1,6 +1,31 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_seek_callback': r'''
+      const completed=[];function completeSeekJob(job){completed.push(job);}
+      const first={video:{}},second={video:{}};
+      const one=makeSeekCallback(first),two=makeSeekCallback(second);
+      assert(typeof one==='function'&&typeof two==='function'&&one!==two,'makeSeekCallback must return a new function for each original job');
+      assert(completed.length===0,'makeSeekCallback must not complete during callback creation');
+      if(typeof two==='function')two();if(typeof one==='function')one();
+      assert(completed.length===2&&completed[0]===second&&completed[1]===first,'returned callback must complete exactly its original job when invoked');
+    ''',
+    'video_seek_store': r'''
+      const calls=[];const callback=()=>{};let job;
+      function makeSeekCallback(value){calls.push(value);return callback;}
+      const video={},resolve=()=>{},reject=()=>{};
+      job={video,resolve,reject,timer:null,onSeeked:null};storeSeekCallback(job);
+      assert(calls.length===1&&calls[0]===job,'storeSeekCallback must create callback once using original job');
+      assert(job.onSeeked===callback,'storeSeekCallback must assign actual factory result to job.onSeeked');
+      assert(job.video===video&&job.resolve===resolve&&job.reject===reject&&job.timer===null,'storeSeekCallback must retain all other job properties');
+    ''',
+    'video_seek_listen': r'''
+      const registered=[];let completed=0;const callback=()=>{completed++;};
+      const video={addEventListener(name,fn){registered.push([name,fn]);}};
+      const job={video,onSeeked:callback};listenSeekCallback(job);
+      assert(registered.length===1&&registered[0][0]==='seeked'&&registered[0][1]===callback,'listenSeekCallback must register original stored callback once for seeked');
+      assert(completed===0&&job.video===video&&job.onSeeked===callback,'listenSeekCallback must not invoke or replace callback/video');
+    ''',
     'video_seek_register': r'''
       let job,calls=0,registered=[];
       function completeSeekJob(value){assert(value===job,'seeked callback must complete its original job');calls++;}

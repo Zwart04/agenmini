@@ -1458,3 +1458,40 @@ awal, serta meminta deklarasi yang diminta hanya di dalam media block.
 Harness tidak menyediakan kode CSS lengkap. 27 tes terarah lolos (1,63 detik),
 termasuk pemeriksaan prompt local/online/router tanpa source evaluator.
 current-v6 sedang menguji perubahan itu pada model DeepSeek yang sama.
+
+current-v6 meloloskan header mobile pada respons pertama dan seluruh HTML/CSS
+sampai bagian 50. App state dan DOM references juga lulus, tetapi run gagal
+setelah 195,1 detik pada normalizeSeconds: respons memanggil isInfinity yang
+tidak ada, lalu regenerasi mengembalikan 0 untuk bilangan positif. Ini bukan
+hasil editor selesai. Tampilan draft diuji di browser pada 1280×720 dan
+390×844: tiga panel desktop, preview lebih dulu di mobile, tanpa overflow
+horizontal (scrollWidth 375 pada viewport 390). Kontrol belum diuji karena
+inisialisasi aplikasi belum selesai.
+
+268 tes regresi terkait commit 46a07d9 lolos (105,63 detik); scan seluruh
+riwayat Git menemukan 0 rahasia. Qwen V112 kembali ke checkpoint Qwen V111,
+tanpa kode DeepSeek/LFM, bobot Qwen0.8B Q8 dan reasoning 256 tetap sama.
+Kontrak registerSeekEvent menegaskan bahwa onSeeked adalah properti input job
+yang memang harus diubah, dan memberikan konteks implementasi clearSeekJob
+yang sebelumnya sudah ditulis model agar callback yang sama dapat dilepas.
+29 tes seek/recipe/konteks lolos (12,42 detik). Pemeriksaan event, handle,
+timeout, galat dan identitas callback tetap dipakai; ekspor browser belum lulus.
+
+Qwen V112 selesai dengan kegagalan setelah 127,9 detik. Respons pertama
+memakai export dan assignment ke dirinya sendiri; regenerasi menganggap
+onSeeked sudah berisi callback lalu melempar galat. V113 memisahkan pembuatan
+callback, penyimpanannya pada job dan pemasangan listener menjadi tiga helper
+parameter-only. registerSeekEvent hanya menyusun store lalu listen. Seluruh
+dependensi helper model disertakan secara eksplisit pada pemeriksaan register,
+arm, Promise worker dan caller. Pemeriksaan gabungan asli tidak dikurangi.
+56 tes ekspor terarah lolos (9,04 detik), termasuk penolakan callback yang
+dipanggil terlalu cepat, job salinan, hasil factory yang tidak disimpan,
+event keliru, callback pengganti dan urutan store/listen terbalik. Tidak ada
+source reference penguji yang masuk recipe/prompt/model runtime.
+
+CI Linux commit 46a07d9 berhasil: run 37748596181, 581 tes lolos (97,04 detik).
+
+V113 meloloskan makeSeekCallback dan storeSeekCallback pada respons pertama
+model. Raw source dan hash disimpan pada parts/98.json serta parts/99.json;
+keduanya sumber Qwen0.8B, bukan source fixture. 277 tes regresi terkait lolos
+(103,07 detik). Listener dan pemeriksaan gabungan masih sedang dikerjakan.

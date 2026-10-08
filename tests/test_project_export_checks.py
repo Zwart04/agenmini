@@ -8,6 +8,9 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_seek_callback': 'function makeSeekCallback(job){return ()=>completeSeekJob(job);}',
+    'video_seek_store': 'function storeSeekCallback(job){job.onSeeked=makeSeekCallback(job);}',
+    'video_seek_listen': "function listenSeekCallback(job){job.video.addEventListener('seeked',job.onSeeked);}",
     'video_seek_job': 'function makeSeekJob(video,resolve,reject){return {video,resolve,reject,timer:null,onSeeked:null};}',
     'video_seek_clear': "function clearSeekJob(job){if(job.timer!==null)clearTimeout(job.timer);if(job.onSeeked!==null)job.video.removeEventListener('seeked',job.onSeeked);job.timer=null;job.onSeeked=null;}",
     'video_seek_complete': 'function completeSeekJob(job){clearSeekJob(job);job.resolve();}',
@@ -95,6 +98,11 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_seek_callback', 'return ()=>completeSeekJob(job)', 'return completeSeekJob(job)'),
+    ('video_seek_store', 'job.onSeeked=makeSeekCallback(job)', 'makeSeekCallback(job)'),
+    ('video_seek_store', 'makeSeekCallback(job)', 'makeSeekCallback({...job})'),
+    ('video_seek_listen', "'seeked',job.onSeeked", "'timeupdate',job.onSeeked"),
+    ('video_seek_listen', "'seeked',job.onSeeked", "'seeked',()=>job.onSeeked()"),
     ('video_seek_job', 'timer:null', 'timer:0'),
     ('video_seek_clear', 'job.timer!==null', 'job.timer'),
     ('video_seek_complete', 'clearSeekJob(job);job.resolve();', 'job.resolve();clearSeekJob(job);'),
@@ -134,6 +142,26 @@ async def test_seek_jobs_compose_with_full_event_timeout_and_cleanup_cases():
     assert await project_checks.inspect_helper(workers.replace('clearTimeout(job.timer);','')+'\n'+wait,'video_export_wait')
     reversed_order=workers.replace('registerSeekEvent(job);scheduleSeekTimeout(job);','scheduleSeekTimeout(job);registerSeekEvent(job);')
     assert await project_checks.inspect_helper(reversed_order,'video_seek_arm')
+
+
+@pytest.mark.asyncio
+async def test_callback_workers_compose_with_unmodified_seek_lifecycle_cases():
+    callback_workers='\n'.join(REFERENCES[name] for name in ('video_seek_callback','video_seek_store','video_seek_listen'))
+    register='function registerSeekEvent(job){storeSeekCallback(job);listenSeekCallback(job);}'
+    assert not await project_checks.inspect_helper(callback_workers+'\n'+register,'video_seek_register')
+    workers='\n'.join(REFERENCES[name] for name in ('video_seek_job','video_seek_clear','video_seek_complete','video_seek_fail',
+        'video_seek_timer','video_seek_assign','video_seek_arm'))+'\n'+callback_workers+'\n'+register
+    wait='async function waitForVideoTime(video,target){if(Math.abs(video.currentTime-target)<.02)return;return new Promise((resolve,reject)=>{const job=makeSeekJob(video,resolve,reject);armSeekJob(job,target);});}'
+    assert not await project_checks.inspect_helper(workers+'\n'+wait,'video_export_wait')
+    caller='async function seekExportStart(){return waitForVideoTime(ui.preview,app.start);}'
+    assert not await project_checks.inspect_helper(workers+'\n'+wait+'\n'+caller,'video_export_seek')
+    assert await project_checks.inspect_helper(callback_workers+'\n'+register.replace('storeSeekCallback(job);listenSeekCallback(job);','listenSeekCallback(job);storeSeekCallback(job);'),'video_seek_register')
+    assert await project_checks.inspect_helper(workers.replace('job.onSeeked=makeSeekCallback(job);','makeSeekCallback(job);')+'\n'+wait,'video_export_wait')
+    recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text())
+    parts={part['functions'][0]:part for part in recipe['parts'] if part.get('functions')}
+    required={'makeSeekCallback','storeSeekCallback','listenSeekCallback'}
+    for fn in ('registerSeekEvent','armSeekJob','waitForVideoTime','seekExportStart'):
+        assert required<=set(parts[fn]['behavior_dependencies'])
 
 
 @pytest.mark.asyncio

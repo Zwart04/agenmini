@@ -2172,20 +2172,20 @@
       "system_contract": "Begin with function failSeekJob(job,error). Output only this function, without types, imports, exports or global declarations."
     },
     {
-      "name": "Register seek completion event",
+      "name": "Create deferred seek callback",
       "kind": "js",
       "file": "app.js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 250,
+      "tokens": 160,
       "functions": [
-        "registerSeekEvent"
+        "makeSeekCallback"
       ],
-      "task": "Write only named function registerSeekEvent(job). Store a new callback function on job.onSeeked. When invoked later, that callback calls existing completeSeekJob(job). Register this stored callback on job.video with addEventListener for seeked. Do not call completion during registration.",
+      "task": "Write makeSeekCallback(job). Return a new function. That returned function calls existing completeSeekJob(job) when invoked later. Do not call completeSeekJob while creating the function. Do not modify job.",
       "parameters": {
-        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties."
+        "job": "Original mutable object supplied by caller, with video and onSeeked properties. Input properties can be assigned when the task requests it; this is not global/app/ui state."
       },
-      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "context": "Small parameter-only JavaScript helper. Use supplied object directly.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -2195,9 +2195,97 @@
       ],
       "state_writes": [],
       "behavior_checks": [
+        "video_seek_callback"
+      ],
+      "system_contract": "Begin with function makeSeekCallback(job). Only this complete function, no comments, imports or other declarations."
+    },
+    {
+      "name": "Store original seek callback",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "storeSeekCallback"
+      ],
+      "task": "Write storeSeekCallback(job). Call existing makeSeekCallback(job) once. Assign its returned function to the existing job.onSeeked property. Do not change any other property or return another job.",
+      "parameters": {
+        "job": "Original mutable object supplied by caller, with video and onSeeked properties. Input properties can be assigned when the task requests it; this is not global/app/ui state."
+      },
+      "context": "Small parameter-only JavaScript helper. Use supplied object directly.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "makeSeekCallback"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_store"
+      ],
+      "system_contract": "Begin with function storeSeekCallback(job). Only this complete function, no comments, imports or other declarations."
+    },
+    {
+      "name": "Listen to stored seek callback",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "listenSeekCallback"
+      ],
+      "task": "Write listenSeekCallback(job). Use job.video.addEventListener to register the event seeked using existing job.onSeeked as the callback. Register once. Do not call or replace the callback.",
+      "parameters": {
+        "job": "Original mutable object supplied by caller, with video and onSeeked properties. Input properties can be assigned when the task requests it; this is not global/app/ui state."
+      },
+      "context": "Small parameter-only JavaScript helper. Use supplied object directly.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_listen"
+      ],
+      "system_contract": "Begin with function listenSeekCallback(job). Only this complete function, no comments, imports or other declarations."
+    },
+    {
+      "name": "Register seek completion event",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 140,
+      "functions": [
+        "registerSeekEvent"
+      ],
+      "task": "Write registerSeekEvent(job). Call existing storeSeekCallback(job), then existing listenSeekCallback(job), in that order. These helpers create, store and register the callback. Only compose these two calls; do not implement their logic.",
+      "parameters": {
+        "job": "Original mutable job object supplied by the caller. Its onSeeked property is writable and MUST be assigned the callback before registering the event. Mutating this input property is allowed; it is not app/ui or global state."
+      },
+      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "storeSeekCallback",
+        "listenSeekCallback"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
         "video_seek_register"
       ],
-      "system_contract": "Begin with function registerSeekEvent(job). Output only this complete function, without comments, imports or other declarations."
+      "system_contract": "Begin with function registerSeekEvent(job). Output only this complete function, without comments, imports or other declarations.",
+      "behavior_dependencies": [
+        "makeSeekCallback",
+        "storeSeekCallback",
+        "listenSeekCallback"
+      ]
     },
     {
       "name": "Schedule bounded seek timeout",
@@ -2287,6 +2375,9 @@
       ],
       "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations.",
       "behavior_dependencies": [
+        "makeSeekCallback",
+        "storeSeekCallback",
+        "listenSeekCallback",
         "registerSeekEvent",
         "scheduleSeekTimeout",
         "assignSeekTarget"
@@ -2322,6 +2413,9 @@
       ],
       "system_contract": "Start with async function waitForVideoTime(video,target). Plain JavaScript parameters without types; use supplied video directly. No DOM selectors, imports or exports. Keep concise and complete.",
       "behavior_dependencies": [
+        "makeSeekCallback",
+        "storeSeekCallback",
+        "listenSeekCallback",
         "makeSeekJob",
         "clearSeekJob",
         "completeSeekJob",
@@ -2355,6 +2449,9 @@
         "waitForVideoTime"
       ],
       "behavior_dependencies": [
+        "makeSeekCallback",
+        "storeSeekCallback",
+        "listenSeekCallback",
         "makeSeekJob",
         "clearSeekJob",
         "completeSeekJob",
