@@ -125,3 +125,53 @@ async def test_selected_fixture_is_stdin_data_with_bounded_windows_command(monke
         assert payload['caseFixture']==project_checks.CASE_FIXTURES[payload['check']]
         assert len(' '.join(args))<30000
         assert options['timeout']==5 and options['project'] is True
+
+
+def test_opt_in_preserves_only_complete_original_literal_dependency_response():
+    helper='function chooseWebMMime(){for(const value of TYPES)if(MediaRecorder.isTypeSupported(value))return value;throw new Error("Unsupported");}'
+    source='// Model-authored data\nconst TYPES=["video/webm;codecs=vp9,opus","video/webm"];\n'+helper
+    item={'kind':'js','functions':['chooseWebMMime'],'behavior_checks':['video_export_mime'],'preserve_literal_constants':True}
+    assert project_parts.select_model_helper(source,item)==source
+    assert project_parts.select_model_helper(source,{**item,'preserve_literal_constants':False})==helper
+    assert project_parts.select_model_helper(helper+'\nconst TYPES=["video/webm"];',item)==helper+'\nconst TYPES=["video/webm"];'
+    for declaration in ['let TYPES=["video/webm"];','const TYPES=getTypes();','const TYPES=[readSecret()];',
+                        'const TYPES=[...otherTypes];','const TYPES={value:"video/webm"};','const TYPES=/webm/;']:
+        assert project_parts.select_model_helper(declaration+helper,item)==helper
+    assert project_parts.select_model_helper(source+'\nrunExtra();',item)==helper
+    assert project_parts.select_model_helper(source+'\nconst UNUSED=1;',item)==helper
+    shadowed='function chooseWebMMime(){const TYPES=["inside"];return TYPES[0];}'
+    assert project_parts.select_model_helper('const TYPES=["outside"];'+shadowed,item)==shadowed
+    member='function chooseWebMMime(){return other.TYPES;}'
+    assert project_parts.select_model_helper('const TYPES=["outside"];'+member,item)==member
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_literal_dependency_keeps_exact_model_bytes_and_replay_evidence(monkeypatch,tmp_path,backend):
+    from app import llm, project_patches
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Codec','kind':'js','file':'app.js','functions':['chooseWebMMime'],
+          'task':'Choose the first supported MIME; literal const data may accompany the helper.',
+          'raw_source':True,'include_html':False,'preserve_literal_constants':True,'behavior_checks':['video_export_mime'],
+          'state_writes':[],'relevant_fields':{'app':[],'ui':[]},'relevant_functions':[]}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    # Checker fixture: the model stub response, never real benchmark runtime.
+    source='const TYPES=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];\nfunction chooseWebMMime(){for(const type of TYPES)if(MediaRecorder.isTypeSupported(type))return type;throw new Error("Unsupported");}'
+    async def model(messages,**options):
+        assert source not in messages[1]['content']
+        assert 'Complete const literal data' in messages[0]['content']
+        assert 'Do not use or create any global state.' not in messages[0]['content']
+        return {'content':source,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==source and value['raw_source']==source
+            assert value['evidence']['sha256']==project_patches.digest(source)
+            assert value['evidence']['raw_sha256']==project_patches.digest(source)
+            cached=project_parts.reusable_part(value,{**item,'generation_contract_revision':2})
+            assert cached and cached['content']==source
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)

@@ -2038,6 +2038,7 @@
     },
     {
       "name": "Select supported WebM codec",
+      "preserve_literal_constants": true,
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
@@ -2053,7 +2054,7 @@
       },
       "relevant_functions": [],
       "state_writes": [],
-      "system_contract": "Begin with function chooseWebMMime(). Output only the requested complete function, without globals or copied declarations.",
+      "system_contract": "Output complete function chooseWebMMime and its self-contained candidate data. Put candidates inside the function, or accompany it with a const array of literal strings. Only literal const data and this function; no other helpers or state declarations.",
       "behavior_checks": [
         "video_export_mime"
       ]

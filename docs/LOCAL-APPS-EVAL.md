@@ -1251,3 +1251,27 @@ diharapkan dan yang dikembalikan; task mengutip tiga string utuh secara jelas.
 ekspektasi khusus POSIX/Linux (pipeline shell, chmod, lokasi login host,
 supervisor Linux dan skrip bash/uninstall). Tidak memasang WSL; cakupan Linux
 tetap dibuktikan melalui GitHub Actions, bukan menyatakan suite ini hijau.
+
+CI Linux commit ae833eb berhasil: run 37736082595 mencatat 522 tes Python
+lolos (69,81 detik), serta gateway, sintaks, packaging, installer, supervisor
+dan host setup. Secret scan commit tersebut berhasil. Hasil ini tidak membuktikan
+perilaku editor yang masih belum selesai.
+
+V99 gagal setelah 104,4 detik. Respons pertama sebenarnya berisi const array
+MIME yang benar dan fungsi yang memakainya, namun selektor fungsi membuang
+array tersebut; patch model tidak berubah, lalu regenerasi memakai konstruktor
+MediaRecorder pada tugas probe. Selektor sekarang punya opt-in sempit untuk
+menjaga seluruh respons asli yang terdiri dari satu helper dan const literal
+yang dirujuknya. Tidak memindahkan, menulis ulang, atau menyisipkan initializer.
+Call initializer, let/mutable declarations, data yang tidak dipakai, helper
+lain dan top-level side effects tetap tidak dipertahankan lewat opsi ini.
+26 tes terarah lolos, termasuk provenance/replay dan jalur local/online/router
+dengan model stub. Itu membuktikan routing kode, bukan akun provider nyata.
+V100 tetap meminta respons baru dari model lokal; tidak memulihkan kode
+aplikasi dari reference implementation milik tes.
+
+Sesudah opt-in literal dependency, 213 tes regresi terkait (project parts,
+evaluator dan export checks) lolos di Windows dalam 144,86 detik. Seluruh
+workflow commit ae833eb—Tests Linux, Secret scan, Windows installer dan
+Original harness runtimes—juga telah berhasil. Perubahan selektor berikutnya
+memerlukan pemeriksaan CI pada commitnya sendiri.

@@ -69,7 +69,29 @@ try{
  const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
  const spans=choices.map(n=>input.source.slice(n.start,n.end));
  if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
- else console.log(JSON.stringify({source:spans[0]??input.source}));
+ else {
+  let selected=spans[0]??input.source;
+  if(input.preserveLiterals&&choices.length===1){
+   const target=choices[0],references=new Set(),bindings=new Set();
+   function walk(node,parent,key){
+    if(!node||typeof node!=='object')return;
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier')bindings.add(node.id.name);
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)){
+     if(node.id)bindings.add(node.id.name);
+     for(const param of node.params)if(param.type==='Identifier')bindings.add(param.name);
+    }
+    if(node.type==='Identifier'&&!(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed)&&!(parent?.type==='Property'&&key==='key'&&!parent.computed))references.add(node.name);
+    for(const [name,value] of Object.entries(node))if(Array.isArray(value))value.forEach(child=>walk(child,node,name));else if(value&&typeof value==='object')walk(value,node,name);
+   }
+   function literal(node){return node?.type==='Literal'&&!node.regex||node?.type==='ArrayExpression'&&node.elements.every(literal)||node?.type==='UnaryExpression'&&['+','-','!'].includes(node.operator)&&literal(node.argument);}
+   walk(target,null,'');
+   const constants=ast.body.filter(node=>node.type==='VariableDeclaration'&&node.kind==='const'&&node.declarations.length===1&&node.declarations[0].id.type==='Identifier'&&!['app','ui',input.name].includes(node.declarations[0].id.name)&&references.has(node.declarations[0].id.name)&&!bindings.has(node.declarations[0].id.name)&&literal(node.declarations[0].init));
+   // Preserve one complete original response only. No dependency text is moved,
+   // joined, evaluated, guessed or copied from prior parts or test fixtures.
+   if(constants.length&&ast.body.every(node=>node===target||constants.includes(node)||node.type==='EmptyStatement'))selected=input.source;
+  }
+  console.log(JSON.stringify({source:selected}));
+ }
  }
 }catch(error){console.log(JSON.stringify({source:input.source}));}
 '''
@@ -165,7 +187,7 @@ def select_model_helper(source,item):
     if len(source.encode())>65536:return source
     try:
         result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
-            input=json.dumps({'source':source,'name':names[0]}),text=True,encoding='utf-8',
+            input=json.dumps({'source':source,'name':names[0],'preserveLiterals':bool(item.get('preserve_literal_constants'))}),text=True,encoding='utf-8',
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
             **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
         if result.returncode:return source
@@ -648,7 +670,7 @@ async def generate(brief,ctx,on_event=None):
             if item.get('css_declarations'):system+=' Use exactly the required CSS properties/values; do not add other declarations.'
         if 'state_writes' in item:
             isolated=kind=='js' and item.get('relevant_fields')=={'app':[],'ui':[]} and item.get('relevant_functions')==[]
-            system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' Do not use or create any global state.' if isolated else ' All app state is read-only in this function. Do not assign or reset app properties.')
+            system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' Do not use shared app/ui state. Complete const literal data needed by this helper may accompany it; no executable top-level side effects.' if isolated and item.get('preserve_literal_constants') else ' Do not use or create any global state.' if isolated else ' All app state is read-only in this function. Do not assign or reset app properties.')
         if item.get('system_contract'):system+=' '+item['system_contract']
         source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection=''
         for attempt in range(3):
