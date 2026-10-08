@@ -23,7 +23,8 @@ EXPORT_CASES = {
       const registered=[];let completed=0;const callback=()=>{completed++;};
       const video={addEventListener(name,fn){registered.push([name,fn]);}};
       const job={video,onSeeked:callback};listenSeekCallback(job);
-      assert(registered.length===1&&registered[0][0]==='seeked'&&registered[0][1]===callback,'listenSeekCallback must register original stored callback once for seeked');
+      assert(registered.length===1&&registered[0][0]==='seeked','listenSeekCallback must register the seeked event exactly once');
+      assert(registered.length===1&&registered[0][1]===callback,'Callback argument job.video.addEventListener expected job.onSeeked as original function reference; observed '+(registered.length?String(registered[0][1]):'no listener'));
       assert(completed===0&&job.video===video&&job.onSeeked===callback,'listenSeekCallback must not invoke or replace callback/video');
     ''',
     'video_seek_register': r'''

@@ -1495,3 +1495,26 @@ V113 meloloskan makeSeekCallback dan storeSeekCallback pada respons pertama
 model. Raw source dan hash disimpan pada parts/98.json serta parts/99.json;
 keduanya sumber Qwen0.8B, bukan source fixture. 277 tes regresi terkait lolos
 (103,07 detik). Listener dan pemeriksaan gabungan masih sedang dikerjakan.
+
+V113 kemudian gagal setelah 141,7 detik: listener membungkus onSeeked dengan
+arrow function baru, sehingga identitas handler berubah; patch noop dan
+regenerasi memakai import. Diagnostik sekarang membedakan event/count dari
+identitas argumen callback. Parser AST menawarkan hanya pasangan span wrapper
+dan referensi fungsi yang keduanya sudah ada di sumber asli model. Model tetap
+mengeluarkan patch; source tidak dieksekusi ketika mencari span, dan pasangan
+yang mengubah argumen lain atau memanggil callback langsung ditolak. 43 tes
+callback/seek/recipe lolos (5,81 detik). Percobaan penulisan tes sebelumnya
+gagal karena encoding Windows; berkas dipulihkan dari commit terakhir dan
+pemeriksaan diulang penuh, bukan menghitung run dengan tes yang terpotong.
+
+V114 menguji pemulihan exact failed source bagian 100 dari V113, dengan bobot,
+recipe, sampling dan format Qwen yang sama. Kandidat tetap diperiksa ulang dan
+belum dianggap lulus sebelum patch serta seluruh pemeriksaan berhasil.
+
+V114 membuktikan perbaikan listener pada model nyata: Qwen mengeluarkan patch
+yang mengganti span arrow wrapper asli dengan span job.onSeeked asli. Bagian
+100 lulus pemeriksaan identitas callback; registerSeekEvent bagian 101 juga
+lulus sebelum proses lanjut ke timer. 284 tes regresi terkait lolos (104,77
+detik), termasuk validasi pasangan span pada local/online/router dan replay
+hash sumber/patch. Sumber model lengkap serta ekspor browser masih ditunggu.
+CI Linux commit 47a2983 berhasil: run 37749798772, 590 tes lolos (99,06 detik).
