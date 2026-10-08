@@ -939,3 +939,26 @@ keluaran JavaScript langsung. CI Linux commit 95eb52c lolos 469 tes.
 
 217 tes terkait Windows lolos setelah pemeriksaan DOM dan fallback baru.
 Pemeriksaan langsung pada sumber timeline v71 menolak pemakaian innerHTML.
+
+## Timeline dalam helper kecil
+
+v72 gagal setelah 175,6 detik pada timeline monolitik (placeholder dan
+ui.filename yang tidak ada). Instruksi dipecah menjadi elemen teks,
+playhead, klip video, klip caption, track dan komposisi timeline. Seluruh
+kode tetap harus ditulis model; fixture referensi hanya menguji evaluator.
+
+Runner DOM kini hanya menyertakan kasus yang dipilih. Memuat semua fixture
+sekaligus sempat melewati batas command-line Windows (WinError 206);
+pemilihan per kasus memperbaikinya tanpa melonggarkan sandbox. Posisi CSS
+diperiksa dengan satuan persen; px tidak diterima sebagai persentase.
+
+218 tes terkait Windows lolos. V73 berhasil menulis helper elemen setelah
+patch tanpa perubahan diikuti regenerasi yang valid, membuktikan fallback
+baru pada model nyata. Namun playhead gagal setelah total 131,5 detik: nama
+kelas timeline-element keliru, walaupun perhitungan persentase benar.
+Pesan pemeriksaan kemudian dipisah per properti agar menyebut kelas yang
+salah, bukan menuduh kalkulasi posisi. Pemeriksaan ulang sumber nyata
+menghasilkan hanya kegagalan className. Tiga tes timeline lolos sesudahnya.
+Fixture juga membedakan setAttribute class yang sah dari className yang
+bukan atribut kelas HTML. CI Linux df91625 sebelumnya lolos 471 tes.
+Editor lengkap belum lulus; pengujian browser/ekspor nyata masih diperlukan.

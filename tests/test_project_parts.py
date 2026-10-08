@@ -1538,3 +1538,28 @@ async def test_timeline_check_accepts_safe_dom_and_rejects_accumulation_and_wron
     assert any('accumulate' in error for error in errors)
     errors=await project_checks.inspect_helper(source.replace('app.start/app.duration*100','0'),'video_timeline')
     assert any('position/width' in error for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_timeline_primitives_and_composition_keep_literal_text_and_percent_units():
+    # Reference fixtures exercise the evaluator, never the generated app.
+    element="function makeTimelineElement(tag,className,text){const e=document.createElement(tag);e.className=className;e.textContent=text;return e;}"
+    head="function makeTimelinePlayhead(){const e=makeTimelineElement('div','playhead','');e.style.left=(ui.preview.currentTime/app.duration*100)+'%';return e;}"
+    video="function makeTimelineVideoClip(){const e=makeTimelineElement('div','video-clip',app.filename+' '+(app.end-app.start)+' seconds');e.style.left=(app.start/app.duration*100)+'%';e.style.width=((app.end-app.start)/app.duration*100)+'%';return e;}"
+    text="function makeTimelineTextClip(){if(!ui.titleInput.value.trim())return null;const e=makeTimelineElement('div','text-clip',ui.titleInput.value);e.style.left=(app.start/app.duration*100)+'%';e.style.width=((app.end-app.start)/app.duration*100)+'%';return e;}"
+    track="function makeTimelineTrack(label,clip){const row=makeTimelineElement('div','track-row',''),labelNode=makeTimelineElement('div','track-label',label),lane=makeTimelineElement('div','track-lane','');row.appendChild(labelNode);row.appendChild(lane);if(clip)lane.appendChild(clip);lane.appendChild(makeTimelinePlayhead());return row;}"
+    update="function updateTimeline(){ui.timeline.textContent='';if(!app.loaded){ui.timeline.textContent='Import video';return;}ui.timeline.appendChild(makeTimelineElement('div','timeline-ruler',formatTime(app.duration)));ui.timeline.appendChild(makeTimelineTrack('Video',makeTimelineVideoClip()));ui.timeline.appendChild(makeTimelineTrack('Text',makeTimelineTextClip()));ui.seekInput.value=ui.preview.currentTime;}"
+    for check,source in [('timeline_element',element),('timeline_playhead',element+head),('timeline_video_clip',element+video),('timeline_text_clip',element+text),('timeline_track',element+head+track),('video_timeline',element+head+video+text+track+update)]:
+        assert not await project_checks.inspect_helper(source,check),check
+    assert await project_checks.inspect_helper(element.replace('textContent','innerHTML'),'timeline_element')
+    assert not await project_checks.inspect_helper(element.replace('e.className=className;',"e.setAttribute('class',className);"),'timeline_element')
+    class_errors=await project_checks.inspect_helper(element.replace('e.className=className;',"e.setAttribute('className',className);"),'timeline_element')
+    assert class_errors and all('className expected' in error for error in class_errors)
+    wrong_class=await project_checks.inspect_helper(element+head.replace("'playhead'","'timeline-element'"),'timeline_playhead')
+    assert wrong_class and all('className expected playhead' in error for error in wrong_class)
+    assert all('left expected' not in error for error in wrong_class)
+
+    assert await project_checks.inspect_helper(element+head.replace("+'%'","+'px'"),'timeline_playhead')
+    assert await project_checks.inspect_helper(element+video.replace('app.end-app.start','app.end'),'timeline_video_clip')
+    assert await project_checks.inspect_helper(element+text.replace('return null','return false'),'timeline_text_clip')
+    assert await project_checks.inspect_helper(element+head+track.replace('if(clip)lane.appendChild(clip);',''),'timeline_track')

@@ -5,7 +5,7 @@ They are not a browser, and passing them cannot prove import/export behavior.
 """
 import json
 from . import tools
-from .project_dom_checks import TIMELINE_CASE
+from .project_dom_checks import DOM_CASES
 
 CHECKS = {'video_timeline', 'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek', 'video_play_started', 'video_play_failed', 'video_start', 'video_pause', 'trim_range', 'trim_apply', 'trim_reject', 'video_trim', 'trim_store', 'trim_export', 'trim_report'}
 RUNNER = r'''
@@ -84,7 +84,7 @@ process.stdin.on('end',()=>{
     `;
 
     const cases={
-      video_timeline: __TIMELINE_CASE__,
+      __DOM_CASES__
       trim_store:`app.busy=true;app.loaded=true;for(const [start,end] of [[0,10],[1.25,3.75]]){storeTrim(start,end);assert(app.start===start&&app.end===end,'storeTrim must assign its arguments to app.start and app.end');assert(app.busy===true&&app.loaded===true,'storeTrim must preserve unrelated state');}`,
       trim_export:`app.start=1;app.end=8;for(const busy of [false,true]){app.busy=busy;ui.exportBtn.disabled=!busy;refreshTrimExport();assert(ui.exportBtn.disabled===busy,'refreshTrimExport must copy app.busy to ui.exportBtn.disabled');assert(app.busy===busy&&app.start===1&&app.end===8,'refreshTrimExport must preserve state');}`,
       trim_report:`for(const [start,end] of [[0,10],[1.25,3.75]]){calls.errors.length=0;const before=calls.timeline;reportTrim(start,end);assert(calls.errors.length===1&&reportsDuration(calls.errors[0][0],end-start)&&calls.errors[0][1]!==true,'reportTrim must call setStatus once with calculated duration '+(end-start)+' seconds and error=false for start='+start+', end='+end+'; actual='+JSON.stringify(calls.errors).slice(0,240));assert(calls.timeline===before+1,'reportTrim must call updateTimeline once');}`,
@@ -125,7 +125,7 @@ process.stdin.on('end',()=>{
 '''
 
 
-RUNNER = RUNNER.replace('__TIMELINE_CASE__', json.dumps(TIMELINE_CASE))
+CHECKS.update(DOM_CASES)
 
 async def inspect_helper(source, check):
     if check not in CHECKS:
@@ -134,7 +134,10 @@ async def inspect_helper(source, check):
     # Fixed runner + untrusted data, through the existing project sandbox.
     # No fixture bytes are added to model output or delivered application files.
     import base64
-    encoded=base64.b64encode(RUNNER.encode()).decode()
+    # Include only the selected DOM case to stay below Windows command limits.
+    dom_case=json.dumps(check)+':'+json.dumps(DOM_CASES[check])+',' if check in DOM_CASES else ''
+    runner=RUNNER.replace('__DOM_CASES__',dom_case)
+    encoded=base64.b64encode(runner.encode()).decode()
     loader="eval(Buffer.from('"+encoded+"','base64').toString('utf8'))"
     result=await tools._run_sandboxed(['node','-e',loader],timeout=5,stdin=payload,project=True)
     if result.startswith('[kode keluar 0]'):return []
