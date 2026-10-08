@@ -1618,6 +1618,84 @@
       "system_contract": "makeTimelineElement returns a DOM element; its third argument sets plain text, never HTML. CSS belongs on properties of the returned element.style object."
     },
     {
+      "name": "Timeline percent calculation",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 200,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "timelinePercent"
+      ],
+      "task": "Write complete function timelinePercent(seconds). Divide the seconds argument by existing app.duration, then multiply the result by 100. Return that calculated number as a string followed by the percent sign. Duration is a positive number. No DOM changes, rounding, clamp or other functions.",
+      "relevant_fields": {
+        "app": [
+          "duration"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "timeline_percent"
+      ],
+      "state_writes": []
+    },
+    {
+      "name": "Timeline selected duration",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 160,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "timelineSelectedSeconds"
+      ],
+      "task": "Write complete function timelineSelectedSeconds() with no parameters. Return the numeric difference between existing app.end and app.start (end minus start). Read those two properties without changing them. No strings, DOM or other functions.",
+      "relevant_fields": {
+        "app": [
+          "start",
+          "end"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "timeline_selected_seconds"
+      ],
+      "state_writes": []
+    },
+    {
+      "name": "Timeline shared clip bounds",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 300,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "setTimelineClipBounds"
+      ],
+      "task": "Write complete function setTimelineClipBounds(clip). Set clip.style.left using timelinePercent(app.start). Set clip.style.width using timelinePercent of the number returned by timelineSelectedSeconds(). Return the same clip. Only set these two style properties. Use the existing helpers.",
+      "relevant_fields": {
+        "app": [
+          "start"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "timelinePercent",
+        "timelineSelectedSeconds"
+      ],
+      "behavior_dependencies": [
+        "timelinePercent",
+        "timelineSelectedSeconds"
+      ],
+      "behavior_checks": [
+        "timeline_clip_bounds"
+      ],
+      "state_writes": [],
+      "system_contract": "Output a complete standalone function declaration starting with function setTimelineClipBounds(clip). The clip parameter is a DOM element with a style object. timelinePercent already returns a complete CSS percentage string. No export, import, TypeScript or extra percent sign."
+    },
+    {
       "name": "Timeline video clip",
       "file": "app.js",
       "kind": "js",
@@ -1627,26 +1705,34 @@
       "functions": [
         "makeTimelineVideoClip"
       ],
-      "task": "Implement only makeTimelineVideoClip(). Use existing makeTimelineElement to create a div with class video-clip. Its literal text contains app.filename and the calculated selected seconds (app.end minus app.start). Set style.left to start/duration times 100 percent, and style.width to selected seconds/duration times 100 percent. Use app fields. Return the element; do not append it.",
+      "task": "Write complete function makeTimelineVideoClip(). Form one text string containing app.filename, a space, timelineSelectedSeconds() and the word seconds. Obtain an element from makeTimelineElement with exactly three arguments: div tag, video-clip class, and that text. Call setTimelineClipBounds with the element, then return the element. Do not create, search for or append any other nodes.",
       "relevant_fields": {
         "app": [
-          "filename",
-          "start",
-          "end",
-          "duration"
+          "filename"
         ],
         "ui": []
       },
       "relevant_functions": [
-        "makeTimelineElement"
+        "makeTimelineElement",
+        "timelineSelectedSeconds",
+        "setTimelineClipBounds"
       ],
       "behavior_dependencies": [
-        "makeTimelineElement"
+        "makeTimelineElement",
+        "timelinePercent",
+        "timelineSelectedSeconds",
+        "setTimelineClipBounds"
       ],
       "behavior_checks": [
         "timeline_video_clip"
       ],
-      "state_writes": []
+      "state_writes": [],
+      "system_contract": "Output a complete standalone function declaration starting with function makeTimelineVideoClip(). makeTimelineElement(tag,className,text) takes three arguments and returns a DOM element. setTimelineClipBounds(clip) sets that element position and width. No export, import, TypeScript, other functions or extra arguments.",
+      "include_helper_sources": [
+        "makeTimelineElement",
+        "timelineSelectedSeconds",
+        "setTimelineClipBounds"
+      ]
     },
     {
       "name": "Timeline caption clip",
@@ -1658,27 +1744,32 @@
       "functions": [
         "makeTimelineTextClip"
       ],
-      "task": "Implement only makeTimelineTextClip(). Return null when ui.titleInput.value.trim() is empty. Otherwise use makeTimelineElement to create a div with class text-clip and the original ui.titleInput.value as literal text. Its style.left is app.start/app.duration times 100 percent and style.width is (app.end-app.start)/app.duration times 100 percent. Return this element. Never use innerHTML.",
+      "task": "Write complete function makeTimelineTextClip(). If ui.titleInput.value.trim() is empty, return null. Otherwise obtain a div with class text-clip from makeTimelineElement; its third argument must be the original ui.titleInput.value, including surrounding spaces. Call setTimelineClipBounds with that element and return the element. Trim only for the empty test, never for displayed text. No innerHTML or appended nodes.",
       "relevant_fields": {
-        "app": [
-          "start",
-          "end",
-          "duration"
-        ],
+        "app": [],
         "ui": [
           "titleInput"
         ]
       },
       "relevant_functions": [
-        "makeTimelineElement"
+        "makeTimelineElement",
+        "setTimelineClipBounds"
       ],
       "behavior_dependencies": [
-        "makeTimelineElement"
+        "makeTimelineElement",
+        "timelinePercent",
+        "timelineSelectedSeconds",
+        "setTimelineClipBounds"
       ],
       "behavior_checks": [
         "timeline_text_clip"
       ],
-      "state_writes": []
+      "state_writes": [],
+      "system_contract": "Output a complete standalone function declaration starting with function makeTimelineTextClip(). makeTimelineElement(tag,className,text) returns a DOM element. setTimelineClipBounds(clip) sets that element position and width. Use plain JavaScript.",
+      "include_helper_sources": [
+        "makeTimelineElement",
+        "setTimelineClipBounds"
+      ]
     },
     {
       "name": "Timeline track row",
@@ -1690,7 +1781,7 @@
       "functions": [
         "makeTimelineTrack"
       ],
-      "task": "Implement only makeTimelineTrack(label,clip). Use makeTimelineElement to create a div class track-row, a div class track-label containing label, and a div class track-lane with empty text. Append label element and lane to row. If clip is not null append clip to lane. Always append makeTimelinePlayhead() to lane. Return row. Existing helpers are standalone functions; do not define them again.",
+      "task": "Write complete function makeTimelineTrack(label,clip). Create three div elements using makeTimelineElement: row class track-row with empty text; label element class track-label with the label argument as text; lane class track-lane with empty text. Append the label element and lane to the row. If clip is not null, append clip to the lane. Append makeTimelinePlayhead() to the lane. Return the row. No new helper definitions or extra styles.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -1706,7 +1797,16 @@
       "behavior_checks": [
         "timeline_track"
       ],
-      "state_writes": []
+      "state_writes": [],
+      "parameters": {
+        "label": "string used as literal label text",
+        "clip": "DOM element or null"
+      },
+      "include_helper_sources": [
+        "makeTimelineElement",
+        "makeTimelinePlayhead"
+      ],
+      "system_contract": "Output a complete standalone function declaration starting with function makeTimelineTrack(label,clip). makeTimelineElement(tag,className,text) returns a DOM element; use div as the tag and track-row/track-label/track-lane as CSS classes. makeTimelinePlayhead returns a DOM element. Append the actual returned elements. Use plain JavaScript."
     },
     {
       "name": "Render actual timeline",
@@ -1716,7 +1816,7 @@
       "functions": [
         "updateTimeline"
       ],
-      "task": "Implement only updateTimeline(). Clear ui.timeline with textContent. If app.loaded is false, set a useful import-video message and return. Otherwise append three nodes to ui.timeline: makeTimelineElement with div, timeline-ruler and formatTime(app.duration); makeTimelineTrack with Video and makeTimelineVideoClip(); makeTimelineTrack with Text and makeTimelineTextClip(). Finally set ui.seekInput.value to ui.preview.currentTime. Call these existing standalone helpers; do not define them again.",
+      "task": "Write complete function updateTimeline(). First clear ui.timeline by setting its textContent to an empty string. If app.loaded is false, set ui.timeline.textContent to Import a video to start, then return. Otherwise create exactly one ruler div using makeTimelineElement with class timeline-ruler and the RESULT of calling formatTime(app.duration) as text. Append that ruler to ui.timeline. Append makeTimelineTrack with label Video and makeTimelineVideoClip() as its clip. Append makeTimelineTrack with label Text and makeTimelineTextClip() as its clip. Set ui.seekInput.value to ui.preview.currentTime. No other nodes, helpers, styles or markup.",
       "raw_source": true,
       "include_html": false,
       "relevant_fields": {
@@ -1745,9 +1845,20 @@
         "makeTimelinePlayhead",
         "makeTimelineVideoClip",
         "makeTimelineTextClip",
-        "makeTimelineTrack"
+        "makeTimelineTrack",
+        "timelinePercent",
+        "timelineSelectedSeconds",
+        "setTimelineClipBounds"
       ],
-      "state_writes": []
+      "state_writes": [],
+      "include_helper_sources": [
+        "makeTimelineElement",
+        "makeTimelineTrack",
+        "makeTimelineVideoClip",
+        "makeTimelineTextClip",
+        "formatTime"
+      ],
+      "system_contract": "Output a complete standalone function declaration starting with function updateTimeline(). Existing helpers return DOM elements except formatTime, which returns the formatted string. Call formatTime to obtain the value; never display its name as literal text. Always clear old timeline nodes before checking whether a video is loaded. Plain JavaScript."
     },
     {
       "name": "Teks overlay",

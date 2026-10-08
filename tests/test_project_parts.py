@@ -1300,6 +1300,42 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
+async def test_validated_helper_context_survives_patch_and_fresh_regeneration(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    parts=[{'name':'MIME helper','file':'app.js','kind':'js','task':'Recognize video MIME','functions':['allowedMime'],'raw_source':True,'include_html':False},
+           {'name':'Video predicate','file':'app.js','kind':'js','task':'Recognize valid video files by calling allowedMime','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file'],'relevant_functions':['allowedMime'],'include_helper_sources':['allowedMime'],'behavior_dependencies':['allowedMime']}]
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':parts,'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    prior='function allowedMime(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}'
+    bad='function isVideoFile(file){return false;}'
+    good='function isVideoFile(file){return allowedMime(file);}'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:source=prior
+        elif len(calls)==2:
+            assert prior in messages[1]['content'];source=bad
+        elif len(calls)==3:
+            body=json.loads(messages[1]['content'])
+            assert prior in body['contracts']
+            source=json.dumps({'edits':[{'line':1,'replace':bad}]})
+        else:
+            assert prior in messages[1]['content'] and 'VALIDATED HELPERS' in messages[1]['content']
+            assert 'Write a fresh complete source part' in messages[1]['content'];source=good
+        return {'content':source,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part' and value['index']==1:
+            assert value['source']==good and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
 async def test_noop_patch_uses_last_bounded_attempt_for_fresh_validated_source(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     item={'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME safely','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
@@ -1538,6 +1574,8 @@ async def test_timeline_check_accepts_safe_dom_and_rejects_accumulation_and_wron
     assert any('accumulate' in error for error in errors)
     errors=await project_checks.inspect_helper(source.replace('app.start/app.duration*100','0'),'video_timeline')
     assert any('position/width' in error for error in errors)
+    errors=await project_checks.inspect_helper(source.replace('ui.timeline.appendChild(ruler);','ui.timeline.appendChild(ruler);ui.timeline.appendChild(document.createElement("div"));'),'video_timeline')
+    assert any('exactly one ruler and two tracks' in error for error in errors)
 
 
 @pytest.mark.asyncio
@@ -1571,5 +1609,78 @@ async def test_timeline_primitives_and_composition_keep_literal_text_and_percent
     assert wrong_return and all('must return a DOM element' in e for e in wrong_return)
 
     assert await project_checks.inspect_helper(element+video.replace('app.end-app.start','app.end'),'timeline_video_clip')
+    assert await project_checks.inspect_helper(element+video.replace('/app.duration*100','*10'),'timeline_video_clip')
+    assert await project_checks.inspect_helper(element+video.replace("makeTimelineElement('div','video-clip'", "makeTimelineElement('video-clip','video-clip'"),'timeline_video_clip')
+
+    assert await project_checks.inspect_helper(element+video.replace("(app.end-app.start)+' seconds'","((app.end-app.start)*10)+' seconds'"),'timeline_video_clip')
+    assert await project_checks.inspect_helper(element+video.replace("(app.end-app.start)+' seconds'","(app.start-app.end)+' seconds'"),'timeline_video_clip')
+
     assert await project_checks.inspect_helper(element+text.replace('return null','return false'),'timeline_text_clip')
+    assert await project_checks.inspect_helper(element+text.replace("'text-clip',ui.titleInput.value)","'text-clip',ui.titleInput.value.trim())"),'timeline_text_clip')
     assert await project_checks.inspect_helper(element+head+track.replace('if(clip)lane.appendChild(clip);',''),'timeline_track')
+
+
+@pytest.mark.asyncio
+async def test_timeline_arithmetic_is_general_and_keeps_numeric_and_css_types():
+    percent="function timelinePercent(seconds){return (seconds/app.duration*100)+'%';}"
+    selected="function timelineSelectedSeconds(){return app.end-app.start;}"
+    assert not await project_checks.inspect_helper(percent,'timeline_percent')
+    assert not await project_checks.inspect_helper(selected,'timeline_selected_seconds')
+    assert await project_checks.inspect_helper(percent.replace('seconds/app.duration','seconds*app.duration'),'timeline_percent')
+    assert await project_checks.inspect_helper(percent.replace("+'%'",''),'timeline_percent')
+    assert await project_checks.inspect_helper(selected.replace('app.end-app.start','app.start-app.end'),'timeline_selected_seconds')
+    assert await project_checks.inspect_helper(selected.replace('return app.end-app.start;',"return String(app.end-app.start);"),'timeline_selected_seconds')
+
+
+@pytest.mark.asyncio
+async def test_timeline_clip_bounds_preserve_supplied_element_and_use_general_percentages():
+    # Test-only implementation, never supplied to source generation.
+    helpers="function timelinePercent(seconds){return (seconds/app.duration*100)+'%';}function timelineSelectedSeconds(){return app.end-app.start;}"
+    bounds="function setTimelineClipBounds(clip){clip.style.left=timelinePercent(app.start);clip.style.width=timelinePercent(timelineSelectedSeconds());return clip;}"
+    assert not await project_checks.inspect_helper(helpers+bounds,'timeline_clip_bounds')
+    assert await project_checks.inspect_helper(helpers+bounds.replace('return clip;','return document.createElement("div");'),'timeline_clip_bounds')
+    assert await project_checks.inspect_helper(helpers+bounds.replace('timelinePercent(app.start)','"25%"'),'timeline_clip_bounds')
+    assert await project_checks.inspect_helper(helpers+bounds.replace('timelinePercent(timelineSelectedSeconds())','timelineSelectedSeconds()'),'timeline_clip_bounds')
+    assert await project_checks.inspect_helper(helpers+bounds.replace('return clip;','clip.textContent="Changed";return clip;'),'timeline_clip_bounds')
+
+
+def test_validated_helper_context_is_opt_in_scoped_and_never_truncates_source():
+    sources={'small':'function small(){return 17;}', 'large':'function large(){'+(' ' * 100)+'return 2;}', 'unrelated':'secret unrelated source'}
+    item={'relevant_functions':['small','large'], 'include_helper_sources':['unrelated','missing','large','small','small']}
+    context=project_parts.validated_helper_context(item,sources,max_chars=60)
+    assert context.endswith(sources['small']) and context.count(sources['small'])==1
+    assert sources['large'] not in context and 'function large' not in context
+    assert sources['unrelated'] not in context
+    assert project_parts.validated_helper_context({'relevant_functions':['small']},sources)==''
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_generation_passes_only_prior_validated_model_helpers_to_caller(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    parts=[{'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']},
+           {'name':'Caller','file':'app.js','kind':'js','task':'Call predicate','functions':['acceptVideo'],'raw_source':True,'include_html':False,'relevant_functions':['isVideoFile'],'include_helper_sources':['isVideoFile']}]
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':parts,'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    prior='function isVideoFile(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}'
+    caller='function acceptVideo(file){return isVideoFile(file);}'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:
+            assert prior not in messages[1]['content']
+            source=prior
+        else:
+            assert prior in messages[1]['content'] and 'VALIDATED_HELPERS' in messages[1]['content']
+            assert caller not in messages[1]['content']
+            source=caller
+        return {'content':source,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part' and value['index']==1:
+            assert value['source']==caller
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==2

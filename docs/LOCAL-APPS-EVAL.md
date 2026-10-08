@@ -992,3 +992,83 @@ tidak lagi melempar galat API: ia melaporkan lebar 10% yang seharusnya
 100%/40%, kiri 2,5% yang seharusnya 25%, serta teks durasi total yang keliru
 menggantikan durasi terpilih. Jadi sumber model tetap gagal karena perilaku
 aktualnya, bukan karena API DOM yang sah tidak tersedia pada fixture.
+
+## Hitungan timeline dan kontrak argumen
+
+V77 gagal setelah 113,5 detik: keluaran klip video tidak mempunyai deklarasi
+fungsi lengkap. Pemeriksaan durasi juga ditemukan terlalu longgar:
+pencarian substring menerima 100 sebagai 10. Pemeriksaan kini mencocokkan
+token angka setelah menghapus nama berkas literal, menolak durasi sepuluh
+kali lipat serta durasi negatif. Posisi klip diuji dengan durasi video 10
+dan 20 detik agar pembagi tetap 10 tidak lolos.
+
+V78 berhasil menulis timelinePercent dan timelineSelectedSeconds dengan
+Qwen3.5 0.8B Q8_0 pada CPU, memakai reasoning budget 256. Keduanya lolos
+pemeriksaan beberapa durasi dan batas pecahan. Implementasi tetap berasal
+dari inferensi model; kode referensi tes tidak disisipkan ke hasil.
+Pemanggil klip video masih gagal: durasi ditempatkan pada argumen keempat
+factory tiga argumen sehingga tidak tampil. Regenerasi kemudian menghasilkan
+export dan TypeScript yang tidak cocok dengan skrip browser klasik.
+Run berakhir gagal setelah 257,9 detik; editor lengkap belum tersedia.
+
+Instruksi berikutnya memperjelas bahwa nama berkas dan durasi harus digabung
+menjadi satu argumen teks, serta helper persen sudah mengembalikan satuan.
+219 tes terkait di Windows lolos sebelum perluasan kasus durasi; empat tes
+timeline lolos setelah perluasan tersebut. CI Linux commit 68da151 berhasil;
+jumlah tes tidak diklaim tanpa pemeriksaan log. Fixture DOM dan tes ini tetap
+tidak menggantikan verifikasi impor/ekspor media dan tampilan browser nyata.
+
+V79 gagal setelah 98,5 detik. Teks klip sudah berisi durasi yang benar,
+namun posisi/lebarnya hilang dan patch merusak sintaks. Pengaturan batas
+timeline kemudian menjadi helper bersama setTimelineClipBounds, dipakai
+klip video dan klip teks. Pemeriksa menguji dua durasi, identitas elemen yang
+dikembalikan, posisi, lebar serta pelestarian teks/style lain. Klip video
+juga harus memakai elemen div. Lima tes timeline lolos sesudah perubahan.
+Ini pemecahan spesifikasi dan pemeriksaan, bukan penyisipan implementasi.
+
+V80 menulis setTimelineClipBounds yang benar pada percobaan pertama (27,0
+detik inferensi), tetapi pemanggil mengubah kelas dan menambahkan style yang
+tidak diminta. Patch/regenerasi tidak menyelesaikannya; run gagal setelah
+194,1 detik. 220 tes terkait Windows lolos pada revisi tersebut.
+
+Pemanggil dapat meminta konteks implementasi helper yang sudah ditulis model
+dan diterima pemeriksa, lewat include_helper_sources. Hanya helper relevan
+yang sudah tersedia diteruskan, tanpa implementasi referensi tes. Konteks
+dibatasi 2.400 karakter; helper besar dilewati seluruhnya, bukan dipotong.
+Konteks yang sama tersedia pada pembuatan, patch dan regenerasi serta pada
+backend lokal/online/router. Helper wajib tetap dipanggil, bukan didefinisikan
+ulang. Sembilan tes timeline/konteks lolos; tes routing memakai mock model
+dan tidak membuktikan kualitas provider online nyata.
+
+V81 berhasil menulis klip video pada percobaan pertama (30,3 detik), memakai
+helper model yang sudah divalidasi. Klip teks awal juga lolos fixture lama,
+tetapi pemeriksaan lebih lengkap kemudian menemukan bahwa trim() menghapus
+spasi pada teks yang seharusnya dipertahankan. Fixture/instruksi kini menguji
+teks asli termasuk spasi dan dua durasi video. Pemeriksaan ulang kode v81
+menolak perubahan teks itu. Run v81 sendiri gagal setelah 193,7 detik pada
+baris track: label/lane tidak terpasang dan perbaikan menghasilkan deklarasi
+ganda lalu kode terpotong. Konteks helper tervalidasi juga diaktifkan untuk
+track, dengan parameter label dan clip dijelaskan. 224 tes terkait Windows
+lolos sebelum perluasan caption, dan sembilan tes terkait lolos sesudahnya.
+
+V82 menulis caption yang mempertahankan teks asli (19,0 detik) dan baris
+track yang benar (22,2 detik), keduanya pada percobaan pertama. Komposisi
+timeline belum benar: ruler menampilkan nama panggilan formatTime sebagai
+teks dan kondisi unloaded tidak memberi pesan atau membersihkan track.
+Rollback menolak patch yang menambah kegagalan; run berakhir gagal setelah
+207,7 detik. Konteks helper/instruksi kini diterapkan pada komposisi, dan
+fixture menuntut tepat satu ruler serta dua track, bukan node tambahan.
+227 tes terkait Windows lolos sebelum perluasan komposisi; 12 tes fokus
+lolos sesudahnya, termasuk konteks helper pada patch/regenerasi untuk tiga
+backend. Pemindaian seluruh riwayat Git dengan Gitleaks menemukan 0 temuan.
+
+V83 berhasil menulis updateTimeline pada percobaan pertama (29,2 detik).
+Pemeriksaan komposisi lolos: tepat satu ruler, dua jalur, posisi/teks,
+sinkronisasi scrub, render ulang tanpa node bertambah serta pembersihan
+saat unloaded. Ini masih fixture terbatas, belum bukti browser/ekspor.
+Run berhenti gagal setelah 124,9 detik pada updateText: model mendeklarasikan
+ui berulang, lalu melakukan shadowing dan mengakses ui.querySelector yang
+bukan bagian kontrak. Timeline tersimpan sebagai kode model yang terverifikasi
+pada tahap ini; overlay, kanvas, encoder, binding kontrol dan verifikasi
+browser/ekspor/mobile masih harus diselesaikan. Tidak ada ZIP editor layak
+yang dipublikasikan dari run ini.

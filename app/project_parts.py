@@ -451,6 +451,23 @@ def js_prompt_context(prior, relevant=None, functions=None):
             ('\n'.join(signatures) or '(none required)'))
 
 
+def validated_helper_context(item, helper_sources, max_chars=2400):
+    """Show selected complete model-authored dependencies, never test fixtures.
+
+    Large helpers are omitted whole, rather than truncating their bodies into
+    misleading examples. This is opt-in for callers needing implementation
+    context; signatures remain available for omitted dependencies.
+    """
+    allowed=set(item.get('relevant_functions',[]))
+    sources=[];used=0
+    for name in item.get('include_helper_sources',[]):
+        source=helper_sources.get(name) if name in allowed else None
+        if not source or source in sources or used+len(source)>max_chars:continue
+        sources.append(source);used+=len(source)
+    if not sources:return ''
+    return 'Already validated model-written helpers. Call them unchanged; do not redefine them:\n'+'\n\n'.join(sources)
+
+
 def reusable_part(saved, item):
     """Reuse only unmodified model text for an identical task; validate it again."""
     if not saved:return None
@@ -599,6 +616,8 @@ async def generate(brief,ctx,on_event=None):
             if future:context['future_standalone_helpers']='These names will be implemented by later parts; call them directly, not as app/ui or DOM methods: '+', '.join(dict.fromkeys(future))
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
             context['previous_source']=js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
+            helpers_context=validated_helper_context(item,helper_sources)
+            if helpers_context:context['validated_helpers']=helpers_context
             if item.get('include_html') is False:
                 context.pop('current_html')
                 # A narrow helper contract is already derived from the owner
@@ -630,7 +649,7 @@ async def generate(brief,ctx,on_event=None):
                 if attempt and source_patchable and (kind in ('css','node','panel','document') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps(repair_contracts(item)),
+                        contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n'+validated_helper_context(item,helper_sources)+'\n' if kind=='js' else '')+json.dumps(repair_contracts(item)),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,single_line=kind!='document')
                 else:
                     schema=None if item.get('raw_source') else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
@@ -768,7 +787,7 @@ async def generate(brief,ctx,on_event=None):
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nPARAMETER CONTRACTS:\n'+json.dumps(item.get('parameters',{}))+'\nFUTURE HELPERS:\n'+(context.get('future_standalone_helpers','') if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nVALIDATED HELPERS:\n'+(validated_helper_context(item,helper_sources) if kind=='js' else '')+'\nPARAMETER CONTRACTS:\n'+json.dumps(item.get('parameters',{}))+'\nFUTURE HELPERS:\n'+(context.get('future_standalone_helpers','') if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')
