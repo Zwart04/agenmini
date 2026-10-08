@@ -297,6 +297,9 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         if attribute_choices:
             choices=attribute_choices
             schema['properties']['edits']['items']['properties']['replace']['const']=''
+            # A model must not pad a single removal into four repeated edits.
+            # Every find choice is an actual unique span in the original source.
+            schema['properties']['edits']['maxItems']=min(4,len(attribute_choices))
         schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
     wire_schema=json.loads(json.dumps(schema))
     # Use the backend's escaped JSON string grammar. A broad replace pattern

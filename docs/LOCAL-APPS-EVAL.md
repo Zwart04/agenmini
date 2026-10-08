@@ -1399,3 +1399,19 @@ bukan menyatakan tepat 1B atau telah menghasilkan editor yang lulus.
 CI Linux commit b3b168b berhasil: run 37743871565, 553 tes lolos (102,17
 detik). Ini mencakup perubahan fallback HTML dan pemisahan operasi seek;
 editor yang dihasilkan tetap harus melewati evaluasi model nyata/browser.
+
+DeepSeek current-v1 gagal setelah 299,5 detik di preview: sumber lengkap
+memiliki controls pada video, lalu model mengulang penghapusan span yang sama
+empat kali. Patch ditolak secara atomik. Schema penghapusan sekarang membatasi
+jumlah edit sesuai jumlah span unik yang memang ada; satu span hanya memberi
+ruang satu edit. 15 tes terarah dan 245 tes regresi terkait lolos (116,16 detik),
+termasuk penolakan duplikasi pada local/online/router stub.
+
+Pemulihan opt-in failed source kini mencakup HTML kind node yang mempunyai
+root_class dan reproduksi span asli tepat. Tetap wajib recipe, bobot, format
+chat dan sampling cocok; hasil gagal harus diperiksa lagi, bukan dianggap
+lulus. Sumber terpotong, patch, SHA berubah, atau hasil yang tidak dapat
+direproduksi ditolak. DeepSeek current-v2 memakai checkpoint valid v1. Kandidat
+preview lama tidak dipakai karena kind-nya panel, sementara pemulihan baru
+mencakup node. Model menghasilkannya ulang dan meloloskan patch satu penghapusan;
+provenance/replay tersimpan pada parts/05.json. CSS masih sedang dikerjakan.

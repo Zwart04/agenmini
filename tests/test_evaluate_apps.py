@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import pytest
 
 
 def test_unicode_failure_report_prints_in_cp1252_without_losing_json_text():
@@ -53,3 +54,36 @@ def test_failed_resume_prefers_completed_behavior_checks_to_later_structural_fai
     assert failed_source_candidates(previous,report,recipe,{})[0]['source']=='function compute(){return 2;}'
     (previous/'checks'/'00-0.json').write_text(json.dumps({'source_sha256':'tampered','errors':[]}))
     assert failed_source_candidates(previous,report,recipe,{})[0]['source']=='function compute(){return ui.video;}'
+
+
+@pytest.mark.parametrize('fmt',['raw','json_source'])
+def test_failed_html_node_resume_requires_exact_original_span_and_stays_failed(tmp_path,fmt):
+    import hashlib
+    from scripts.evaluate_apps import failed_source_candidates
+    from app import project_parts
+    item={'name':'Preview','kind':'node','file':'index.html','root_class':'viewer','task':'Model preview',
+          'absent_attributes':{'preview':['controls']}}
+    recipe=tmp_path/'recipe.json';recipe.write_text(json.dumps({'parts':[item]}))
+    report={'generator_source_sha256':{'app/project_recipes/video_editor.json':hashlib.sha256(recipe.read_bytes()).hexdigest()}}
+    previous=tmp_path/'old';(previous/'attempts').mkdir(parents=True);(previous/'checks').mkdir()
+    source='<div class="viewer"><video id="preview" controls></video></div>'
+    raw=json.dumps({'source':source}) if fmt=='json_source' else source
+    attempt={'index':0,'attempt':1,'part':'Preview','response_kind':'source','raw_source':raw,'source':source,
+             'source_format':fmt,'stats':{'finish_reason':'stop','served_model':'local-model'}}
+    path=previous/'attempts/00-1.json';path.write_text(json.dumps(attempt))
+    check=previous/'checks/00-1.json'
+    check.write_text(json.dumps({'source_sha256':hashlib.sha256(source.encode()).hexdigest(),
+                                'passed':False,'errors':['preview must not have HTML attribute controls.']}))
+    candidate=failed_source_candidates(previous,report,recipe,{})[0]
+    assert candidate['source']==source and candidate['raw_source']==raw
+    assert candidate['evidence']['checkpoint_status'].startswith('failed')
+    assert project_parts.reusable_part(candidate,{**item,'generation_contract_revision':2})['content']==raw
+    assert project_parts.part_contract_errors(candidate['source'],item)==['preview must not have HTML attribute controls.']
+    assert failed_source_candidates(previous,report,recipe,{0:{}})=={}
+    for changed in [dict(attempt,source=source.replace(' controls','')),
+                    dict(attempt,stats={'finish_reason':'length'}),dict(attempt,repair_chain=[{}]),
+                    dict(attempt,raw_source='<div class="other"></div>')]:
+        path.write_text(json.dumps(changed))
+        assert failed_source_candidates(previous,report,recipe,{})=={}
+    path.write_text(json.dumps(attempt));check.write_text(json.dumps({'source_sha256':'changed','errors':[]}))
+    assert failed_source_candidates(previous,report,recipe,{})=={}

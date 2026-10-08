@@ -101,6 +101,7 @@ async def test_json_html_patch_reuses_decoded_root_with_exact_model_provenance(m
         request=json.loads(messages[1]['content'])
         assert request['source']==original
         assert request['find_choices']==[' src=""']
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['maxItems']==1
         assert 'numbered_lines' not in request
         return {'content':patch,'stats':{'finish_reason':'stop','served_model':backend}}
     monkeypatch.setattr(llm,'chat',model)
@@ -145,6 +146,23 @@ async def test_attribute_edit_rejects_unlisted_changes_on_every_backend(monkeypa
     response=await project_patches.request(source,task='Keep the model video',errors=errors,contracts={},indexed=True)
     assert response['patch_validation_error']
     assert 'invented.mp4' in response['content']  # Preserve the failed response as evidence.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_one_attribute_choice_cannot_be_repeated_as_multiple_model_edits(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='<video id="preview" controls="controls"></video>'
+    duplicate=json.dumps({'edits':[{'find':' controls="controls"','replace':''}]*2})
+    async def model(messages,**options):
+        request=json.loads(messages[1]['content'])
+        assert request['source']==source and request['find_choices']==[' controls="controls"']
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['maxItems']==1
+        return {'content':duplicate,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    response=await project_patches.request(source,task='Keep preview',errors=['preview must not have HTML attribute controls.'],contracts={},indexed=True)
+    assert response['patch_validation_error'] and response['content']==duplicate
+    with pytest.raises(ValueError):project_patches.apply(source,duplicate)
 
 
 def test_nonvoid_self_closing_html_is_rejected_and_localized():
