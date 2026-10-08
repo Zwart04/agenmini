@@ -1375,3 +1375,14 @@ memperoleh konteks opt-in berisi implementasi clear/complete/fail yang sudah
 ditulis dan lolos oleh model yang sama, agar kontrak handle terlihat dari
 pemakaiannya. Ini memakai mekanisme validated_helper_context yang ada;
 bukan implementasi reference milik tes atau kode solusi evaluator.
+
+V110 gagal setelah 410,7 detik: respons pertama berupa komentar berulang dan
+terpotong; respons berikutnya memakai event sebagai timeout, handle 5000
+hardcode dan assignment tanpa catch. Patch terakhir tidak mengubah sumber.
+V111 memisahkan registerSeekEvent, scheduleSeekTimeout dan assignSeekTarget;
+armSeekJob hanya mengurutkan panggilan ketiganya. Pemeriksaan arm memakai tiga
+helper operasi model; Promise worker dan caller menggabungkan seluruh job
+helper model aktual melalui behavior_dependencies. 47 tes terarah lolos (7,93
+detik), termasuk penolakan callback langsung, handle hardcode, galat assignment
+yang tidak ditangani dan urutan timer/listener terbalik. Ini tidak menyatakan
+hasil editor telah lulus; hasil model V111 masih harus ditunggu.

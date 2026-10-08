@@ -2172,39 +2172,124 @@
       "system_contract": "Begin with function failSeekJob(job,error). Output only this function, without types, imports, exports or global declarations."
     },
     {
-      "name": "Arm seek task events",
-      "file": "app.js",
+      "name": "Register seek completion event",
       "kind": "js",
+      "file": "app.js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 450,
+      "tokens": 250,
       "functions": [
-        "armSeekJob"
+        "registerSeekEvent"
       ],
-      "task": "Write named function armSeekJob(job,target), in four sequential steps. 1. Assign job.onSeeked a new function that calls existing completeSeekJob(job). 2. Immediately register that same job.onSeeked function on job.video using addEventListener for event name seeked. 3. Immediately call browser setTimeout with a function that calls failSeekJob(job,new Error with a timeout message), and delay 5000. Store the returned numeric handle in job.timer. 4. Immediately assign job.video.currentTime to target inside try/catch; catch passes the actual error to failSeekJob(job,error). Steps 2, 3 and 4 run directly in the outer function, not inside any callback. job.timer is only a handle, never an API object. Use existing parameters without declaring replacements. No playback, global assignments or nested listeners. The numeric return value of setTimeout must be assigned directly to job.timer by the outer function. No local timerHandle, no time value as handle, and no return statement. Do not rewrite the existing completeSeekJob or failSeekJob functions.",
+      "task": "Write only named function registerSeekEvent(job). Store a new callback function on job.onSeeked. When invoked later, that callback calls existing completeSeekJob(job). Register this stored callback on job.video with addEventListener for seeked. Do not call completion during registration.",
       "parameters": {
-        "job": "Existing mutable job object: video is the video element, onSeeked is initially null, timer is initially null. resolve/reject callbacks are retained by completeSeekJob/failSeekJob.",
-        "target": "Numeric requested seconds, including zero. Assign this actual number to the video currentTime after arming event and timer."
+        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties."
       },
-      "context": "The supplied validated helper implementations came from the same model. Read how cleanup uses job.timer and job.onSeeked. Only implement armSeekJob; reuse these helpers by calling them, without defining or copying them.",
+      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
       "relevant_fields": {
         "app": [],
         "ui": []
       },
       "relevant_functions": [
-        "clearSeekJob",
-        "completeSeekJob",
+        "completeSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_register"
+      ],
+      "system_contract": "Begin with function registerSeekEvent(job). Output only this complete function, without comments, imports or other declarations."
+    },
+    {
+      "name": "Schedule bounded seek timeout",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 250,
+      "functions": [
+        "scheduleSeekTimeout"
+      ],
+      "task": "Write only named function scheduleSeekTimeout(job). Call browser setTimeout with a new callback function and delay 5000. Save the returned handle directly on the existing job.timer property. The callback calls existing failSeekJob(job,new Error with a timeout message). Do not call failure before timeout fires. Only schedule the timer; do not access video.",
+      "parameters": {
+        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties."
+      },
+      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
         "failSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_timer"
+      ],
+      "system_contract": "Begin with function scheduleSeekTimeout(job). Output only this complete function, without comments, imports or other declarations."
+    },
+    {
+      "name": "Assign requested seek seconds",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 220,
+      "functions": [
+        "assignSeekTarget"
+      ],
+      "task": "Write only named function assignSeekTarget(job,target). Inside try, assign job.video.currentTime to target exactly once. Inside catch, call existing failSeekJob(job,error) using the actual caught Error. Zero and fractional seconds are valid. Do not register events or timers.",
+      "parameters": {
+        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties.",
+        "target": "Requested numeric seconds, including zero."
+      },
+      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "failSeekJob"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_seek_assign"
+      ],
+      "system_contract": "Begin with function assignSeekTarget(job,target). Output only this complete function, without comments, imports or other declarations."
+    },
+    {
+      "name": "Arm seek task events",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "armSeekJob"
+      ],
+      "task": "Write function armSeekJob(job,target). Call three existing helpers in this exact order: registerSeekEvent(job), scheduleSeekTimeout(job), assignSeekTarget(job,target). Only compose these calls. Do not implement their logic.",
+      "parameters": {
+        "job": "Existing mutable job object: video is the video element, onSeeked is initially null, timer is initially null. resolve/reject callbacks are retained by completeSeekJob/failSeekJob.",
+        "target": "Numeric requested seconds, including zero. Assign this actual number to the video currentTime after arming event and timer."
+      },
+      "context": "All three helpers already exist and handle their respective browser operations.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "registerSeekEvent",
+        "scheduleSeekTimeout",
+        "assignSeekTarget"
       ],
       "state_writes": [],
       "behavior_checks": [
         "video_seek_arm"
       ],
       "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations.",
-      "include_helper_sources": [
-        "clearSeekJob",
-        "completeSeekJob",
-        "failSeekJob"
+      "behavior_dependencies": [
+        "registerSeekEvent",
+        "scheduleSeekTimeout",
+        "assignSeekTarget"
       ]
     },
     {
@@ -2241,6 +2326,9 @@
         "clearSeekJob",
         "completeSeekJob",
         "failSeekJob",
+        "registerSeekEvent",
+        "scheduleSeekTimeout",
+        "assignSeekTarget",
         "armSeekJob"
       ]
     },
@@ -2271,6 +2359,9 @@
         "clearSeekJob",
         "completeSeekJob",
         "failSeekJob",
+        "registerSeekEvent",
+        "scheduleSeekTimeout",
+        "assignSeekTarget",
         "armSeekJob",
         "waitForVideoTime"
       ],

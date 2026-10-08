@@ -1,6 +1,42 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_seek_register': r'''
+      let job,calls=0,registered=[];
+      function completeSeekJob(value){assert(value===job,'seeked callback must complete its original job');calls++;}
+      const video={addEventListener(name,fn){registered.push([name,fn]);}};
+      job={video,onSeeked:null};registerSeekEvent(job);
+      assert(calls===0,'registerSeekEvent must defer completion until the seeked event');
+      assert(typeof job.onSeeked==='function','registerSeekEvent must store a function in job.onSeeked');
+      assert(registered.length===1&&registered[0][0]==='seeked'&&registered[0][1]===job.onSeeked,'registerSeekEvent must register the original stored callback once');
+      if(typeof job.onSeeked==='function')job.onSeeked();
+      assert(calls===1&&job.video===video,'seeked callback must call completeSeekJob exactly once without replacing video');
+    ''',
+    'video_seek_timer': r'''
+      let job,callback,delay,calls=0,handle;
+      function setTimeout(fn,ms){callback=fn;delay=ms;return handle;}const window={setTimeout};
+      function failSeekJob(value,error){assert(value===job&&error instanceof Error&&error.message,'seek timeout must fail original job with an Error');calls++;}
+      for(handle of [0,37,311]){
+        job={timer:null};callback=null;delay=0;calls=0;scheduleSeekTimeout(job);
+        assert(job.timer===handle,'job.timer expected actual setTimeout return handle '+handle+'; actual='+String(job.timer));
+        assert(delay===5000&&typeof callback==='function','scheduleSeekTimeout must schedule a function after 5000 milliseconds');
+        assert(calls===0,'scheduleSeekTimeout must not reject before timeout fires');
+        if(typeof callback==='function')callback();
+        assert(calls===1,'seek timeout must call failSeekJob once');
+      }
+    ''',
+    'video_seek_assign': r'''
+      let job,writes=[],failed=[],shouldThrow=false;const actualError=new Error('Actual assignment denied');
+      function failSeekJob(value,error){failed.push([value,error]);}
+      const video={set currentTime(value){if(shouldThrow)throw actualError;writes.push(value);}};
+      for(const target of [0,2.75]){
+        writes=[];failed=[];job={video};assignSeekTarget(job,target);
+        assert(writes.length===1&&writes[0]===target&&failed.length===0,'assignSeekTarget must assign supplied seconds exactly once, including zero');
+        assert(job.video===video,'assignSeekTarget must retain original video object');
+      }
+      shouldThrow=true;job={video};failed=[];assignSeekTarget(job,4);
+      assert(failed.length===1&&failed[0][0]===job&&failed[0][1]===actualError,'assignSeekTarget must delegate original caught Error with original job');
+    ''',
     'video_seek_job': r'''
       for(const video of [{currentTime:0},{currentTime:3}]){
         const resolve=()=>{},reject=()=>{},job=makeSeekJob(video,resolve,reject);
