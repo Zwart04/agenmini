@@ -21,7 +21,7 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
     from app import project_parts
     expected=report.get('generator_source_sha256',{}).get('app/project_recipes/video_editor.json')
     if expected != hashlib.sha256(recipe_path.read_bytes()).hexdigest():return {}
-    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));candidates={}
+    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));candidates={};ranks={}
     for path in sorted((previous/'attempts').glob('*.json')):
         try:
             value=json.loads(path.read_text(encoding='utf-8'));index=value['index']
@@ -33,12 +33,24 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
             if not isinstance(source,str) or not source.strip() or len(source.encode())>65536:continue
             decoded=project_parts.decode_source(raw,item['file'],fmt)
             if project_parts.select_model_helper(decoded,item)!=source:continue
+            check_path=previous/'checks'/path.name
+            priority=4;failure_count=99
+            if check_path.exists():
+                check=json.loads(check_path.read_text(encoding='utf-8'))
+                if check.get('source_sha256')!=hashlib.sha256(source.encode()).hexdigest():continue
+                errors=check.get('errors',[])
+                if not isinstance(errors,list) or not all(isinstance(error,str) for error in errors):continue
+                priority=0 if project_parts.missing_function_keyword_repairable(source,item,errors) else 1 if errors and all(error.startswith('Helper behavior failed:') for error in errors) else 2 if errors and all(error.startswith('Helper execution failed:') for error in errors) else 3
+                failure_count=len({project_parts.helper_failure_identity(error) for error in errors})
+            rank=(priority,failure_count,-int(value.get('attempt',0)))
+            if index in ranks and ranks[index]<=rank:continue
             item={**item,'generation_contract_revision':2}
             evidence={'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
                       'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),
                       'model':value.get('stats',{}).get('served_model',''),'source_format':fmt,
                       'checkpoint_status':'failed source; requires full validation and model repair'}
             candidates[index]={'source':source,'raw_source':raw,'evidence':evidence}
+            ranks[index]=rank
         except (ValueError,KeyError,TypeError):continue
     return candidates
 
@@ -70,7 +82,7 @@ def main():
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
     repo_root=Path(__file__).resolve().parents[1]
     generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_dom_checks.py',repo_root/'app/project_canvas_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_dom_checks.py',repo_root/'app/project_canvas_checks.py',repo_root/'app/project_export_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))

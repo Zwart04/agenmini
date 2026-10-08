@@ -118,13 +118,17 @@ try{
    const member=node.left,property=member.computed?member.property.value:member.property.name;
    if(properties.has(property))roots.push(node);
   }
+  if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+   const member=node.callee,property=member.computed?member.property.value:member.property.name;
+   if(properties.has(property))roots.push(node);
+  }
  });
  if(input.constant_assignments)for(const [name,node] of writes)if(constants.has(name))roots.push(node,...(definitions.get(name)||[]));
  const visited=new Set();
  function include(node){
   if(visited.has(node))return;visited.add(node);
   for(let line=node.loc.start.line;line<=node.loc.end.line;line++)lines.add(line);
-  for(const name of references(node.right??node.init))for(const definition of definitions.get(name)||[])include(definition);
+  for(const name of references(node.type==='CallExpression'?node:node.right??node.init))for(const definition of definitions.get(name)||[])include(definition);
  }
  roots.forEach(include);console.log(JSON.stringify([...lines].sort((a,b)=>a-b)));
 }catch(error){console.log('[]');}
@@ -164,10 +168,16 @@ def failing_lines(source, errors):
     css_lines=set()
     for error in errors:
         if error.startswith(('Patch rejected:','The patch introduced')):continue
+        undefined=re.search(r'Undefined shared field ([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*);',error)
+        if undefined:
+            path=r'\b'+re.escape(undefined[1])+r'\s*\.\s*'+re.escape(undefined[2])+r'\b'
+            targets={i for i,line in enumerate(lines,1) if re.search(path,line)}
+            if targets:css_lines.update(targets);continue
         if 'Assignment to constant variable' in error:
             targets=property_dependency_lines(source,set(),constant_assignments=True)
             if targets:css_lines.update(targets);continue
         properties=set(re.findall(r'\b(?:[A-Za-z_$][\w$]*\.)+([A-Za-z_$][\w$]*)\s+expected',error))
+        properties.update(re.findall(r'\b(?:[A-Za-z_$][\w$]*\.)+([A-Za-z_$][\w$]*)\s+[A-Za-z_$][\w$]*\s+expected',error))
         # A computed property can be wrong because of its local inputs. Offer
         # the original assignment plus those definitions, not unrelated style
         # or visibility lines. Text-content diagnostics retain their existing
@@ -275,6 +285,8 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     choices=[source]+[line.strip() for line in source.splitlines() if line.strip() and source.count(line.strip())==1]
     targets=failing_lines(source,errors) if indexed else []
     header_only=targets==[1] and any("SyntaxError: Unexpected token '{'" in e for e in errors) and any(e.startswith('Define complete named function ') for e in errors)
+    argument_scope=bool(indexed and targets and len(targets)<len(source.splitlines()) and any(re.search(r'\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\s+[A-Za-z_$][\w$]*\s+expected',e) for e in errors))
+    prompt_source=source.splitlines()[0] if header_only else '\n'.join(source.splitlines()[number-1] for number in targets) if argument_scope else source
     if removal_choices:
         schema['properties']['edits']['items']['enum']=removal_choices
     elif indexed:
@@ -312,7 +324,8 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         schema['properties']['edits']['maxItems']=1
     result=await llm.chat([
         {'role':'system','content':system or ('Remove ALL listed forbidden attribute spans from the current source. Return one JSON object with edits, an array of find/replace strings. Copy each find exactly from find_choices and set replace to the empty string. Keep the element, its ID, every other attribute and surrounding source. No replacement markup or other changes. Other errors will be checked again afterwards.' if attribute_choices else 'You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
-        {'role':'user','content':json.dumps({'source':source.splitlines()[0] if header_only else source,'errors':['The declaration is missing its JavaScript function keyword.'] if header_only else examples,'total_error_count':len(errors),'contracts':{'scope':'declaration header only; the rest of the source is retained'} if header_only else contracts,'task':'Correct declaration syntax on the supplied header only.' if header_only else task,**check_context,
+        {'role':'user','content':json.dumps({'source':prompt_source,'errors':['The declaration is missing its JavaScript function keyword.'] if header_only else examples,'total_error_count':len(errors),'contracts':{'scope':'declaration header only; the rest of the source is retained'} if header_only else contracts,'task':'Correct declaration syntax on the supplied header only.' if header_only else task,**check_context,
+            **({'source_scope':'Only affected statements and their local inputs are shown; original line numbers remain authoritative. All omitted source is retained unchanged.'} if argument_scope else {}),
             **({'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
     if attribute_choices or removal_choices or indexed:

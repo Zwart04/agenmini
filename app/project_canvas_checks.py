@@ -3,12 +3,12 @@
 CANVAS_SETUP = r'''
 const createdCanvases=[];let contextUnsupported=false;
 function canvasContext(){
- const ctx={draws:[],fills:[],strokes:[],saved:[],font:'10px sans-serif',fillStyle:'#000',textAlign:'start',textBaseline:'alphabetic',shadowColor:'transparent',shadowBlur:0,strokeStyle:'#000',lineWidth:1,
+ const ctx={draws:[],fills:[],strokes:[],operations:[],saved:[],font:'10px sans-serif',fillStyle:'#000',textAlign:'start',textBaseline:'alphabetic',shadowColor:'transparent',shadowBlur:0,strokeStyle:'#000',lineWidth:1,
   snapshot(){return Object.fromEntries(['font','fillStyle','textAlign','textBaseline','shadowColor','shadowBlur','strokeStyle','lineWidth'].map(key=>[key,this[key]]));},
-  drawImage(...args){this.draws.push(args);},
-  fillText(...args){this.fills.push({args,...this.snapshot()});},
-  strokeText(...args){this.strokes.push({args,...this.snapshot()});},
-  clearRect(){},save(){this.saved.push(this.snapshot());},restore(){Object.assign(this,this.saved.pop()||{});}
+  drawImage(...args){this.draws.push(args);this.operations.push('video');},
+  fillText(...args){this.fills.push({args,...this.snapshot()});this.operations.push('fill');},
+  strokeText(...args){this.strokes.push({args,...this.snapshot()});this.operations.push('stroke');},
+  clearRect(){this.operations.push('clear');},save(){this.saved.push(this.snapshot());},restore(){Object.assign(this,this.saved.pop()||{});}
  };return ctx;
 }
 document.createElement=function(tag){
@@ -35,6 +35,15 @@ function darkColor(value){const color=canvasColor(value);return color&&color[3]>
 '''
 
 CANVAS_CASES = {
+ 'video_draw_preview': CANVAS_SETUP + r'''
+ for(const [width,height] of [[320,180],[720,405],[500,800]])for(const value of ['', '   ', 'Caption']){
+  app.canvas={width,height};app.ctx=canvasContext();ui.preview.src='blob:original-video';ui.preview.currentTime=2;ui.titleInput.value=value;
+  const style=JSON.stringify(app.ctx.snapshot());drawPreviewFrame();const ctx=app.ctx;
+  assert(ctx.draws.length===1&&ctx.draws[0][0]===ui.preview&&JSON.stringify(ctx.draws[0].slice(1))===JSON.stringify([0,0,width,height]),'ctx.drawImage expected source ui.preview and rectangle 0,0,'+width+','+height+' exactly once for input '+JSON.stringify(value)+'; actual='+JSON.stringify(ctx.draws.map(args=>[args[0]===ui.preview?'ui.preview':'other',...args.slice(1)])));
+  assert(ctx.fills.length===0&&ctx.strokes.length===0&&JSON.stringify(ctx.snapshot())===style,'drawPreviewFrame must draw only the video, preserving caption styles');
+  assert(ui.preview.src==='blob:original-video'&&ui.preview.currentTime===2&&ui.titleInput.value===value,'drawPreviewFrame must preserve preview source/time and input text');
+ }
+ ''',
  'video_caption_style': CANVAS_SETUP + r'''
  for(const width of [180,320,590,610,720,1019]){
   const ctx=canvasContext();configureCaptionStyle(ctx,width);const expectedSize=Math.max(14,Math.round(width/30)),color=canvasColor(ctx.fillStyle);
@@ -68,7 +77,7 @@ CANVAS_CASES = {
  'video_canvas_frame': CANVAS_SETUP + r'''
  for(const [width,height] of [[320,180],[720,405]])for(const value of ['', '   ', '<b>Caption</b>', '  café 日本語  ']){
   app.canvas={width,height,toDataURL(){return 'data:image/png;base64,fixture';}};app.ctx=canvasContext();ui.preview.videoWidth=width;ui.preview.videoHeight=height;ui.preview.readyState=4;ui.preview.src='blob:original-video';ui.preview.currentTime=2;ui.titleInput.value=value;paintFrame();const ctx=app.ctx;
-  assert(ctx.draws.length===1&&ctx.draws[0][0]===ui.preview&&JSON.stringify(ctx.draws[0].slice(1))===JSON.stringify([0,0,width,height]),'ctx.drawImage expected source ui.preview and rectangle 0,0,'+width+','+height+' exactly once, before checking caption; actual count='+ctx.draws.length+'; actual arguments='+JSON.stringify(ctx.draws.map(args=>[args[0]===ui.preview?'ui.preview':'other source',...args.slice(1)])));
+  assert(ctx.draws.length===1&&ctx.operations[0]==='video'&&!ctx.operations.includes('clear')&&ctx.draws[0][0]===ui.preview&&JSON.stringify(ctx.draws[0].slice(1))===JSON.stringify([0,0,width,height]),'ctx.drawImage expected source ui.preview and rectangle 0,0,'+width+','+height+' exactly once, before checking caption; actual='+JSON.stringify({count:ctx.draws.length,operations:ctx.operations,arguments:ctx.draws.map(args=>[args[0]===ui.preview?'ui.preview':'other source',...args.slice(1)])}));
   assert(ui.preview.src==='blob:original-video'&&ui.preview.currentTime===2&&ui.titleInput.value===value,'paintFrame must preserve video source/time and original input text');
   if(!value.trim()){assert(ctx.fills.length===0&&ctx.strokes.length===0,'paintFrame must omit whitespace-only captions');continue;}
   assert(ctx.fills.length===1,'paintFrame must paint one caption');if(ctx.fills.length!==1)continue;
@@ -86,3 +95,10 @@ CANVAS_CASES = {
  }
  '''
 }
+
+# Retain the same caption assertions independently and in the composed frame.
+# Fixture refactoring only: none of these bytes belong to generated app source.
+CANVAS_CASES['video_caption_paint']='\n'.join(
+ "  assert(ctx.draws.length===0,'paintCaption must paint text only, without drawing the video');"
+ if line.lstrip().startswith('assert(ctx.draws.length===1&&') else line
+ for line in CANVAS_CASES['video_canvas_frame'].replace('paintFrame();const ctx=app.ctx;', 'paintCaption();const ctx=app.ctx;').splitlines())

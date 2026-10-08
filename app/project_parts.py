@@ -457,8 +457,8 @@ def js_prompt_context(prior, relevant=None, functions=None):
     fields=[name+'.'+key for name,keys in contracts['globals'].items() for key in keys]
     signatures=[re.sub(r'^(?:async\s+)?function\s+','',signature) for signature in contracts['existing_functions']]
     sections=[]
-    if fields:sections.append('Read and write these existing state properties as required by the task. app and ui are separate existing global objects: ui properties belong to ui, never app.ui. Keep both objects:\n'+'\n'.join(fields))
-    if signatures:sections.append('Already implemented helpers: call these names directly, not app/ui methods. Do not define them again:\n'+'\n'.join(signatures))
+    if fields:sections.append('Use these exact property paths on the existing independent global objects. Read or write only as the task requires; keep their declarations:\n'+'\n'.join(fields))
+    if signatures:sections.append('Call these existing standalone functions directly, using these signatures. Keep their implementations:\n'+'\n'.join(signatures))
     return '\n'.join(sections)
 
 
@@ -794,6 +794,13 @@ async def generate(brief,ctx,on_event=None):
                 # An unchanged patch is evidence that this edit path stalled.
                 # Spend the remaining bounded attempt on fresh model source.
                 source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header or function_header) and (not missing_structure or async_header or function_header) and not patch_error and bool(source)
+                # A changed string is not useful repair progress when exactly
+                # the same behavioral/execution failures remain. Use the last
+                # bounded attempt for fresh model source rather than another
+                # patch anchored to that implementation.
+                previous_helper={helper_failure_identity(error) for error in previous_errors if error.startswith(('Helper behavior failed:','Helper execution failed:'))}
+                current_helper={helper_failure_identity(error) for error in errors if error.startswith(('Helper behavior failed:','Helper execution failed:'))}
+                if patch_base is not None and previous_helper and current_helper==previous_helper:source_patchable=False
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'â€¦')

@@ -1947,50 +1947,353 @@
       "context": "This function uses only its two supplied parameters and local variables. It does not need shared state or DOM."
     },
     {
-      "name": "Paint export frame",
       "file": "app.js",
       "kind": "js",
-      "tokens": 600,
-      "functions": [
-        "paintFrame"
-      ],
       "raw_source": true,
       "include_html": false,
-      "task": "Write complete function paintFrame(). FIRST call app.ctx.drawImage with five arguments in this order: ui.preview, zero, zero, app.canvas.width, app.canvas.height. Do this for EVERY frame, including an empty caption. If ui.titleInput.value.trim() is empty, return. Otherwise call configureCaptionStyle with app.ctx and app.canvas.width. Then call app.ctx.fillText with FOUR arguments in this order: original ui.titleInput.value, app.canvas.width divided by two, app.canvas.height times 0.9, app.canvas.width times 0.9. Preserve video source, playback time and input text. No data URLs, canvas creation, loops, state resets or functions.",
+      "state_writes": [],
+      "name": "Draw preview video layer",
+      "tokens": 250,
+      "functions": [
+        "drawPreviewFrame"
+      ],
+      "task": "Write complete function drawPreviewFrame(). Call app.ctx.drawImage exactly once with five arguments: ui.preview, zero, zero, app.canvas.width, app.canvas.height. Draw on every invocation regardless of caption text. Preserve preview source/time, input text and context styles. This function only draws the video layer.",
       "relevant_fields": {
         "app": [
           "canvas",
           "ctx"
         ],
         "ui": [
-          "preview",
+          "preview"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_draw_preview"
+      ],
+      "system_contract": "Begin with function drawPreviewFrame(). Existing independent properties are app.ctx, app.canvas and ui.preview. Keep this function concise."
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "state_writes": [],
+      "name": "Paint caption text layer",
+      "tokens": 450,
+      "functions": [
+        "paintCaption"
+      ],
+      "task": "Write complete function paintCaption(). If ui.titleInput.value.trim() is empty, return. Call existing configureCaptionStyle(app.ctx,app.canvas.width) to configure the context. Then call app.ctx.fillText with four arguments: original ui.titleInput.value, app.canvas.width divided by two, app.canvas.height times 0.9, app.canvas.width times 0.9. Keep original input text and video state. Paint only text; the video layer is handled separately.",
+      "relevant_fields": {
+        "app": [
+          "canvas",
+          "ctx"
+        ],
+        "ui": [
           "titleInput"
         ]
       },
       "relevant_functions": [
         "configureCaptionStyle"
       ],
+      "behavior_dependencies": [
+        "configureCaptionStyle"
+      ],
+      "behavior_checks": [
+        "video_caption_paint"
+      ],
+      "system_contract": "Begin with function paintCaption(). configureCaptionStyle is an existing standalone function which configures context properties; call it directly. fillText fourth argument is the text width limit. Output only this function."
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "state_writes": [],
+      "name": "Paint export frame",
+      "tokens": 200,
+      "functions": [
+        "paintFrame"
+      ],
+      "task": "Write complete function paintFrame(). Call existing drawPreviewFrame() first, then existing paintCaption(). Call each exactly once. These helpers already implement video drawing and optional text. Only compose these calls.",
+      "context": "Compose the two existing standalone helpers. Their implementations already exist.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "drawPreviewFrame",
+        "paintCaption"
+      ],
+      "behavior_dependencies": [
+        "configureCaptionStyle",
+        "drawPreviewFrame",
+        "paintCaption"
+      ],
       "behavior_checks": [
         "video_canvas_frame"
       ],
-      "state_writes": [],
-      "system_contract": "Begin with function paintFrame(). app and ui are TWO separate existing global objects; app.ui does not exist. Use app.canvas, app.ctx, ui.preview and ui.titleInput directly. drawImage copies the existing video onto the canvas, never the other way round. fillText fourth argument limits text width. configureCaptionStyle already exists; call it without redefining it. Plain JavaScript.",
-      "include_helper_sources": [
-        "configureCaptionStyle"
+      "system_contract": "Begin with function paintFrame(). Only call the two helpers in the requested order."
+    },
+    {
+      "name": "Select supported WebM codec",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 220,
+      "functions": [
+        "chooseWebMMime"
       ],
-      "behavior_dependencies": [
-        "configureCaptionStyle"
+      "task": "Write chooseWebMMime(). Three complete candidate strings, in this exact order: [\"video/webm;codecs=vp9,opus\", \"video/webm;codecs=vp8,opus\", \"video/webm\"]. For each candidate, call MediaRecorder.isTypeSupported with that one complete string argument. Return the first supported candidate. Plain video/webm is the LAST fallback, never the first. If all probes are false, throw an Error; never return an error string. Keep concise.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "system_contract": "Begin with function chooseWebMMime(). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_mime"
       ]
     },
     {
-      "name": "Encode WebM",
+      "name": "Wait for export trim start",
       "file": "app.js",
       "kind": "js",
-      "tokens": 1700,
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 550,
+      "functions": [
+        "seekExportStart"
+      ],
+      "task": "Write async seekExportStart(). If preview currentTime is within .02 seconds of app.start, resolve immediately without listeners or timers. Otherwise await a Promise: attach seeked listener before assigning ui.preview.currentTime=app.start. Resolve on seeked. Reject after 5000ms. Remove listener and clear timeout on success, timeout, or assignment exception. Reject actual assignment error. Keep app state and all controls unchanged.",
+      "relevant_fields": {
+        "app": [
+          "start"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "system_contract": "Begin with async function seekExportStart(). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_seek"
+      ]
+    },
+    {
+      "name": "Attach reusable export audio",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 600,
+      "functions": [
+        "attachExportAudio"
+      ],
+      "task": "Write async attachExportAudio(stream), returning Boolean. Use window.AudioContext or window.webkitAudioContext. Lazily create app.audioContext, app.audioSource using createMediaElementSource(ui.preview), app.audioDest using createMediaStreamDestination. Only initialize source and connections once: connect source to context.destination and audioDest. Reuse existing objects across exports. Await context.resume(); add destination audio tracks to the supplied canvas stream once each; return true if audio tracks attached. On unsupported API or error, report explicit silent-export status through setStatus and return false, without throwing. Keep reusable tracks alive.",
+      "relevant_fields": {
+        "app": [
+          "audioContext",
+          "audioSource",
+          "audioDest"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "state_writes": [
+        "audioContext",
+        "audioSource",
+        "audioDest"
+      ],
+      "system_contract": "Begin with async function attachExportAudio(stream). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_audio"
+      ]
+    },
+    {
+      "name": "Clean export playback and video tracks",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 300,
+      "functions": [
+        "cleanupExport"
+      ],
+      "task": "Write cleanupExport(stream). Stop only stream.getVideoTracks() when stream exists; never stop reusable audio tracks. Cancel app.raf when not null (handle zero is valid), set app.raf=null. Pause ui.preview, reset playBtn text to Play, clear progressLabel text. Call setBusy(false). Handle a null stream.",
+      "relevant_fields": {
+        "app": [
+          "raf"
+        ],
+        "ui": [
+          "preview",
+          "playBtn",
+          "progressLabel"
+        ]
+      },
+      "relevant_functions": [
+        "setBusy"
+      ],
+      "state_writes": [
+        "raf"
+      ],
+      "system_contract": "Begin with function cleanupExport(stream). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_cleanup"
+      ]
+    },
+    {
+      "name": "Finalize recorded WebM download",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 700,
+      "functions": [
+        "finishExport"
+      ],
+      "task": "Write finishExport(stream,audioEnabled,errorMessage). Always call cleanupExport(stream). If errorMessage is nonempty, clear chunks, hide download, report actual message as error via setStatus and return. If app.cancelled, discard chunks, hide download and report Cancelled, return. Otherwise make new Blob(app.chunks,{type:app.recorder.mimeType}); reject zero bytes with visible error and discard chunks. Revoke old app.downloadURL if present. Create and store a new object URL from the recorded Blob; set downloadLink.href, download=clip-mini.webm, hidden=false. Report actual byte size and audio or silent in success status. The input file URL must never be used as an export.",
+      "relevant_fields": {
+        "app": [
+          "chunks",
+          "recorder",
+          "cancelled",
+          "downloadURL"
+        ],
+        "ui": [
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "cleanupExport",
+        "setStatus"
+      ],
+      "state_writes": [
+        "chunks",
+        "downloadURL"
+      ],
+      "system_contract": "Begin with function finishExport(stream,audioEnabled,errorMessage). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_finish"
+      ]
+    },
+    {
+      "name": "Configure browser recorder callbacks",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": [
+        "createExportRecorder"
+      ],
+      "task": "Write createExportRecorder(stream,mime,audioEnabled). Instantiate new MediaRecorder(stream,{mimeType:mime}), store app.recorder and return it. ondataavailable appends only nonempty event.data to app.chunks. Capture error text in a local variable. onstop calls finishExport(stream,audioEnabled,error text). onerror stores actual event.error.message (or descriptive fallback) and stops recorder if active, letting onstop finalize exactly once; if already inactive finalize directly. Do not start recording in this helper.",
+      "relevant_fields": {
+        "app": [
+          "recorder",
+          "chunks"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "finishExport"
+      ],
+      "state_writes": [
+        "recorder"
+      ],
+      "system_contract": "Begin with function createExportRecorder(stream,mime,audioEnabled). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_recorder"
+      ]
+    },
+    {
+      "name": "Paint and monitor recording frames",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 500,
+      "functions": [
+        "watchExportFrames"
+      ],
+      "task": "Write watchExportFrames(). Define a local frame callback and invoke it immediately. While recorder is recording, if cancelled or preview.ended or currentTime>=app.end-.025, stop recorder and do not schedule another frame; at trim end set preview.currentTime=app.end. Otherwise paintFrame(), show clamped rounded percentage (currentTime-app.start)/(app.end-app.start)*100 in progressLabel, then store requestAnimationFrame(frame) handle in app.raf. An inactive recorder must not schedule work. Finalization belongs to recorder onstop.",
+      "relevant_fields": {
+        "app": [
+          "recorder",
+          "cancelled",
+          "start",
+          "end",
+          "raf"
+        ],
+        "ui": [
+          "preview",
+          "progressLabel"
+        ]
+      },
+      "relevant_functions": [
+        "paintFrame"
+      ],
+      "state_writes": [
+        "raf"
+      ],
+      "system_contract": "Begin with function watchExportFrames(). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_frames"
+      ]
+    },
+    {
+      "name": "Orchestrate actual WebM export",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 700,
       "functions": [
         "exportVideo"
       ],
-      "task": "Define complete async exportVideo() ONLY, using existing helpers. Return if unloaded/busy or !validateTrim(). Check canvas.captureStream and MediaRecorder support; choose first supported MIME video/webm;codecs=vp9,opus then vp8,opus then video/webm. Clear cancelled/chunks, setBusy(true), hide old download, prepareCanvas. Await seek to app.start: attach one-shot seeked before changing currentTime; resolve immediately if already within .02; give timeout rejecting after5s. Paint first frame, canvas.captureStream(24). Try audio: lazily create AudioContext, createMediaElementSource(preview) ONCE, connect source to context.destination and a MediaStreamDestination, resume context and add its audio tracks to canvas stream. If audio unsupported continue with explicit silent-export status. Create MediaRecorder on stream, collect nonempty dataavailable blobs. onstop stops canvas video tracks (keep reusable audio destination track), cancels RAF, pauses video, resets play label; if cancelled clear blob and status Cancelled; otherwise create actual Blob chunks with recorder.mimeType, require nonzero bytes, revoke old downloadURL, createObjectURL, set downloadLink.href/download=clip-mini.webm, reveal it, setStatus Export ready with byte size and audio/silent info; finally setBusy(false), clear progress. onerror cleanly stop and show actual error. Start recorder BEFORE await preview.play(). A requestAnimationFrame loop paintFrame + progress percentage while playing; stop recorder when currentTime>=app.end-.025 OR preview.ended OR cancelled, set time to selected end. Cancel UI handler only sets app.cancelled; this loop owns stopping. Catch failures resets busy, stops recorder/tracks and reports error. No invented encoder classes, Node APIs, fake downloads of original, or new globals. Keep implementation concise and complete."
+      "task": "Write async exportVideo(). Return immediately if !app.loaded or app.busy; then return if !validateTrim(). Use a local stream variable initially null. Inside try: check MediaRecorder and HTMLCanvasElement.prototype.captureStream support, select MIME with chooseWebMMime(), reset cancelled=false and chunks=[], call setBusy(true), hide downloadLink. prepareCanvas(); await seekExportStart(); paintFrame(); capture app.canvas stream at 24fps; await attachExportAudio(stream) to obtain Boolean. createExportRecorder(stream,mime,audioEnabled), start recorder BEFORE awaiting ui.preview.play(), then watchExportFrames(). Catch: if an active recorder exists, remove its onstop callback before stopping to avoid double finalization; call finishExport(stream,false,error.message). All called helpers already exist. Do not duplicate their implementations.",
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy",
+          "cancelled",
+          "chunks",
+          "canvas",
+          "recorder"
+        ],
+        "ui": [
+          "preview",
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "validateTrim",
+        "chooseWebMMime",
+        "setBusy",
+        "prepareCanvas",
+        "seekExportStart",
+        "paintFrame",
+        "attachExportAudio",
+        "createExportRecorder",
+        "watchExportFrames",
+        "finishExport"
+      ],
+      "state_writes": [
+        "cancelled",
+        "chunks"
+      ],
+      "system_contract": "Begin with async function exportVideo(). Output only the requested complete function, without globals or copied declarations.",
+      "behavior_checks": [
+        "video_export_orchestration"
+      ]
     },
     {
       "name": "Menghubungkan kontrol",

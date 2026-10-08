@@ -1118,8 +1118,8 @@ def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
     prompt=project_parts.js_prompt_context(prior,{'app':['loaded'],'ui':[]},['setBusy'])
     assert 'app.loaded' in prompt and 'app.busy' not in prompt and 'ui.preview' not in prompt
     assert 'setBusy(flag)' in prompt and 'function setBusy' not in prompt and 'unused' not in prompt
-    assert 'not app/ui methods' in prompt and 'app and ui are separate existing global objects' in prompt
-    assert 'never app.ui' in prompt
+    assert 'standalone functions directly' in prompt and 'exact property paths' in prompt
+    assert 'app.ui' not in prompt
     assert 'const app=' not in prompt and '"globals"' not in prompt
 
 
@@ -1827,6 +1827,81 @@ async def test_method_header_is_only_repair_routing_and_model_must_supply_actual
     assert project_parts.missing_function_keyword_repairable(bad,item,errors)
     assert not project_parts.missing_function_keyword_repairable(bad,item,errors+['Source empty or truncated; finish the part concisely.'])
     assert not project_parts.missing_function_keyword_repairable('wrong(file) {\n}',item,errors)
+
+
+@pytest.mark.asyncio
+async def test_changed_patch_with_identical_execution_failure_regenerates_fresh_source(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Predicate','file':'app.js','kind':'js','task':'Check MIME safely','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    bad='function isVideoFile(file){return missingName;}'
+    fixed='function isVideoFile(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:content=bad
+        elif len(calls)==2:content=json.dumps({'edits':[{'line':1,'replace':'function isVideoFile(file){return missingName /* changed text, same error */;}'}]})
+        else:
+            assert 'Write a fresh complete source part' in messages[1]['content']
+            assert 'changed text' not in messages[1]['content'] and bad not in messages[1]['content']
+            content=fixed
+        return {'content':content,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==fixed and not value.get('repair_chain')
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==3
+
+
+@pytest.mark.asyncio
+async def test_video_and_caption_layers_retain_full_frame_assertions_and_paint_order():
+    # All implementations here are checker fixtures, never prompts or app code.
+    draw='function drawPreviewFrame(){app.ctx.drawImage(ui.preview,0,0,app.canvas.width,app.canvas.height);}'
+    style="function configureCaptionStyle(ctx,width){ctx.font='bold '+Math.max(14,Math.round(width/30))+'px system-ui';ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='black';ctx.shadowBlur=4;}"
+    caption='function paintCaption(){if(!ui.titleInput.value.trim())return;configureCaptionStyle(app.ctx,app.canvas.width);app.ctx.fillText(ui.titleInput.value,app.canvas.width/2,app.canvas.height*.9,app.canvas.width*.9);}'
+    frame='function paintFrame(){drawPreviewFrame();paintCaption();}'
+    assert not await project_checks.inspect_helper(draw,'video_draw_preview')
+    assert not await project_checks.inspect_helper(style+caption,'video_caption_paint')
+    assert not await project_checks.inspect_helper(draw+style+caption+frame,'video_canvas_frame')
+    assert await project_checks.inspect_helper(draw.replace('app.ctx.drawImage','if(ui.titleInput.value.trim())app.ctx.drawImage'),'video_draw_preview')
+    for wrong in [caption.replace('app.canvas.width*.9','undefined'),caption.replace('ui.titleInput.value,','ui.titleInput.value.trim(),'),
+                  caption.replace('configureCaptionStyle(app.ctx,app.canvas.width);',''),caption.replace('if(!ui.titleInput.value.trim())return;','')]:
+        assert await project_checks.inspect_helper(style+wrong,'video_caption_paint')
+    assert await project_checks.inspect_helper(draw+style+caption+frame.replace('drawPreviewFrame();paintCaption();','paintCaption();drawPreviewFrame();'),'video_canvas_frame')
+    assert await project_checks.inspect_helper(draw+style+caption+frame.replace('drawPreviewFrame();','drawPreviewFrame();drawPreviewFrame();'),'video_canvas_frame')
+    assert await project_checks.inspect_helper(draw+style+caption+frame.replace('paintCaption();','paintCaption();app.ctx.clearRect(0,0,app.canvas.width,app.canvas.height);'),'video_canvas_frame')
+
+
+def test_unknown_shared_property_diagnostics_offer_only_matching_existing_accesses():
+    source='function f(){\n const preview=app.ui.preview;\n const title=app.ui.titleInput;\n const ctx=app.ctx;\n}'
+    errors=['Undefined shared field app.ui; use the declared contracts.']
+    assert project_patches.failing_lines(source,errors)==[2,3]
+    assert project_patches.failing_lines(source,errors+['Unexpected syntax'])==list(range(1,6))
+
+
+@pytest.mark.asyncio
+async def test_argument_diagnostics_follow_call_inputs_and_exclude_unrelated_commentary(monkeypatch):
+    source="""function f(ctx,width,height,text){
+ const x=width/4;
+ const y=height*.9;
+ ctx.fillText(text,x,y);
+ // unrelated model commentary
+}"""
+    errors=['Helper behavior failed: ctx.fillText x expected 160 as second argument; actual=80','Helper behavior failed: ctx.fillText maxWidth expected 288 as fourth argument; actual=undefined']
+    assert project_patches.failing_lines(source,errors)==[2,3,4]
+    async def model(messages,**options):
+        prompt=json.loads(messages[1]['content'])
+        assert 'unrelated model commentary' not in prompt['source']
+        assert [line['line'] for line in prompt['numbered_lines']]==[2,3,4]
+        assert 'original line numbers' in prompt['source_scope']
+        return {'content':json.dumps({'edits':[{'line':4,'replace':' ctx.fillText(text,x,y,width);'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Set proportional text position and width',errors=errors,contracts='',indexed=True)
+    assert not result.get('patch_validation_error')
 
 
 @pytest.mark.asyncio

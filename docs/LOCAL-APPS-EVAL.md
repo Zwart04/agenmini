@@ -1177,3 +1177,77 @@ Windows lolos. Request perbaikan deklarasi sekarang hanya menampilkan header
 asli dan ruang lingkup sintaks; badan tetap disimpan untuk penerapan patch
 dan pemeriksaan. Tidak ada kata kunci yang disisipkan evaluator. Dua tes
 terarah lolos sesudah perubahan konteks header.
+
+V93 akhirnya meloloskan gaya caption: model menulis patch header sendiri
+(19,0 detik), lalu keenam lebar kanvas lolos. Raw respons, asal badan fungsi
+dan hash chain tersimpan. Run tetap gagal setelah 174,1 detik karena frame
+memakai ctx/originalUI yang tidak terdefinisi dan menyalin pengaturan gaya;
+patch hanya mengubah satu referensi lalu kembali ke referensi salah.
+
+Jika patch mengubah teks tetapi menyisakan kumpulan galat helper yang sama,
+percobaan terakhir kini menulis sumber baru dari kontrak/galat alih-alih
+mengulangi patch. Perubahan ini tidak memperbesar batas tiga percobaan.
+Frame mendapat signature helper gaya tanpa badan implementasinya, karena
+pemanggil cukup memakai API tersebut. Tujuh tes terarah lolos. CI Linux
+commit 69c21d6 run 37732732302 berhasil; log mengonfirmasi 495 tes Python
+lolos dalam container Linux. Secret scan commit tersebut juga berhasil.
+
+V94 gagal setelah 141,7 detik. Regenerasi menghilangkan properti app.ui yang
+salah tetapi menggambar video hanya untuk caption nonkosong, membagi posisi
+x dua kali, menghilangkan maxWidth dan tidak memanggil helper gaya. 242 tes
+regresi Windows lolos. Konteks simbol sekarang hanya menampilkan path yang
+benar dan signature standalone; tidak mengulang contoh property yang dilarang.
+Diagnostik shared field menunjuk baris akses property itu saja.
+
+Frame kini terdiri dari drawPreviewFrame, paintCaption dan paintFrame sebagai
+penggabung. V95 meloloskan lapisan video pada percobaan pertama model (24,6
+detik menurut respons). Lapisan caption masih membagi posisi x dua kali dan
+tidak mengirim maxWidth; patch menyalin return yang tidak terkait, regenerasi
+menambah ui.video yang tidak ada. Run gagal setelah 158,2 detik. 244 tes
+regresi Windows lolos. Frame gabungan tetap memakai assertion caption/video
+lengkap, termasuk urutan video sebelum teks dan larangan menghapus frame.
+
+Selektor patch mengikuti panggilan API bernama beserta input lokalnya pada
+galat argumen. Untuk kasus ini, prompt hanya memuat statement yang terkena
+dan baris input asli, dengan nomor baris asli untuk penerapan patch; komentar
+panjang dan statement lain tetap disimpan tanpa ditampilkan ulang. Pemilihan
+checkpoint gagal juga mempertimbangkan galat yang benar-benar tercatat pada
+hash source yang sama: header yang bisa diperbaiki atau behavior checks yang
+selesai didahulukan dari galat eksekusi/struktur. Seluruh kandidat tetap
+diperiksa ulang. Empat tes terarah lolos setelah perubahan ini.
+
+V96 meloloskan paintCaption dari regenerasi model dan paintFrame gabungan.
+Ekspor monolitik masih gagal: ketiga respons JSON source terpotong; run
+berakhir setelah 524,3 detik tanpa aplikasi selesai. 246 tes regresi Windows
+lolos sebelum perubahan ekspor. Draft memiliki panel media, preview,
+inspektor dan timeline; observasi browser pada lebar 390px tidak menemukan
+overflow horizontal (scrollWidth 375px). Kontrol belum terhubung karena
+initEditor belum dihasilkan, sehingga ini bukan bukti fungsi editor selesai.
+
+Untuk v97, tugas ekspor dipecah menjadi delapan helper: MIME, seek dengan
+timeout, audio yang bisa dipakai ulang, cleanup, finalisasi blob, callback
+recorder, loop frame dan orkestrasi. Recipe tetap hanya berisi instruksi,
+bukan kode aplikasi. Fixture terpisah memeriksa lifecycle dengan API palsu
+di sandbox: MIME tidak didukung, timeout/galat seek, reuse audio, fallback
+silent, video-track cleanup, RAF handle nol, blob kosong/cancel/error,
+urutan recorder-start sebelum playback dan stop pada batas trim. 21 tes
+checker, termasuk mutasi yang harus gagal, lolos. Pemeriksaan ini bukan
+bukti MediaRecorder atau ekspor audio bekerja di browser nyata.
+
+V97 berhenti setelah 37,9 detik sebelum kode ekspor: fixture frame gabungan
+melampaui batas panjang command line Windows (WinError 206). Tiga dari 208
+tes regresi juga menemukan batas yang sama. Fixture terpilih sekarang dikirim
+sebagai data JSON lewat stdin; command runner tetap sama untuk semua kasus.
+22 tes ekspor/transport lolos setelah perbaikan, termasuk batas panjang command
+dan pemeriksaan bahwa fixture tidak menjadi kode aplikasi. Benchmark v98
+memakai sumber model yang sudah lolos v96 dan memeriksanya kembali.
+
+V98 melewati pemeriksaan frame gabungan, tetapi gagal pada pemilihan MIME
+setelah 115,8 detik. Respons pertama memisahkan MIME/codec menjadi dua argumen
+dan memilih plain WebM lebih dahulu. Regenerasi memperbaiki argumen/throw,
+namun urutan plain WebM masih salah. Diagnostik kini mencantumkan MIME yang
+diharapkan dan yang dikembalikan; task mengutip tiga string utuh secara jelas.
+22 tes ekspor tetap lolos. Suite lengkap Windows: 513 lolos, 9 gagal pada
+ekspektasi khusus POSIX/Linux (pipeline shell, chmod, lokasi login host,
+supervisor Linux dan skrip bash/uninstall). Tidak memasang WSL; cakupan Linux
+tetap dibuktikan melalui GitHub Actions, bukan menyatakan suite ini hijau.

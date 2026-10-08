@@ -7,8 +7,9 @@ import json
 from . import tools
 from .project_dom_checks import DOM_CASES
 from .project_canvas_checks import CANVAS_CASES
+from .project_export_checks import EXPORT_CASES, ASYNC_EXPORT_CHECKS
 
-CASE_FIXTURES = {**DOM_CASES, **CANVAS_CASES}
+CASE_FIXTURES = {**DOM_CASES, **CANVAS_CASES, **EXPORT_CASES}
 
 CHECKS = {'video_timeline', 'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek', 'video_play_started', 'video_play_failed', 'video_start', 'video_pause', 'trim_range', 'trim_apply', 'trim_reject', 'video_trim', 'trim_store', 'trim_export', 'trim_report'}
 RUNNER = r'''
@@ -16,7 +17,7 @@ const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
 process.stdin.on('end',()=>{
   try {
-    const {source,check}=JSON.parse(input);
+    const {source,check,caseFixture,asyncChecks}=JSON.parse(input);
     const context=vm.createContext(Object.create(null),{codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'});
     const fixtures=`"use strict";
       const app={loaded:false,busy:false};
@@ -87,7 +88,7 @@ process.stdin.on('end',()=>{
     `;
 
     const cases={
-      __DOM_CASES__
+      ...(caseFixture===null?{}:{[check]:caseFixture}),
       trim_store:`app.busy=true;app.loaded=true;for(const [start,end] of [[0,10],[1.25,3.75]]){storeTrim(start,end);assert(app.start===start&&app.end===end,'storeTrim must assign its arguments to app.start and app.end');assert(app.busy===true&&app.loaded===true,'storeTrim must preserve unrelated state');}`,
       trim_export:`app.start=1;app.end=8;for(const busy of [false,true]){app.busy=busy;ui.exportBtn.disabled=!busy;refreshTrimExport();assert(ui.exportBtn.disabled===busy,'refreshTrimExport must copy app.busy to ui.exportBtn.disabled');assert(app.busy===busy&&app.start===1&&app.end===8,'refreshTrimExport must preserve state');}`,
       trim_report:`for(const [start,end] of [[0,10],[1.25,3.75]]){calls.errors.length=0;const before=calls.timeline;reportTrim(start,end);assert(calls.errors.length===1&&reportsDuration(calls.errors[0][0],end-start)&&calls.errors[0][1]!==true,'reportTrim must call setStatus once with calculated duration '+(end-start)+' seconds and error=false for start='+start+', end='+end+'; actual='+JSON.stringify(calls.errors).slice(0,240));assert(calls.timeline===before+1,'reportTrim must call updateTimeline once');}`,
@@ -116,6 +117,10 @@ process.stdin.on('end',()=>{
       vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+(check==='video_start'?startCases:playbackCases)+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Playback threw: '+error.message});});",context,{timeout:500});
       result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
       if(typeof result!=='string')throw new Error('Playback did not settle with an immediately resolved or rejected play promise');
+    }else if(asyncChecks.includes(check)){
+      vm.runInContext(fixtures+'\n(async()=>{'+source+'\n'+cases[check]+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Async helper threw: '+error.message});});",context,{timeout:500});
+      result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
+      if(typeof result!=='string')throw new Error('Async helper did not settle with bounded fixture events');
     }else{
       result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim','trim_report'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
     }
@@ -133,14 +138,14 @@ CHECKS.update(CASE_FIXTURES)
 async def inspect_helper(source, check):
     if check not in CHECKS:
         raise ValueError('Unknown helper behavioral check')
-    payload=json.dumps({'source':source,'check':check}).encode()
+    payload=json.dumps({'source':source,'check':check,'caseFixture':CASE_FIXTURES.get(check),
+                        'asyncChecks':sorted(ASYNC_EXPORT_CHECKS)}).encode()
     # Fixed runner + untrusted data, through the existing project sandbox.
     # No fixture bytes are added to model output or delivered application files.
     import base64
-    # Include only the selected DOM case to stay below Windows command limits.
-    dom_case=json.dumps(check)+':'+json.dumps(CASE_FIXTURES[check])+',' if check in CASE_FIXTURES else ''
-    runner=RUNNER.replace('__DOM_CASES__',dom_case)
-    encoded=base64.b64encode(runner.encode()).decode()
+    # Selected fixtures travel through stdin, never the command line. Composite
+    # canvas + caption checks otherwise exceed CreateProcess's Windows limit.
+    encoded=base64.b64encode(RUNNER.encode()).decode()
     loader="eval(Buffer.from('"+encoded+"','base64').toString('utf8'))"
     result=await tools._run_sandboxed(['node','-e',loader],timeout=5,stdin=payload,project=True)
     if result.startswith('[kode keluar 0]'):return []
