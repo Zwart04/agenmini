@@ -1465,3 +1465,14 @@ async def test_trim_operations_preserve_state_and_compose_without_fixture_replac
         incorrect=report.replace('end-start',expression)
         assert await project_checks.inspect_helper(incorrect,'trim_report')
         assert await project_checks.inspect_helper(store+export+incorrect+apply,'trim_apply')
+
+
+@pytest.mark.asyncio
+async def test_trim_report_feedback_includes_observed_calls_and_expected_duration():
+    source='function reportTrim(start,end){setStatus(String(end)+"-"+String(start));setStatus(true);updateTimeline();}'
+    errors=await project_checks.inspect_helper(source,'trim_report')
+    assert any('calculated duration 10 seconds' in e and 'start=0, end=10' in e and '; actual=' in e and '10-0' in e for e in errors)
+    assert any('calculated duration 2.5 seconds' in e for e in errors)
+
+    changed=await project_checks.inspect_helper(source.replace('"-"','" plus "'),'trim_report')
+    assert {project_parts.helper_failure_identity(e) for e in errors}=={project_parts.helper_failure_identity(e) for e in changed}

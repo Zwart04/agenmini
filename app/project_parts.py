@@ -606,7 +606,7 @@ async def generate(brief,ctx,on_event=None):
             system+=' Required selectors are literal CSS selectors, not placeholders: '+json.dumps(item.get('css_selectors',[]))+'.'
             if item.get('css_declarations'):system+=' Use exactly the required CSS properties/values; do not add other declarations.'
         if 'state_writes' in item:
-            system+=' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.'
+            system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' All app state is read-only in this function. Do not assign or reset app properties.')
         if item.get('system_contract'):system+=' '+item['system_contract']
         source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection=''
         for attempt in range(3):

@@ -1436,7 +1436,7 @@
       "functions": [
         "refreshTrimExport"
       ],
-      "task": "Write only JavaScript function refreshTrimExport(), at most 3 lines. Its only statement assigns app.busy to ui.exportBtn.disabled. Use the existing objects and spell the property paths completely.",
+      "task": "Write the complete JavaScript function refreshTrimExport(). Read app.busy without changing it. Change the export button disabled property: true while the app is busy, false otherwise. The button is ui.exportBtn. Use the existing objects; no globals or other functions.",
       "relevant_fields": {
         "app": [
           "busy"
@@ -1448,7 +1448,8 @@
       "relevant_functions": [],
       "behavior_checks": [
         "trim_export"
-      ]
+      ],
+      "state_writes": []
     },
     {
       "name": "Report selected duration",

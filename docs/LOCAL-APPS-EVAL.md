@@ -827,3 +827,20 @@ nilai yang meleset ditolak pada helper maupun komposisinya.
 
 210 tes terkait lolos di Windows. CI Linux pada commit 07b52ec sebelumnya
 lolos 463 tes; angka itu belum mencakup pemisahan operasi trim terbaru.
+
+
+v64 memperjelas refreshTrimExport sebagai perilaku tombol dan menandai
+app state read-only. Model menghasilkan fungsi baru yang lolos pemeriksaan
+pada percobaan pertama. Namun reportTrim gagal: menampilkan teks end-start
+tanpa menghitungnya, memanggil status dua kali, lalu menghasilkan patch
+tanpa perubahan. Total 135,7 detik; belum ada editor lengkap.
+
+Umpan balik reportTrim kini menyertakan input, durasi yang diharapkan dan
+panggilan status aktual (dibatasi panjangnya). Identitas kasus tetap stabil
+ketika nilai aktual berubah, sehingga tidak dianggap regresi baru. v65 tetap
+gagal setelah 128,3 detik: pesan hanya berisi trim dan timeline tidak
+diperbarui. Ini bukti keterbatasan hasil model, bukan keberhasilan editor.
+
+211 tes terkait lolos di Windows sebelum penyesuaian penanda diagnostik;
+tes trim dan identitas kasus dijalankan ulang sesudahnya. CI Linux a0c9ee8
+lolos 464 tes; perubahan v64/v65 belum termasuk dalam angka Linux itu.
