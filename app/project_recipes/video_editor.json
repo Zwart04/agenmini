@@ -2356,10 +2356,10 @@
       "functions": [
         "assignSeekTarget"
       ],
-      "task": "Write only named function assignSeekTarget(job,target). Inside try, assign job.video.currentTime to target exactly once. Inside catch, call existing failSeekJob(job,error) using the actual caught Error. Zero and fractional seconds are valid. Do not register events or timers.",
+      "task": "Write assignSeekTarget(job,target). target is already validated; zero and fractional seconds are valid. Inside try, assign job.video.currentTime to this actual target once. Inside catch, call existing failSeekJob(job,error) with the caught Error. Only this try/catch operation. Do not validate target, call onSeeked, play video, register listeners or use timers.",
       "parameters": {
-        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties.",
-        "target": "Requested numeric seconds, including zero."
+        "job": "Original object holding the video element at job.video. No other job fields are used by this helper.",
+        "target": "Already validated numeric seconds, including zero. Use supplied value without additional guards or conversion."
       },
       "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
       "relevant_fields": {
@@ -2373,7 +2373,7 @@
       "behavior_checks": [
         "video_seek_assign"
       ],
-      "system_contract": "Begin with function assignSeekTarget(job,target). Output only this complete function, without comments, imports or other declarations."
+      "system_contract": "Begin with function assignSeekTarget(job,target). Plain parameters without types. Body contains only the requested assignment inside try/catch; no validation guards, comments or other declarations."
     },
     {
       "name": "Arm seek task events",

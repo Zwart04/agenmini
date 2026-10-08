@@ -187,6 +187,18 @@ async def test_timer_factory_and_storage_compose_with_original_seek_cases():
 
 
 @pytest.mark.asyncio
+async def test_seek_assignment_diagnostics_distinguish_expected_behavior_from_model_exception():
+    rejects_zero='function assignSeekTarget(job,target){if(target<=0)throw new Error("target must be positive");try{job.video.currentTime=target;}catch(error){failSeekJob(job,error);}}'
+    errors=await project_checks.inspect_helper(rejects_zero,'video_seek_assign')
+    assert any('assignSeekTarget(0) must accept already validated seconds including zero' in error and 'target must be positive' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed:') for error in errors)
+    no_catch='function assignSeekTarget(job,target){job.video.currentTime=target;}'
+    errors=await project_checks.inspect_helper(no_catch,'video_seek_assign')
+    assert any('must catch a video assignment exception and delegate actual Error to failSeekJob' in error and 'Actual assignment denied' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed:') for error in errors)
+
+
+@pytest.mark.asyncio
 async def test_seek_arm_reports_absent_registration_before_fixture_callback_invocation():
     errors=await project_checks.inspect_helper(
         'function armSeekJob(job,target){try{job.video.currentTime=target;}catch(error){failSeekJob(job,error);}}', 'video_seek_arm')

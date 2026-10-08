@@ -70,11 +70,16 @@ EXPORT_CASES = {
       function failSeekJob(value,error){failed.push([value,error]);}
       const video={set currentTime(value){if(shouldThrow)throw actualError;writes.push(value);}};
       for(const target of [0,2.75]){
-        writes=[];failed=[];job={video};assignSeekTarget(job,target);
-        assert(writes.length===1&&writes[0]===target&&failed.length===0,'assignSeekTarget must assign supplied seconds exactly once, including zero');
+        writes=[];failed=[];job={video};let thrown=null;
+        try{assignSeekTarget(job,target);}catch(error){thrown=error;}
+        assert(thrown===null,'assignSeekTarget('+target+') must accept already validated seconds including zero without throwing; observed '+String(thrown));
+        assert(writes.length===1&&writes[0]===target,'assignSeekTarget('+target+') must assign supplied currentTime exactly once; observed writes='+JSON.stringify(writes));
+        assert(failed.length===0,'valid seek assignment must not reject or call unrelated event callbacks; observed failure count='+failed.length);
         assert(job.video===video,'assignSeekTarget must retain original video object');
       }
-      shouldThrow=true;job={video};failed=[];assignSeekTarget(job,4);
+      shouldThrow=true;job={video};failed=[];let uncaught=null;
+      try{assignSeekTarget(job,4);}catch(error){uncaught=error;}
+      assert(uncaught===null,'assignSeekTarget must catch a video assignment exception and delegate actual Error to failSeekJob; observed uncaught '+String(uncaught));
       assert(failed.length===1&&failed[0][0]===job&&failed[0][1]===actualError,'assignSeekTarget must delegate original caught Error with original job');
     ''',
     'video_seek_job': r'''

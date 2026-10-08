@@ -1550,3 +1550,27 @@ Qwen0.8B. Factory mengembalikan handle setTimeout asli; scheduler menyimpan
 hasilnya ke job.timer. Kasus handle 0/37/311, delay dan callback tertunda
 lulus melalui sumber model aktual dan dependensi gabungan. Bagian 102–103
 tersimpan beserta provenance, lalu run lanjut ke assignment target waktu.
+
+V116 akhirnya gagal setelah 175 detik pada assignSeekTarget. Model menolak
+target nol walaupun nol merupakan waktu yang valid, lalu regenerasi tidak
+menangkap galat assignment browser. Diagnostik sebelumnya hanya menampilkan
+galat buatan model, sehingga perbaikan berisiko mengulang aturan yang salah.
+Pemeriksa sekarang menyebut perilaku yang diharapkan dan galat aktual secara
+terpisah: terima detik yang sudah divalidasi, tulis currentTime satu kali,
+dan delegasikan Error asli jika setter gagal. Tidak ada kasus perilaku yang
+dihapus. 63 tes ekspor terarah lolos (10,14 detik).
+
+V117 menggunakan bobot Qwen0.8B Q8, reasoning 256 dan profil sampling yang
+sama. Bagian yang sudah diterima diperiksa ulang; assignment yang kontraknya
+berubah dibuat ulang. Saat catatan ini ditulis inferensi masih berjalan,
+editor lengkap dan ekspor browser belum dibuktikan.
+
+V117 meloloskan assignSeekTarget pada regenerasi lengkap model setelah respons
+awal tidak mendefinisikan fungsi. Kode yang diterima memakai assignment sekali
+di dalam try/catch dan mendelagasikan Error asli. 298 tes regresi terkait
+meloloskan perubahan diagnostik (137,37 detik). Rangkaian ekspor masih berjalan;
+kelulusan helper bukan bukti bahwa editor lengkap sudah berfungsi.
+
+Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
+37751856441, Windows installer 37751856423, Original harness runtimes
+37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.
