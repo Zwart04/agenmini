@@ -144,7 +144,12 @@ try{
  }
  const text=node=>input.source.slice(node.start,node.end);
  visit(ast,node=>{
-  if(node.type!=='CallExpression'||node.arguments.length<2)return;
+  if(node.type!=='CallExpression')return;
+  if(node.callee.type==='MemberExpression'&&!node.callee.computed&&node.callee.property.type==='Identifier'&&input.standalone.includes(node.callee.property.name)){
+   const find=text(node.callee),replace=text(node.callee.property);
+   if(input.source.split(find).length===2)choices.push({find,replace});
+  }
+  if(node.arguments.length<2)return;
   const argument=node.arguments[1];
   if(!['ArrowFunctionExpression','FunctionExpression'].includes(argument.type))return;
   for(const target of input.targets){
@@ -162,17 +167,19 @@ try{
 
 
 def callback_reference_choices(source, errors):
-    """Offer only exact callback/field spans already written by this model."""
+    """Offer exact callable-reference spans already written by this model."""
     identifier=r'[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*'
-    targets=[]
+    targets=[];standalone=[]
     for error in errors:
         found=re.search(r'Callback argument ('+identifier+r') expected ('+identifier+r') as original function reference;',error)
-        if found:targets.append({'callee':found[1],'reference':found[2]})
+        if found:targets.append({'callee':found[1],'reference':found[2]});continue
+        found=re.fullmatch(r'Call standalone helper ([A-Za-z_$][\w$]*) directly; it is not an object method\.',error)
+        if found:standalone.append(found[1])
         else:return []
-    if not targets or len(source.encode())>65536:return []
+    if not (targets or standalone) or len(source.encode())>65536:return []
     try:
         result=subprocess.run(['node','--max-old-space-size=96','-e',CALLBACK_ARGUMENTS,str(Path(__file__).parent/'vendor/acorn.cjs')],
-            input=json.dumps({'source':source,'targets':targets}),text=True,encoding='utf-8',
+            input=json.dumps({'source':source,'targets':targets,'standalone':standalone}),text=True,encoding='utf-8',
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
             **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
         value=json.loads(result.stdout) if not result.returncode else []
@@ -448,6 +455,8 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         system='Correct only the CSS declaration values on supplied numbered lines. Return JSON with edits containing line and replace. Each replacement is one complete declaration with the SAME property name and a semicolon. Read actual errors to choose the correct value yourself. Do not change property names, add declarations, selectors, braces or other lines. Omitted CSS remains unchanged.'
     if callback_choices:
         system='The callback identity check found a wrapper around an existing stored function. Select exact edits from callback_reference_choices to pass the original function reference as the event argument. Both find and replace are untouched spans from your current source. Return JSON with edits only. Preserve the event name, callee, surrounding function and all other source. Do not invoke the callback or create a new wrapper.'
+        if any(error.startswith('Call standalone helper ') for error in errors):
+            system='A validated standalone helper was incorrectly called as an object method. Select exact edits from callback_reference_choices to use its existing function identifier directly. Both find and replace are untouched spans from your source. Return JSON with edits only. Keep every argument, callback body, timer and all other source unchanged. Do not implement or rename the helper.'
     if header_only:
         system='Correct only the JavaScript function declaration header. Return JSON with edits containing exactly one original line number and its corrected single-line replacement. Keep the existing function name, parameters and opening brace. Do not output the function body, closing brace, comments or literal backslash-n sequences.'
         schema['properties']['edits']['minItems']=1

@@ -374,6 +374,45 @@ async def test_model_can_select_original_callback_argument_without_rewriting_hel
                 'raw_sha256':project_patches.digest(patch),'source_sha256':project_patches.digest(fixed)}]
         assert project_patches.replay(source,chain,'app.js')==fixed
 
+
+def test_standalone_method_repair_only_offers_existing_called_identifier():
+    source='function scheduleSeekTimeout(job){const timer=setTimeout(()=>{job.failSeekJob(job,new Error("Timeout"));},5000);return timer;}'
+    errors=['Call standalone helper failSeekJob directly; it is not an object method.']
+    choices=project_patches.callback_reference_choices(source,errors)
+    assert choices==[{'find':'job.failSeekJob','replace':'failSeekJob'}]
+    assert project_patches.apply(source,json.dumps({'edits':choices}))==source.replace('job.failSeekJob','failSeekJob')
+    for changed in [source+source,source.replace('job.failSeekJob','failSeekJob'),source.replace('job.failSeekJob',"job['failSeekJob']")]:
+        assert project_patches.callback_reference_choices(changed,errors)==[]
+    assert project_patches.callback_reference_choices(source,errors+['Unknown failure'])==[]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('tamper',[False,True])
+async def test_model_standalone_method_fix_preserves_arguments_and_provenance(monkeypatch,backend,tamper):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='function modelHelper(job,error){job.failSeekJob(job,error);}'
+    choices=[{'find':'job.failSeekJob','replace':'failSeekJob'}]
+    raw=json.dumps({'edits':[{'find':'job.failSeekJob','replace':'wrongHelper'}] if tamper else choices})
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        request=json.loads(messages[1]['content'])
+        assert request['callback_reference_choices']==choices and request['source']==source
+        assert 'standalone helper' in messages[0]['content']
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['maxItems']==1
+        return {'content':raw,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    response=await project_patches.request(source,task='Use existing helper',errors=['Call standalone helper failSeekJob directly; it is not an object method.'],contracts={},indexed=True,diagnose=True)
+    assert len(calls)==1 and response['content']==raw
+    if tamper:assert response['patch_validation_error']
+    else:
+        assert not response.get('patch_validation_error')
+        fixed=project_patches.apply(source,raw)
+        assert fixed=='function modelHelper(job,error){failSeekJob(job,error);}'
+        chain=[{'base_sha256':project_patches.digest(source),'raw_patch':raw,'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(fixed)}]
+        assert project_patches.replay(source,chain,'app.js')==fixed
+
 def test_nonvoid_self_closing_html_is_rejected_and_localized():
     item={'kind':'panel'}
     source='<section>\n<video id="preview" />\n<input id="seekInput" />\n</section>'

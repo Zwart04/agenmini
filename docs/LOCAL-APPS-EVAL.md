@@ -1518,3 +1518,18 @@ lulus sebelum proses lanjut ke timer. 284 tes regresi terkait lolos (104,77
 detik), termasuk validasi pasangan span pada local/online/router dan replay
 hash sumber/patch. Sumber model lengkap serta ekspor browser masih ditunggu.
 CI Linux commit 47a2983 berhasil: run 37749798772, 590 tes lolos (99,06 detik).
+
+V114 selesai dengan kegagalan setelah 165,1 detik pada scheduleSeekTimeout.
+Model menulis job.failSeekJob, padahal helper tersebut adalah fungsi berdiri
+sendiri. Dua patch hanya menyalin ulang panggilan yang salah. Pemilihan span
+referensi kini juga mencakup identifier helper yang sudah ada di properti
+callee model, tanpa mengubah argumen, timer atau isi callback. Computed access,
+teks ambigu, identifier lain dan galat campuran tidak memakai jalur ini.
+50 tes terarah callback/seek/recipe/metode lolos (7,75 detik). V115 memeriksa
+kandidat asli bagian 102 dengan bobot/recipe/inference Qwen yang sama.
+
+V115 model nyata berhasil membetulkan job.failSeekJob menjadi failSeekJob lewat
+patch span asli. Pemeriksaan berikutnya mencapai tiga kasus handle timer dan
+menemukan job.timer masih null. Kasus handle 0/37/311 tetap gagal sampai nilai
+aktual disimpan; perbaikan nama fungsi tidak dianggap kelulusan timer. 291 tes
+regresi terkait lolos (103,64 detik).
