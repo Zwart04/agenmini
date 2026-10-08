@@ -1386,3 +1386,16 @@ helper model aktual melalui behavior_dependencies. 47 tes terarah lolos (7,93
 detik), termasuk penolakan callback langsung, handle hardcode, galat assignment
 yang tidak ditangani dan urutan timer/listener terbalik. Ini tidak menyatakan
 hasil editor telah lulus; hasil model V111 masih harus ditunggu.
+
+V111 gagal setelah 133,4 detik pada registerSeekEvent: callback event benar
+tetapi tidak disimpan ke job.onSeeked; patch noop dan regenerasi tetap
+kehilangan properti. Pembanding video-deepseek13-current-v1 dimulai kosong
+dengan DeepSeek Coder 1.3B Instruct Q5_K_M lokal, sampling greedy, template
+chat Instruction/Response yang tersimpan serta pre-tokenizer deepseek-coder
+untuk GGUF lama. SHA256 bobot d5dcc2a484498b412b8bf5821b0ef2a7ea2e1984b37d15e14344259068d19a31.
+Tidak memakai sumber/checkpoint Qwen atau LFM. Model ini berukuran 1.3B;
+bukan menyatakan tepat 1B atau telah menghasilkan editor yang lulus.
+
+CI Linux commit b3b168b berhasil: run 37743871565, 553 tes lolos (102,17
+detik). Ini mencakup perubahan fallback HTML dan pemisahan operasi seek;
+editor yang dihasilkan tetap harus melewati evaluasi model nyata/browser.
