@@ -1101,56 +1101,186 @@
       ]
     },
     {
-      "name": "Impor media asli",
       "file": "app.js",
       "kind": "js",
-      "tokens": 600,
-      "functions": [
-        "loadVideo"
-      ],
-      "task": "Write only complete function loadVideo(file), at most 15 lines. Return if app.busy. If file absent or file.type does not start video/, call setStatus error and return, without changing old state. Otherwise call releaseVideoUrls(); set app.objectURL=URL.createObjectURL(file), app.filename=file.name, app.loaded=false. Hide ui.downloadLink. Assign ui.preview.onloadedmetadata=videoMetadataReady and ui.preview.onerror=videoLoadFailed. Assign ui.preview.src=app.objectURL last. Do not call callbacks immediately. No autoplay, new helpers, variables, handlers, recorder or export.",
-      "required_patterns": [
-        "URL\\.createObjectURL\\s*\\(",
-        "\\b(?:onloadedmetadata|loadedmetadata)\\b",
-        "\\bpreview\\.src\\s*="
-      ],
       "include_html": false,
+      "raw_source": true,
+      "context": "Use the already declared outer app/ui state and standalone helper names. No initialization or redeclarations.",
+      "system_contract": "Only define the requested function. Helpers are standalone functions, not app or ui methods.",
+      "name": "Video file predicate",
+      "tokens": 300,
+      "functions": [
+        "isVideoFile"
+      ],
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_file"
+      ],
+      "task": "Write only complete isVideoFile(file). First require file to be a non-null object: return false for null, undefined, numbers, booleans, or strings. Only after this guard, require typeof file.type to be string; otherwise return false. Finally return whether file.type starts with video/. Return only Booleans. No in operator, trimming, classes, globals or other helpers. At most 6 lines.",
+      "parameters": {
+        "file": "A browser File object. MIME string is file.type; filename string is file.name. The object itself is not a MIME string."
+      }
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "include_html": false,
+      "raw_source": true,
+      "context": "Use the already declared outer app/ui state and standalone helper names. No initialization or redeclarations.",
+      "system_contract": "Only define the requested function. Helpers are standalone functions, not app or ui methods.",
+      "name": "Attach video callbacks",
+      "tokens": 250,
+      "functions": [
+        "attachVideoHandlers"
+      ],
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "videoMetadataReady",
+        "videoLoadFailed"
+      ],
+      "behavior_checks": [
+        "video_callbacks"
+      ],
+      "task": "Write only function attachVideoHandlers(). Assign ui.preview.onloadedmetadata to the existing videoMetadataReady function and ui.preview.onerror to existing videoLoadFailed. Store the function references; do not call them. No other logic or event listeners. At most 4 lines."
+    },
+    {
+      "file": "app.js",
+      "kind": "js",
+      "include_html": false,
+      "raw_source": true,
+      "context": "Use the already declared outer app/ui state and standalone helper names. No initialization or redeclarations.",
+      "system_contract": "Only define the requested function. Helpers are standalone functions, not app or ui methods.",
+      "name": "Assign imported video source",
+      "tokens": 400,
+      "functions": [
+        "setVideoSource"
+      ],
       "relevant_fields": {
         "app": [
-          "busy",
-          "loaded",
+          "objectURL",
           "filename",
-          "objectURL"
+          "loaded"
         ],
         "ui": [
           "preview",
           "downloadLink"
         ]
       },
-      "relevant_functions": [
-        "releaseVideoUrls",
-        "videoMetadataReady",
-        "videoLoadFailed",
-        "setStatus"
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_source"
       ],
-      "raw_source": true,
-      "system_contract": " Existing app and ui are already declared outside this function. Do not declare local replacements. Every new variable must use const or let. Output only the requested function, without JSON or sample calls."
+      "task": "Write only function setVideoSource(file). file is already validated. Store URL.createObjectURL(file) in app.objectURL. Store file.name in app.filename. Set app.loaded=false; set ui.downloadLink.hidden=true. Assign ui.preview.src=app.objectURL last. No variables, helpers, classes or callbacks. At most 8 lines.",
+      "parameters": {
+        "file": "A browser File object. MIME string is file.type; filename string is file.name. The object itself is not a MIME string."
+      }
     },
     {
-      "name": "Playback dan scrub",
+      "name": "Impor media asli",
       "file": "app.js",
       "kind": "js",
-      "tokens": 850,
+      "tokens": 400,
       "functions": [
-        "togglePlay",
-        "seekVideo"
+        "loadVideo"
       ],
-      "task": "Define complete functions togglePlay() async and seekVideo(value). Use app/ui actual shared state. Guard unloaded/busy. togglePlay pauses if playing; otherwise if currentTime outside [app.start,app.end) seek to start, then await preview.play with error handling. Set playBtn label appropriately. seekVideo clamps numeric seconds within0..app.duration and sets preview.currentTime, calls updateTimeline. Do not define event listeners here; final init handles timeupdate and trim end. No new globals, video classes, exports or playback timers.",
+      "task": "Write only complete loadVideo(file), at most 10 lines. If app.busy, return. If isVideoFile(file) is false, call standalone setStatus with a descriptive error and true, then return. Otherwise call standalone releaseVideoUrls(), attachVideoHandlers(), and setVideoSource(file), in that order. Do not implement or redefine those helpers. Do not touch other state, DOM, URLs or callbacks directly.",
+      "required_patterns": [
+        "\\bisVideoFile\\s*\\(",
+        "\\breleaseVideoUrls\\s*\\(",
+        "\\battachVideoHandlers\\s*\\(",
+        "\\bsetVideoSource\\s*\\("
+      ],
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "busy"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "isVideoFile",
+        "setStatus",
+        "releaseVideoUrls",
+        "attachVideoHandlers",
+        "setVideoSource"
+      ],
+      "raw_source": true,
+      "system_contract": " Existing app and ui are already declared outside this function. Do not declare local replacements. Every new variable must use const or let. Output only the requested function, without JSON or sample calls.",
+      "parameters": {
+        "file": "A browser File object. MIME string is file.type; filename string is file.name. The object itself is not a MIME string."
+      }
+    },
+    {
+      "name": "Play and pause",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 550,
+      "functions": [
+        "togglePlay"
+      ],
+      "task": "Write ONLY async function togglePlay(), at most 18 lines. Return immediately if !app.loaded or app.busy. Inside the function, const preview=ui.preview. If preview.paused is false: call preview.pause(), set ui.playBtn.textContent to Play, and return. Otherwise, if preview.currentTime < app.start OR >= app.end, set preview.currentTime=app.start. Then try await preview.play(); only after successful await, set ui.playBtn.textContent to Pause. Catch any error: setStatus(error.message,true) and restore label Play. No globals, other helpers, handlers or timers.",
       "required_patterns": [
         "\\bpreview\\.play\\s*\\(",
-        "\\bpreview\\.pause\\s*\\(",
-        "\\bpreview\\.currentTime\\s*="
+        "\\bpreview\\.pause\\s*\\("
+      ],
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy",
+          "start",
+          "end"
+        ],
+        "ui": [
+          "preview",
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "behavior_checks": [
+        "video_playback"
       ]
+    },
+    {
+      "name": "Scrub video",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 300,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "seekVideo"
+      ],
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy",
+          "duration"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [],
+      "parameters": {
+        "value": "Numeric seconds or a numeric string from a range input."
+      },
+      "behavior_checks": [
+        "video_seek"
+      ],
+      "task": "Write ONLY function seekVideo(value), at most 9 lines. Return if !app.loaded or app.busy. Convert value using Number(value); if not Number.isFinite return. Clamp converted number to 0..app.duration and assign ui.preview.currentTime. Then call standalone updateTimeline() exactly once. updateTimeline is implemented later, not a method of ui or preview. No globals or other functions."
     },
     {
       "name": "Trim dan timeline nyata",
@@ -1161,7 +1291,32 @@
         "validateTrim",
         "updateTimeline"
       ],
-      "task": "Define validateTrim() returning boolean; parse ui.startInput/endInput numeric seconds and require finite0<=start<end<=duration. Invalid: setStatus error and disable exportBtn, keep previous valid app.start/end. Valid: update app.start/end, enable export unless busy, setStatus duration of selected clip, call updateTimeline. Define updateTimeline(): if no loaded media show truthful empty state. Otherwise use DOM createElement/textContent (safe filenames/text, no raw user HTML) to clear and render actual .timeline-ruler with duration, .track-row labelled Video and Text, .track-label, .track-lane. Video clip .video-clip absolute left/start divided duration percent, width (end-start)/duration percent, text filename and selected seconds; Text clip .text-clip exists only if titleInput has text. Each lane has .playhead at currentTime/duration percentage. Do not create IDs that duplicate controls; no fake sample footage. ui.seekInput.value updated from currentTime. Timeline click handler belongs to final init. No global app/ui redeclarations."
+      "task": "Define validateTrim() returning boolean; parse ui.startInput/endInput numeric seconds and require finite0<=start<end<=duration. Invalid: setStatus error and disable exportBtn, keep previous valid app.start/end. Valid: update app.start/end, enable export unless busy, setStatus duration of selected clip, call updateTimeline. Define updateTimeline(): if no loaded media show truthful empty state. Otherwise use DOM createElement/textContent (safe filenames/text, no raw user HTML) to clear and render actual .timeline-ruler with duration, .track-row labelled Video and Text, .track-label, .track-lane. Video clip .video-clip absolute left/start divided duration percent, width (end-start)/duration percent, text filename and selected seconds; Text clip .text-clip exists only if titleInput has text. Each lane has .playhead at currentTime/duration percentage. Do not create IDs that duplicate controls; no fake sample footage. ui.seekInput.value updated from currentTime. Timeline click handler belongs to final init. No global app/ui redeclarations.",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy",
+          "start",
+          "end",
+          "duration",
+          "filename"
+        ],
+        "ui": [
+          "startInput",
+          "endInput",
+          "exportBtn",
+          "seekInput",
+          "preview",
+          "timeline",
+          "titleInput"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus",
+        "formatTime"
+      ]
     },
     {
       "name": "Teks overlay",

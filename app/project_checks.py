@@ -6,14 +6,14 @@ They are not a browser, and passing them cannot prove import/export behavior.
 import json
 from . import tools
 
-CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error'}
+CHECKS = {'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek'}
 RUNNER = r'''
 const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
 process.stdin.on('end',()=>{
   try {
     const {source,check}=JSON.parse(input);
-    const context=vm.createContext(Object.create(null),{codeGeneration:{strings:false,wasm:false}});
+    const context=vm.createContext(Object.create(null),{codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'});
     const fixtures=`"use strict";
       const app={loaded:false,busy:false};
       const ui={};
@@ -31,7 +31,42 @@ process.stdin.on('end',()=>{
       const failures=[];
       function assert(value,message){if(!value)failures.push(message);}
     `;
+
+    const playbackFixtures=`
+      const calls={play:0,pause:0,timeline:0,errors:[]};
+      ui.preview={paused:true,currentTime:0,rejectPlay:false,
+        play(){calls.play++;if(this.rejectPlay)return Promise.reject(new Error('Decoder refused playback'));this.paused=false;return Promise.resolve();},
+        pause(){calls.pause++;this.paused=true;}};
+      function setStatus(message,error){calls.errors.push([message,error]);}
+      function updateTimeline(){calls.timeline++;}
+    `;
+    const playbackCases=`
+      for(const [loaded,busy] of [[false,false],[false,true],[true,true]]){
+        app.loaded=loaded;app.busy=busy;ui.preview.paused=true;ui.preview.currentTime=7;
+        const before=[calls.play,calls.pause,ui.preview.currentTime];await togglePlay();
+        assert(JSON.stringify(before)===JSON.stringify([calls.play,calls.pause,ui.preview.currentTime]),'togglePlay must not play, pause or seek while unloaded or busy');
+      }
+      app.loaded=true;app.busy=false;app.start=2;app.end=8;app.duration=10;
+      for(const time of [0,2,5,8,9]){
+        ui.preview.paused=true;ui.preview.currentTime=time;const plays=calls.play;const pauses=calls.pause;
+        await togglePlay();
+        assert(calls.play===plays+1&&calls.pause===pauses,'paused video must call play once, never pause');
+        assert(ui.preview.currentTime===(time<2||time>=8?2:time),'play must seek to trim start only when outside [start,end)');
+        assert(ui.playBtn.textContent==='Pause','successful play must display Pause');
+      }
+      ui.preview.paused=false;ui.preview.currentTime=5;const pauses=calls.pause;const plays=calls.play;
+      await togglePlay();assert(calls.pause===pauses+1&&calls.play===plays,'playing video must pause once, never play');
+      assert(ui.playBtn.textContent==='Play','paused video must display Play');
+      ui.preview.paused=true;ui.preview.rejectPlay=true;calls.errors.length=0;
+      try{await togglePlay();}catch(error){assert(false,'togglePlay must catch preview.play() rejection instead of throwing: '+error.message);}assert(ui.playBtn.textContent==='Play','rejected play must restore Play label');
+      assert(calls.errors.some(([message,error])=>error===true&&String(message).includes('Decoder refused playback')),'rejected play must report the actual error');
+    `;
+
     const cases={
+      video_seek:`app.duration=10;app.loaded=true;app.busy=false;for(const [value,expected] of [['0',0],['3.25',3.25],[-4,0],[25,10],[0,0],[7.2,7.2]]){ui.preview.currentTime=5;const before=calls.timeline;seekVideo(value);assert(ui.preview.currentTime===expected,'seekVideo('+JSON.stringify(value)+') expected currentTime '+expected+'; observed '+ui.preview.currentTime);assert(calls.timeline===before+1,'valid seek must call updateTimeline once');}for(const value of ['abc',NaN,Infinity,-Infinity]){ui.preview.currentTime=5;const before=calls.timeline;seekVideo(value);assert(ui.preview.currentTime===5&&calls.timeline===before,'non-finite seek must preserve time and timeline');}for(const [loaded,busy] of [[false,false],[false,true],[true,true]]){app.loaded=loaded;app.busy=busy;ui.preview.currentTime=5;const before=calls.timeline;seekVideo(1);assert(ui.preview.currentTime===5&&calls.timeline===before,'unloaded/busy seek must not change time or timeline');}`,
+      video_file:`for(const file of [null,undefined,{},0,true,'video/mp4',{type:null},{type:42},{type:''},{type:'image/png'},{type:'audio/webm'},{type:'VIDEO/MP4'}])assert(isVideoFile(file)===false,'isVideoFile('+JSON.stringify(file)+') expected Boolean false [observed '+JSON.stringify(isVideoFile(file))+']');for(const type of ['video/mp4','video/webm','video/quicktime']){const file={type,name:'actual clip'};assert(isVideoFile(file)===true,'isVideoFile('+JSON.stringify(file)+') expected Boolean true [observed '+JSON.stringify(isVideoFile(file))+']');assert(file.type===type&&file.name==='actual clip','isVideoFile must preserve file');}`,
+      video_callbacks:`let calls=0;function videoMetadataReady(){calls++;}function videoLoadFailed(){calls++;}ui.preview={};attachVideoHandlers();assert(ui.preview.onloadedmetadata===videoMetadataReady,'preview.onloadedmetadata must hold videoMetadataReady reference');assert(ui.preview.onerror===videoLoadFailed,'preview.onerror must hold videoLoadFailed reference');assert(calls===0,'attachVideoHandlers must not call callbacks');`,
+      video_source:`const created=[];const URL={createObjectURL(file){created.push(file);return 'blob:new-'+created.length;}};ui.preview={};ui.downloadLink={hidden:false};for(const name of ['clip A.mp4','clip <unsafe>.webm']){const file={type:'video/mp4',name};app.loaded=true;app.busy=false;ui.downloadLink.hidden=false;setVideoSource(file);assert(created[created.length-1]===file,'createObjectURL must receive the actual File argument');assert(app.objectURL==='blob:new-'+created.length&&ui.preview.src===app.objectURL,'preview.src must use newly created object URL');assert(app.filename===name,'app.filename must come from file.name');assert(app.loaded===false&&app.busy===false,'setVideoSource must clear loaded without changing busy');assert(ui.downloadLink.hidden===true,'downloadLink must stay hidden until a new export');}assert(created.length===2,'createObjectURL must be called once per file');`,
       release_urls:`const revoked=[];const URL={revokeObjectURL(value){revoked.push(value);}};for(const [objectURL,downloadURL] of [['blob:a','blob:b'],['blob:a',null],[null,'blob:b'],[null,null]]){revoked.length=0;app.loaded=true;app.busy=true;app.objectURL=objectURL;app.downloadURL=downloadURL;releaseVideoUrls();assert(JSON.stringify(revoked.sort())===JSON.stringify([objectURL,downloadURL].filter(Boolean).sort()),'releaseVideoUrls must revoke each existing URL exactly once; actual='+JSON.stringify(revoked));assert(app.objectURL===null&&app.downloadURL===null,'releaseVideoUrls must clear both URL fields');assert(app.loaded===true&&app.busy===true,'releaseVideoUrls must preserve loaded/busy state');}`,
       video_load_error:`app.loaded=true;app.busy=true;videoLoadFailed();assert(app.loaded===false,'videoLoadFailed must clear app.loaded');assert(app.busy===false,'videoLoadFailed must clear busy using setBusy');assert(ui.status.textContent.length>0&&ui.status.classList.contains('error'),'videoLoadFailed must set a nonempty error status with error class');`,
       normalize_seconds:`for(const value of [NaN,Infinity,-Infinity,-1,-0.1,null,undefined,'65',{},true])assert(normalizeSeconds(value)===0,'normalizeSeconds invalid input '+String(value)+' must return 0');for(let i=0;i<41;i++){const value=(i*83+7)/3;const actual=normalizeSeconds(value);assert(actual===Math.floor(value),'normalizeSeconds('+value+') must return '+Math.floor(value)+' [observed '+JSON.stringify(actual)+']');}`,
@@ -40,8 +75,16 @@ process.stdin.on('end',()=>{
       status:`setStatus('failed',true);assert(ui.status.textContent==='failed'&&ui.status.classList.contains('error'),'Error text/class not set');setStatus('failed again',true);assert(ui.status.classList.contains('error'),'Repeated errors must keep error class');setStatus('ready');assert(ui.status.textContent==='ready'&&!ui.status.classList.contains('error'),'Success must clear previous error class');`,
       busy:`for(const loaded of [false,true])for(const flag of [false,true]){app.loaded=loaded;setBusy(flag);assert(app.loaded===loaded,'app.loaded expected '+loaded+'; preserve loaded state; actual='+app.loaded);assert(app.busy===flag,'app.busy expected '+flag+' when busy='+flag+' loaded='+loaded+'; actual='+app.busy);assert(ui.fileInput.disabled===flag,'fileInput.disabled expected '+flag+' when busy='+flag+' loaded='+loaded+'; actual='+ui.fileInput.disabled);for(const id of ['playBtn','seekInput','startInput','endInput','exportBtn'])assert(ui[id].disabled===(flag||!loaded),id+'.disabled expected '+(flag||!loaded)+' when busy='+flag+' loaded='+loaded+'; actual='+ui[id].disabled);assert(ui.cancelBtn.hidden===!flag,'cancelBtn.hidden expected '+!flag+' when busy='+flag+' loaded='+loaded+'; actual='+ui.cancelBtn.hidden);}`
     };
-    if(!Object.hasOwn(cases,check))throw new Error('Unknown behavioral check');
-    const failures=JSON.parse(vm.runInContext(fixtures+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500}));
+    if(!Object.hasOwn(cases,check)&&check!=='video_playback')throw new Error('Unknown behavioral check');
+    let result;
+    if(check==='video_playback'){
+      vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+playbackCases+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify(['Playback threw: '+error.message]);});",context,{timeout:500});
+      result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
+      if(typeof result!=='string')throw new Error('Playback did not settle with an immediately resolved or rejected play promise');
+    }else{
+      result=vm.runInContext(fixtures+'\n'+(check==='video_seek'?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
+    }
+    const failures=JSON.parse(result);
     if(failures.length){console.error(JSON.stringify({helper_failures:failures}));process.exitCode=1;return;}
     console.log('behavioral helper check passed');
   }catch(error){console.error(error.message);process.exitCode=1;}

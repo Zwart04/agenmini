@@ -23,7 +23,18 @@ const fs=require('node:fs'),acorn=require(process.argv[1]);
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 try{
  const ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'script'});
- if(input.mode==='contracts'){
+ if(input.mode==='member_helpers'){
+  const known=new Set(input.names),bad=new Set();
+  function walk(node){
+   if(!node||typeof node!=='object')return;
+   if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+    const callee=node.callee,name=callee.computed?callee.property.value:callee.property.name;
+    if(known.has(name)&&!(callee.object.type==='Identifier'&&['window','globalThis'].includes(callee.object.name)))bad.add(name);
+   }
+   for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);
+  }
+  walk(ast);console.log(JSON.stringify({methods:[...bad]}));
+ }else if(input.mode==='contracts'){
   const globals={},functions=[],shadowed=new Set();
   function bindingNames(node){
    if(!node)return [];
@@ -189,11 +200,39 @@ def callable_names(source):
     return [re.search(r'\bfunction\s+(\w+)',signature)[1] for signature in parsed['existing_functions']]
 
 
+def standalone_helper_errors(source,names):
+    """Catch a declared standalone helper incorrectly called as an object method."""
+    if not names or len(source.encode())>65536:return []
+    try:
+        result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
+            input=json.dumps({'source':source,'mode':'member_helpers','names':sorted(names)}),text=True,encoding='utf-8',
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
+            **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
+        if result.returncode:return []
+        methods=json.loads(result.stdout).get('methods',[])
+        return ['Call standalone helper '+name+' directly; it is not an object method.' for name in methods if isinstance(name,str) and name in names]
+    except (OSError,subprocess.TimeoutExpired,ValueError):return []
+
+
 def duplicate_declaration_repairable(source,item,errors):
     """Only a known parser error in complete named JS functions is patchable."""
     if item.get('kind')!='js' or not item.get('functions'):return False
     if not all(re.search(r'\bfunction\s+'+re.escape(fn)+r'\s*\(',source) for fn in item['functions']):return False
     return any(re.search(r"SyntaxError: Identifier '[A-Za-z_$][\w$]*' has already been declared",error) for error in errors)
+
+
+
+def missing_async_repairable(source,item,errors):
+    """Let the model patch a function header after Node identifies missing async.
+
+    This selects a repair route only; every edit must still pass the complete
+    syntax, contract and behavioral checks before it can be accepted.
+    """
+    if item.get('kind')!='js' or len(item.get('functions',[]))!=1:return False
+    name=item['functions'][0]
+    if not re.match(r'\s*function\s+'+re.escape(name)+r'\s*\(',source):return False
+    if not source.rstrip().endswith('}'):return False
+    return any('SyntaxError: await is only valid in async functions' in error for error in errors)
 
 
 def helper_failure_identity(error):
@@ -519,6 +558,7 @@ def compose_document(shell,nodes,panels):
 
 async def generate(brief,ctx,on_event=None):
     recipe=json.loads((Path(__file__).parent/'project_recipes'/'video_editor.json').read_text(encoding='utf-8'))
+    known_helpers={fn for part in recipe['parts'] for fn in part.get('functions',[])}
     root='project-'+str(time.time_ns());contents={};panels={};nodes={};evidence=[];stats={};shell='';helper_sources={}
     async def emit(kind,value):
         if on_event:await on_event(kind,value)
@@ -544,6 +584,9 @@ async def generate(brief,ctx,on_event=None):
             # The part already names its exact selectors. Unrelated selectors
             # invite small models to style the whole application again.
         if kind=='js':
+            if item.get('parameters'):context['parameter_contracts']=item['parameters']
+            future=[fn for part in recipe['parts'][step+1:] for fn in part.get('functions',[]) if re.search(r'\b'+re.escape(fn)+r'\b',item['task'])]
+            if future:context['future_standalone_helpers']='These names will be implemented by later parts; call them directly, not as app/ui or DOM methods: '+', '.join(dict.fromkeys(future))
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
             context['previous_source']=js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
             if item.get('include_html') is False:
@@ -668,6 +711,7 @@ async def generate(brief,ctx,on_event=None):
             elif kind=='js':
                 shared_errors=js_shared_reference_errors(source,prior)
                 errors+=shared_errors
+                errors+=standalone_helper_errors(source,known_helpers)
                 if any(error.startswith('Do not shadow existing shared state ') for error in shared_errors):missing_structure=True
                 checked=await tools._run_sandboxed(['node','--check','--input-type=commonjs'],timeout=15,stdin=(prior+'\n'+source).encode(),project=True)
                 if not checked.startswith('[kode keluar 0]'):errors.append(checked[-1000:]);syntax_bad=True
@@ -699,7 +743,9 @@ async def generate(brief,ctx,on_event=None):
                 # Exact edits are useful for a valid source with a failing
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
-                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors)) and not missing_structure and not patch_error and bool(source)
+                async_header=missing_async_repairable(source,item,errors)
+                retry_unchanged=patch_error=='Patch rejected: Patch cannot empty the part or leave it unchanged.' and patch_base is not None
+                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header) and (not missing_structure or async_header) and (not patch_error or retry_unchanged) and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'â€¦')
@@ -707,7 +753,7 @@ async def generate(brief,ctx,on_event=None):
             # fragment that omitted required structure. Keep that response in
             # the journal, but supply the specification and actual failures.
             # The separate exact-patch path still receives current source.
-            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
+            request='TASK:\n'+item['task']+'\nCHECK ERRORS:\n'+json.dumps(project_patches.prompt_errors(errors))+'\nTOTAL ERROR COUNT:\n'+str(len(errors))+'\nREQUIRED CONTROLS:\n'+json.dumps(item.get('controls',{}))+'\nEXISTING CONTRACTS:\n'+(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions')) if kind=='js' else '')+'\nPARAMETER CONTRACTS:\n'+json.dumps(item.get('parameters',{}))+'\nFUTURE HELPERS:\n'+(context.get('future_standalone_helpers','') if kind=='js' else '')+'\nWrite a fresh complete source part satisfying the task and fixing every listed error. Include missing elements or functions. Follow the system output format, no labels, errors, explanation or other parts.'
         evidence.append({'part':name,'file':path,'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'model':stats.get('served_model',''),'reused':stats.get('reused',False),'selection':'document container with unrequested content removed' if kind=='document' else 'exact element span' if item.get('root_class') else 'unwrap fences','assembly':'model source joined with newline'})
         if source_format=='json_source':evidence[-1].update(source_format=source_format,selection='exact element span from model-written JSON source string' if item.get('root_class') else 'exact model-written JSON source string decoded')
         if repair_chain:evidence[-1].update(repair_chain=repair_chain,origin_raw_source=origin_raw,selection='exact model-authored text edits applied to retained model source')

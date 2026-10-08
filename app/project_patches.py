@@ -85,6 +85,9 @@ def duplicate_id_choices(source, errors):
 def failing_lines(source, errors):
     """Locate identifiers named by real checks, without deciding replacements."""
     lines=source.splitlines()
+    if any('SyntaxError: await is only valid in async functions' in error for error in errors):
+        headers=[i for i,line in enumerate(lines,1) if re.match(r'\s*function\s+[A-Za-z_$][\w$]*\s*\(',line)]
+        if len(headers)==1:return headers
     identifiers=set()
     css_lines=set()
     for error in errors:
@@ -101,6 +104,7 @@ def failing_lines(source, errors):
         named=set(re.findall(r'\b([A-Za-z_]\w*)\.(?:disabled|hidden|busy|loaded)\s+expected',error))
         named.update(re.findall(r"SyntaxError: Identifier '([A-Za-z_$][\w$]*)' has already been declared",error))
         named.update(re.findall(r'(?:ReferenceError:|Helper behavior failed:)\s*([A-Za-z_$][\w$]*) is not defined\b',error))
+        named.update(re.findall(r'Call standalone helper ([A-Za-z_$][\w$]*) directly',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must (?:have|not have) HTML attribute',error))
         named.update(re.findall(r'\b([A-Za-z_][\w-]*) must not use a self-closing HTML tag',error))
         # A generic structural error can concern another line. Do not prevent

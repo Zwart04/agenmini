@@ -637,3 +637,72 @@ Bukti inferensi berikutnya:
 
 **189 tes terkait lolos di Windows.** Impor, playback, trim, overlay, ekspor
 WebM baru dan tampilan editor lengkap tetap belum terbukti di browser nyata.
+
+
+### Kontrak objek File dan pemanggilan helper
+
+Harness bersama tetap dipakai pada backend lokal, online langsung dan router,
+serta kanal web/Telegram. Uji kecil menjadi acuan kualitas; guard tidak
+mengubah bobot model atau menjamin model kecil setara model frontier.
+Bagian sumber tetap ditulis model, bukan runtime editor dari template.
+
+Impor kini dipisah menjadi predicate File, pengikatan callback, assignment
+sumber dan wrapper. Pemeriksaan VM menguji boolean MIME, callback tanpa
+pemanggilan prematur, identitas File pada createObjectURL dan penutupan
+link unduhan lama. Ini bukti unit perilaku, bukan bukti impor video browser.
+Kontrak parameter juga diteruskan pada regenerasi.
+
+AST menolak helper standalone yang dipanggil sebagai method objek, misalnya
+preview.updateTimeline(). Nama helper yang baru akan ditulis pada bagian
+berikutnya diberikan sebagai kontrak nama, tanpa menyisipkan implementasi.
+
+Inferensi nyata Qwen3.5 0.8B Q8 CPU, reasoning 256:
+
+- v46 gagal predicate File setelah 56,1 detik: objek dianggap string MIME.
+- v47 gagal setelah 66,0 detik: operator in dipakai pada input primitif.
+- v48 lolos pemeriksaan perilaku predicate, callback dan assignment sumber;
+  wrapper impor lolos struktur/sintaks. Timeline gagal setelah 379,6 detik
+  karena sumber terpotong dan field rekaan. Playback yang lolos sintaks
+  masih memanggil preview.updateTimeline yang tidak ada.
+- v49 menolak playback tersebut melalui AST. Perbaikan model kembali
+  mendefinisikan helper lain; percobaan gagal setelah 76,8 detik.
+
+**193 tes terkait lolos di Windows.** Belum ada editor lengkap yang lulus
+impor/playback/trim/overlay/ekspor WebM nyata dan tinjauan desktop/mobile.
+
+
+### Pemeriksaan Play dan scrub (8 Oktober 2026)
+
+Percobaan v50 terputus bersama sesi sebelum laporan akhir ditulis. Sumber
+playback yang sempat tersimpan lolos sintaks tetapi membalik kondisi paused,
+tidak menunggu Promise play(), dan menolak input scrub berupa string angka.
+Percobaan ini tidak dihitung sebagai kelulusan editor.
+
+Play dan scrub dipisah agar model mengerjakan satu perilaku setiap bagian.
+Pemeriksaan playback menunggu Promise di VM dengan batas waktu, menguji
+kondisi paused/playing, batas trim, busy/unloaded, label tombol dan galat
+pemutaran yang ditolak. Scrub diuji dengan string angka, nol, batas durasi,
+nilai tidak finite, dan perlindungan busy/unloaded. Fixture tidak ikut
+menjadi kode keluaran; model tetap menulis implementasinya sendiri.
+Konteks timeline juga dibatasi ke state dan kontrol yang dipakai.
+
+
+Pada v51, model tetap gagal setelah 126,1 detik karena await berada di fungsi
+non-async, lalu regenerasi sempat menambahkan import modul yang tidak ada.
+Jalur perbaikan sekarang mengizinkan patch deklarasi fungsi ketika parser
+menunjukkan galat async tersebut. Hanya model yang menulis replacement;
+patch masih wajib lolos sintaks, kontrak dan perilaku, serta disimpan untuk
+replay provenance. Tes integrasi mencakup backend lokal, online dan router.
+
+**198 tes terkait lolos di Windows** setelah pemeriksaan playback/scrub dan
+jalur patch async ditambahkan. Ini belum membuktikan editor lengkap berfungsi.
+
+
+v52 gagal setelah 127,6 detik. Play/Pause sudah lebih benar, tetapi penolakan
+Promise pemutar tidak ditangani. Patch berikutnya hanya mengulang baris lama,
+dan regenerasi menambahkan import rekaan. Jalur patch tanpa perubahan kini
+mempertahankan sumber sebelumnya untuk satu percobaan diagnosis dan patch
+terakhir, tetap dalam batas tiga percobaan bagian. Patch ditulis model,
+perilaku diperiksa ulang, dan provenance hanya mencatat perubahan sah.
+
+**201 tes terkait lolos di Windows** termasuk retry patch tanpa perubahan.

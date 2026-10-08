@@ -1019,8 +1019,8 @@ async def test_helper_behavior_rejects_implicit_global_assignments():
 @pytest.mark.parametrize('backend',['local','online','router'])
 async def test_raw_model_helper_keeps_code_and_provenance_without_json_envelope(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
-    item={'name':'Helper','file':'app.js','kind':'js','task':'Write helper','functions':['helper'],'include_html':False,'raw_source':True}
-    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    item={'name':'Helper','file':'app.js','kind':'js','task':'Write helper; laterHelper is supplied later','functions':['helper'],'include_html':False,'raw_source':True,'parameters':{'value':'Caller supplied data'}}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item,{'kind':'js','functions':['laterHelper']}],'panels':[],'required_ids':[]}))
     monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
     monkeypatch.setattr(llm,'active_backend',lambda:backend)
     source='function helper(value) { return `🎬 ${value}`; }'
@@ -1029,6 +1029,8 @@ async def test_raw_model_helper_keeps_code_and_provenance_without_json_envelope(
         assert 'Output raw source only' in messages[0]['content']
         assert 'OWNER_GOAL:' not in messages[1]['content']
         assert 'CURRENT_HTML:' not in messages[1]['content']
+        assert 'PARAMETER_CONTRACTS:' in messages[1]['content'] and 'Caller supplied data' in messages[1]['content']
+        assert 'FUTURE_STANDALONE_HELPERS:' in messages[1]['content'] and 'laterHelper' in messages[1]['content']
         assert 'TASK:' in messages[1]['content']
         return {'content':source,'stats':{'finish_reason':'stop','served_model':backend}}
     monkeypatch.setattr(llm,'chat',model)
@@ -1208,3 +1210,123 @@ async def test_document_patch_cannot_destroy_previously_valid_structure(monkeypa
     with pytest.raises(Validated):await project_parts.generate('app',object(),event)
     assert any(kind=='code' and value.get('restored') and value['content']==project_parts.document_container(raw) for kind,value in events)
     assert len(calls)==3
+
+
+@pytest.mark.asyncio
+async def test_video_file_check_rejects_truthy_non_boolean_and_accepts_safe_mime_predicate():
+    assert await project_checks.inspect_helper('function isVideoFile(file){return file&&file.type.startsWith("video/");}','video_file')
+    assert await project_checks.inspect_helper('function isVideoFile(file){return true;}','video_file')
+    assert not await project_checks.inspect_helper('function isVideoFile(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}','video_file')
+
+
+@pytest.mark.asyncio
+async def test_video_callbacks_require_references_without_early_invocation():
+    assert await project_checks.inspect_helper('function attachVideoHandlers(){ui.preview.onloadedmetadata=videoMetadataReady();ui.preview.onerror=videoLoadFailed();}','video_callbacks')
+    assert not await project_checks.inspect_helper('function attachVideoHandlers(){ui.preview.onloadedmetadata=videoMetadataReady;ui.preview.onerror=videoLoadFailed;}','video_callbacks')
+
+
+@pytest.mark.asyncio
+async def test_video_source_check_requires_file_identity_and_hides_old_download():
+    source='function setVideoSource(file){app.objectURL=URL.createObjectURL(file);app.filename=file.name;app.loaded=false;ui.downloadLink.hidden=true;ui.preview.src=app.objectURL;}'
+    assert not await project_checks.inspect_helper(source,'video_source')
+    assert await project_checks.inspect_helper(source.replace('URL.createObjectURL(file)','URL.createObjectURL(file.name)'),'video_source')
+    assert await project_checks.inspect_helper(source.replace('ui.downloadLink.hidden=true;',''),'video_source')
+
+
+def test_standalone_helper_calls_use_ast_not_comments_or_strings():
+    names={'updateTimeline','setBusy'}
+    source='function seekVideo(){const preview=ui.preview;preview.currentTime=2;preview.updateTimeline();}'
+    errors=project_parts.standalone_helper_errors(source,names)
+    assert len(errors)==1 and 'updateTimeline directly' in errors[0]
+    assert not project_parts.standalone_helper_errors('function f(){updateTimeline();ui.preview.play();const text="preview.updateTimeline()";/* ui.setBusy() */}',names)
+    assert project_parts.standalone_helper_errors('function f(){ui.preview["updateTimeline"]();}',names)
+    assert not project_parts.standalone_helper_errors('function f(){window.updateTimeline();globalThis.setBusy(false);}',names)
+    source='function f(){\n ui.preview.play();\n ui.preview.updateTimeline();\n}'
+    assert project_patches.failing_lines(source,errors)==[3]
+
+
+@pytest.mark.asyncio
+async def test_playback_checks_reject_reversed_state_and_unhandled_play_rejection():
+    source = """async function togglePlay(){
+      if(!app.loaded||app.busy)return;
+      const preview=ui.preview;
+      if(!preview.paused){preview.pause();ui.playBtn.textContent='Play';return;}
+      if(preview.currentTime<app.start||preview.currentTime>=app.end)preview.currentTime=app.start;
+      try{await preview.play();ui.playBtn.textContent='Pause';}
+      catch(error){setStatus(error.message,true);ui.playBtn.textContent='Play';}
+    }"""
+    assert not await project_checks.inspect_helper(source,'video_playback')
+    assert await project_checks.inspect_helper(source.replace('if(!preview.paused)','if(preview.paused)'),'video_playback')
+    assert await project_checks.inspect_helper(source.replace('setStatus(error.message,true);',''),'video_playback')
+    assert await project_checks.inspect_helper(source.replace('await preview.play();','preview.play();'),'video_playback')
+    assert await project_checks.inspect_helper('async function togglePlay(){while(true){await Promise.resolve();}}','video_playback')
+
+
+@pytest.mark.asyncio
+async def test_scrub_checks_numeric_strings_zero_clamping_and_busy_guards():
+    source='function seekVideo(value){if(!app.loaded||app.busy)return;const time=Number(value);if(!Number.isFinite(time))return;ui.preview.currentTime=Math.max(0,Math.min(app.duration,time));updateTimeline();}'
+    assert not await project_checks.inspect_helper(source,'video_seek')
+    assert await project_checks.inspect_helper(source.replace('const time=Number(value);','const time=value;'),'video_seek')
+    assert await project_checks.inspect_helper(source.replace('if(!app.loaded||app.busy)return;',''),'video_seek')
+    assert await project_checks.inspect_helper(source.replace('updateTimeline();',''),'video_seek')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Await helper','file':'app.js','kind':'js','task':'Write async helper','functions':['helper'],'raw_source':True,'include_html':False}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    bad='function helper(){\n  await Promise.resolve();\n}'
+    fixed='async '+bad;calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':bad,'stats':{'finish_reason':'stop'}}
+        request=json.loads(messages[1]['content'])
+        assert request['numbered_lines']==[{'line':1,'text':'function helper(){'}]
+        return {'content':json.dumps({'edits':[{'line':1,'replace':'async function helper(){'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==fixed and value['origin_raw_source']==bad
+            assert project_patches.replay(bad,value['repair_chain'],'app.js')==fixed
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_noop_patch_keeps_valid_source_for_bounded_diagnosed_retry(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME safely','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    bad='function isVideoFile(file){return false;}'
+    good='function isVideoFile(file){return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));}'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:content=bad
+        elif len(calls)==2:content=json.dumps({'edits':[{'line':1,'replace':bad}]})
+        elif len(calls)==3:
+            assert json.loads(messages[1]['content'])['source']==bad
+            content='The constant false rejects valid MIME types; inspect the File type safely.'
+        else:
+            request=json.loads(messages[1]['content'])
+            assert request['source']==bad and 'repair_plan' in request
+            content=json.dumps({'edits':[{'line':1,'replace':good}]})
+        return {'content':content,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==good and len(value['repair_chain'])==1
+            assert project_patches.replay(bad,value['repair_chain'],'app.js')==good
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==4
