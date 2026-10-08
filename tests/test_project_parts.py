@@ -1495,3 +1495,13 @@ async def test_patch_context_keeps_behavior_examples_as_independent_invocations(
     monkeypatch.setattr(llm,'chat',model)
     await project_patches.request('function f(){return 0;}',task='Compute the requested result',errors=['Helper behavior failed: incorrect result'],contracts='',diagnose=True)
     assert len(calls)==2
+
+
+def test_repair_contracts_exclude_evaluator_metadata_but_keep_source_requirements():
+    item={'kind':'js','raw_source':True,'include_html':False,'generation_contract_revision':2,'behavior_checks':['video_trim'],'behavior_dependencies':['storeTrim'],'relevant_fields':{'app':['duration']},'relevant_functions':['applyTrim'],'functions':['validateTrim'],'parameters':{},'state_writes':[],'system_contract':'Keep decimal precision.'}
+    contracts=project_parts.repair_contracts(item)
+    assert contracts=={'functions':['validateTrim'],'parameters':{},'state_writes':[],'system_contract':'Keep decimal precision.'}
+    html={'controls':{'title':{'tag':'input'}},'present_attributes':{'title':['type']},'raw_source':True}
+    assert project_parts.repair_contracts(html)=={'controls':html['controls'],'present_attributes':html['present_attributes']}
+    css={'css_selectors':['body'],'css_declarations':{'display':'grid'},'media_query':'(max-width: 600px)','include_html':True}
+    assert set(project_parts.repair_contracts(css))=={'css_selectors','css_declarations','media_query'}

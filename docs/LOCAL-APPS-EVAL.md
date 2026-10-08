@@ -883,3 +883,22 @@ Pesan validasi kini memuat pasangan waktu yang diharapkan dan tersimpan,
 dengan identitas kasus stabil saat nilai aktual berubah. Tes regresi
 memastikan parseInt ditolak untuk 1,25 sampai 3,75 detik dan diagnosis
 menampilkan nilai 1 dan 3 yang benar-benar tersimpan.
+
+## Menyaring konteks perbaikan
+
+v68 gagal setelah 228,6 detik. Keluaran awal mengirim Boolean sebagai
+argumen applyTrim; patch berikutnya menyalin metadata evaluator seperti
+raw_source, behavior_checks dan generation_contract_revision ke JavaScript.
+Patch tidak valid ditolak, tetapi konteksnya sendiri terlalu bercampur.
+
+Kontrak perbaikan kini memakai daftar bidang yang memang menjelaskan kode
+(function, parameter, state yang boleh ditulis, kontrol HTML, aturan CSS).
+Metadata evaluator/cache tidak disertakan. Simbol outer dan helper tetap
+dijelaskan melalui konteks JavaScript. Tes regresi mencakup kontrak JS,
+HTML dan CSS serta mempertahankan batas state read-only.
+
+215 tes terkait Windows lolos setelah penyaringan konteks. Uji nyata v69
+berakhir gagal setelah 178,3 detik: model mendefinisikan ulang helper, lalu
+pada perbaikan memanggil rejectTrim sebagai metode objek. Guard tetap
+menolak keluaran itu. Penyaringan konteks belum membuktikan editor berhasil.
+CI Linux untuk commit 7efc940 sebelumnya lolos 468 tes.

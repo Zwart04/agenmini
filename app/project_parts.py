@@ -240,6 +240,16 @@ def helper_failure_identity(error):
     return error.split(' [observed ',1)[0].split('; actual=',1)[0]
 
 
+def repair_contracts(item):
+    """Expose source requirements, not evaluator bookkeeping, to the model."""
+    allowed={'functions','parameters','state_writes','system_contract','controls',
+             'present_attributes','absent_attributes','direct_parent_classes',
+             'required_text','required_tags','required_patterns','root_class',
+             'root_only_class','root_tag','empty_container','dom_refs','slots','slot',
+             'css_selectors','css_declarations','css_generic_font','media_query'}
+    return {key:value for key,value in item.items() if key in allowed}
+
+
 def part_system(kind):
     instruction={
         'document':'HTML document only. Empty body. No CSS or JavaScript implementation.',
@@ -620,7 +630,7 @@ async def generate(brief,ctx,on_event=None):
                 if attempt and source_patchable and (kind in ('css','node','panel','document') or kind=='js' and item.get('functions')) and source and stats.get('finish_reason') not in ('length','max_tokens'):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
-                        contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps({key:value for key,value in item.items() if key not in ('task','tokens','file','kind','name')}),
+                        contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n' if kind=='js' else '')+json.dumps(repair_contracts(item)),
                         max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,single_line=kind!='document')
                 else:
                     schema=None if item.get('raw_source') else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
