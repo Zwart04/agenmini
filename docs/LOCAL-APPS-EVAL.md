@@ -844,3 +844,25 @@ diperbarui. Ini bukti keterbatasan hasil model, bukan keberhasilan editor.
 211 tes terkait lolos di Windows sebelum penyesuaian penanda diagnostik;
 tes trim dan identitas kasus dijalankan ulang sesudahnya. CI Linux a0c9ee8
 lolos 464 tes; perubahan v64/v65 belum termasuk dalam angka Linux itu.
+
+## Memisahkan arti contoh tes dari tindakan runtime
+
+Diagnosis model pada v65 salah mengartikan dua input uji sebagai dua
+panggilan status dalam satu fungsi. Konteks diagnosis dan patch kini
+menegaskan bahwa tiap contoh adalah pemanggilan terpisah; perbaikan harus
+umum dan tidak boleh hard-code nilai contoh. Tes jalur lokal/online/router
+memeriksa konteks yang sama diteruskan ke kedua tahap.
+
+Instruksi reportTrim juga diubah menjadi urutan menghitung nilai lokal,
+membangun pesan, memanggil setStatus, lalu updateTimeline, tanpa batas
+empat baris. v66 menghasilkan implementasi model yang benar pada percobaan
+pertama; trim_report, trim_apply dan trim_reject lolos pemeriksaan perilaku.
+Kode runtime tetap berasal dari model lokal, bukan dari fixture evaluator.
+
+Percobaan v66 berakhir setelah 251,5 detik pada validateTrim: keluaran awal
+hanya mengembalikan predicate tanpa memanggil applyTrim/rejectTrim. Perbaikan
+terakhir mencoba mendeklarasikan ulang app sehingga ditolak. Timeline,
+ekspor dan browser end-to-end belum lulus; editor tidak dinyatakan selesai.
+
+214 tes terkait Windows lolos pada perubahan v66. CI Linux commit 56c0bfd
+lolos 465 tes (sebelum perubahan konteks contoh pada v66).

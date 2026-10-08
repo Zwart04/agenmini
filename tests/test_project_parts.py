@@ -1476,3 +1476,18 @@ async def test_trim_report_feedback_includes_observed_calls_and_expected_duratio
 
     changed=await project_checks.inspect_helper(source.replace('"-"','" plus "'),'trim_report')
     assert {project_parts.helper_failure_identity(e) for e in errors}=={project_parts.helper_failure_identity(e) for e in changed}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_patch_context_keeps_behavior_examples_as_independent_invocations(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    calls=[]
+    async def model(messages,**options):
+        body=json.loads(messages[1]['content']);calls.append(body)
+        assert 'separate invocation' in body['test_context']
+        assert 'hard-code' in body['test_context']
+        return {'content':'A correction is needed.' if len(calls)==1 else json.dumps({'edits':[{'find':'function f(){return 0;}','replace':'function f(){return 1;}'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    await project_patches.request('function f(){return 0;}',task='Compute the requested result',errors=['Helper behavior failed: incorrect result'],contracts='',diagnose=True)
+    assert len(calls)==2

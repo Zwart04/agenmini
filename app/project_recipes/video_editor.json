@@ -1461,7 +1461,7 @@
       "functions": [
         "reportTrim"
       ],
-      "task": "Write only JavaScript function reportTrim(start,end), at most 4 lines. Call the existing setStatus once, with a message containing the numeric difference end-start followed by seconds, and false as the error flag. Then call standalone updateTimeline() once; it is implemented later. Only these two calls.",
+      "task": "Implement complete function reportTrim(start,end). First calculate the duration by subtracting start from end, storing the numeric result in a local variable. Build a message from that result and the word seconds. Call existing setStatus with that message as its first argument and false as its second argument. Finally call existing updateTimeline with no arguments. Each function is called once per invocation. Do not redefine either helper.",
       "relevant_fields": {
         "app": [],
         "ui": []
