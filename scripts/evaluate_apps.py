@@ -5,6 +5,43 @@ must be checked separately. This script records actual failures as failures.
 import argparse, asyncio, hashlib, json, os, secrets, socket, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
+def print_case_result(name, result):
+    """Keep console summaries ASCII-safe; UTF-8 result files retain all text."""
+    print('CASE RESULT',name,json.dumps(result,ensure_ascii=True)[:1400],flush=True)
+
+
+def failed_source_candidates(previous, report, recipe_path, accepted):
+    """Resume exact failed model text, never call it a validated implementation.
+
+    Legacy attempts have no per-task hash. Require the exact recipe file hash
+    from their report before deriving that metadata. Only complete original
+    JS responses are eligible; patched/truncated text needs stronger origins.
+    The normal generator checks every candidate again before using it.
+    """
+    from app import project_parts
+    expected=report.get('generator_source_sha256',{}).get('app/project_recipes/video_editor.json')
+    if expected != hashlib.sha256(recipe_path.read_bytes()).hexdigest():return {}
+    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));candidates={}
+    for path in sorted((previous/'attempts').glob('*.json')):
+        try:
+            value=json.loads(path.read_text(encoding='utf-8'));index=value['index']
+            if type(index) is not int or index<0 or index>=len(recipe['parts']) or index in accepted:continue
+            item=recipe['parts'][index]
+            if item.get('kind')!='js' or item['name']!=value.get('part') or value.get('response_kind')!='source':continue
+            if value.get('repair_chain') or value.get('patch_error') or value.get('stats',{}).get('finish_reason')!='stop':continue
+            source=value['source'];raw=value['raw_source'];fmt=value.get('source_format','raw')
+            if not isinstance(source,str) or not source.strip() or len(source.encode())>65536:continue
+            decoded=project_parts.decode_source(raw,item['file'],fmt)
+            if project_parts.select_model_helper(decoded,item)!=source:continue
+            item={**item,'generation_contract_revision':2}
+            evidence={'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
+                      'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),
+                      'model':value.get('stats',{}).get('served_model',''),'source_format':fmt,
+                      'checkpoint_status':'failed source; requires full validation and model repair'}
+            candidates[index]={'source':source,'raw_source':raw,'evidence':evidence}
+        except (ValueError,KeyError,TypeError):continue
+    return candidates
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--server-exe',type=Path,required=True);p.add_argument('--gguf',type=Path,required=True)
@@ -15,12 +52,14 @@ def main():
     p.add_argument('--thinking-budget',type=int,default=0,help='Opt-in bounded Qwen reasoning tokens per part (0 disables).')
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
     p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
+    p.add_argument('--resume-failed-parts',action='store_true',help='Also recheck exact complete failed JS responses from an identical recipe; never treat them as passed.')
     p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25','greedy'],default='default')
     p.add_argument('--chat-template-file',type=Path,help='Explicit model-author chat serialization when GGUF metadata lacks it; not application source.')
     p.add_argument('--tokenizer-pre',choices=['deepseek-coder'],help='Explicit llama.cpp pre-tokenizer for legacy DeepSeek GGUF missing this metadata.')
     args=p.parse_args();exe=args.server_exe.resolve();model=args.gguf.resolve()
     if not 0<=args.thinking_budget<=512:p.error('--thinking-budget must be 0..512')
     if args.prompt_file and args.case=='all':p.error('--prompt-file requires one --case')
+    if args.resume_failed_parts and not args.resume_parts:p.error('--resume-failed-parts requires --resume-parts')
     if args.output_dir:
         run=args.output_dir.resolve();run.mkdir(parents=True,exist_ok=False)
     else:run=Path(tempfile.mkdtemp(prefix='agenmini-apps-eval-'))
@@ -31,7 +70,7 @@ def main():
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
     repo_root=Path(__file__).resolve().parents[1]
     generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_dom_checks.py',repo_root/'app/project_canvas_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -52,7 +91,10 @@ def main():
             actual_template=hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None
             if (old.get('chat_template_sha256'),old.get('tokenizer_pre'),old.get('sampling_profile','default'),old.get('thinking_budget',0)) != (actual_template,args.tokenizer_pre,args.sampling_profile,args.thinking_budget):
                 raise ValueError('Resume requires matching chat serialization, pre-tokenizer and inference settings.')
-            project_parts.part_cache.set({int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')})
+            accepted={int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')}
+            failed=failed_source_candidates(args.resume_parts,old,repo_root/'app/project_recipes/video_editor.json',accepted) if args.resume_failed_parts else {}
+            project_parts.part_cache.set({**failed,**accepted})
+            if failed:print('RECHECK FAILED MODEL CHECKPOINTS',sorted(failed),flush=True)
         llm.coding_reasoning.set(bool(args.thinking_budget))
         original=main.Path.is_file
         main.Path.is_file=lambda self:False if self.name=='host-integrations.py' else original(self)
@@ -92,13 +134,13 @@ def main():
                      'behavior_verified':False,'checks':'Independently test actual import, editing, playback, conversion/export/download and responsive layout in a browser.'}
                 rows.append(row)
                 report={'model':args.model_label or model.name,'gguf_sha256':hashlib.sha256(model.read_bytes()).hexdigest(),
-                    'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget,
+                    'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget,'resume_failed_parts':args.resume_failed_parts,
                     'chat_template_sha256':hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None,
                     'tokenizer_pre':args.tokenizer_pre,
                     'generator_source_sha256':generator_sources,
                     'limitations':'Real CPU inference. tg uses the shared agent path, not Telegram network. Syntax/ZIP checks do not establish behavior.'}
                 (run/'results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-                print('CASE RESULT',name,json.dumps(result,ensure_ascii=False)[:1400],flush=True)
+                print_case_result(name,result)
         finally:await llm.session().close()
         print('REPORT',run/'results.json',flush=True)
     try:

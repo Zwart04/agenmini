@@ -1072,3 +1072,108 @@ bukan bagian kontrak. Timeline tersimpan sebagai kode model yang terverifikasi
 pada tahap ini; overlay, kanvas, encoder, binding kontrol dan verifikasi
 browser/ekspor/mobile masih harus diselesaikan. Tidak ada ZIP editor layak
 yang dipublikasikan dari run ini.
+
+## Overlay dan frame ekspor
+
+V84 menghasilkan fungsi overlay yang lengkap, tetapi menghapus input yang
+hanya berisi spasi. Patch mengganti baris hidden, menambah kegagalan, dan
+regenerasi melakukan shadowing app/ui; run gagal setelah 105,8 detik.
+Pemeriksa kini menunjukkan properti, input yang diharapkan dan nilai aktual.
+Editor patch mengenali diagnostik teks/nilai dan menawarkan baris akses
+properti tersebut (termasuk alias dan bracket), tanpa memilih penggantinya.
+Regresi mereproduksi sumber v84 dan memastikan baris visibility tidak ikut
+menjadi sasaran galat textContent.
+
+V85 menulis badan overlay tanpa deklarasi pada percobaan awal, lalu berhasil
+menulis updateText lengkap melalui regenerasi (20,9 detik). Teks literal,
+spasi, visibilitas dan refresh hanya ketika loaded lolos pemeriksaan.
+Run kemudian gagal setelah 235,1 detik pada kanvas: fungsi tercampur,
+deklarasi/state baru, app.preview yang tidak ada dan keluaran terpotong.
+229 tes terkait Windows lolos pada revisi ini. CI Linux commit 0c8da60
+berhasil; log run 37727970416 mengonfirmasi 481 tes Python lolos.
+
+Persiapan kanvas dan penggambaran frame kini merupakan dua tugas model.
+Fixture baru memeriksa ukuran maksimal 720px, rasio landscape/portrait,
+dimensi invalid, 2d tidak tersedia, serta pelestarian state saat galat.
+Frame harus memakai preview nyata, caption asli, ukuran/font/alignment,
+white fill dan outline/shadow untuk kontras. Save/restore dan format warna
+hex/RGB/RGBA yang setara didukung. Referensi ada hanya di tes; tidak diberikan
+kepada model atau disisipkan ke hasil. Hash fixture DOM/kanvas kini ikut
+laporan evaluator. Pemeriksaan ini tetap tidak membuktikan video WebM baru
+atau tampilan browser; keduanya masih memerlukan uji media/browser nyata.
+
+V86 akhirnya menulis prepareCanvas yang benar pada percobaan ketiga:
+dimensi finite/positif, ukuran proporsional, context 2d dan penyimpanan state
+setelah pemeriksaan. Paint frame masih gagal pada koordinat, font tanpa
+ukuran px, warna, kontras dan teks yang dipangkas. Run tercatat gagal setelah
+229,3 detik. Cetak ringkasan kemudian gagal pada codec konsol Windows cp1252
+untuk teks Jepang; results.json UTF-8 sudah tersimpan dan server tetap
+dihentikan lewat finally. Ringkasan kini ASCII-safe; tes subprocess cp1252
+membuktikan JSON mengembalikan teks Unicode asli. Failures tidak berubah
+menjadi sukses dan laporan berkas tetap menyimpan Unicode penuh.
+
+Pengaturan gaya caption kini satu helper model terpisah, diuji pada enam
+lebar kanvas. Paint frame memakai helper yang sudah tervalidasi dan harus
+memakai teks asli serta posisi/max width yang benar. Fixture video memiliki
+metadata siap untuk menerima guard preview yang sah; dimensi invalid diuji
+pada kedua sumbu. 231 tes terkait Windows lolos sebelum pemecahan gaya,
+dan empat tes kanvas/konsol lolos sesudahnya. Editor lengkap belum lulus.
+
+V87 gagal setelah 149,7 detik: frame tidak menggambar preview dan fillText
+tidak menerima argumen batas lebar. Instruksi frame kini menyebut urutan
+argumen API, termasuk menggambar video sebelum pemeriksaan caption kosong.
+233 tes terkait Windows lolos pada revisi tersebut.
+
+Kasus font diperluas dengan lebar 590, 610 dan 1019 agar membedakan nearest,
+floor dan ceil. Pemeriksaan ulang kode gaya v87 membuktikan pembulatan floor
+yang sebelumnya lolos kasus terlalu sempit. V88 gagal setelah 144,4 detik:
+patch pertama mengubah baris font tanpa memperbaiki rumus; patch berikutnya
+mengganti floor menjadi ceil, menimbulkan kegagalan baru dan dikembalikan.
+233 tes regresi Windows lolos setelah uji tersebut. Status tetap gagal;
+tidak ada klaim browser, ekspor WebM atau editor lengkap telah lulus.
+
+Diagnostik properti terhitung sekarang dapat memilih assignment asli beserta
+deklarasi/assignment lokal yang menjadi inputnya lewat parser Acorn. Ini
+analisis statis terbatas, bukan eksekusi atau kode pengganti. Nama ambigu
+antarscope disertakan konservatif; parser gagal memakai jalur perbaikan
+biasa. Tes mereproduksi rumus font v88, bracket access, assignment terpisah
+dan keluaran parser gagal. Jalur request yang sama diperiksa untuk lokal,
+API langsung dan router; mock ini tidak membuktikan koneksi provider nyata.
+
+V89 gagal setelah 192,9 detik. Regenerasi membuat konstanta ukuran teks yang
+kemudian ditulis ulang; patch model berikutnya memakai nama variabel yang
+tidak terdefinisi. Permintaan pertama juga meniru konteks app/ui yang tidak
+dibutuhkan helper berparameter. Konteks simbol kosong kini dihilangkan;
+kontrak helper berparameter tidak memperkenalkan state aplikasi. 237 tes
+regresi Windows dan lima tes konteks terarah lolos sebelum uji ulang v90.
+Pemangkasan konteks tidak memasukkan implementasi atau melonggarkan perilaku.
+
+V90 gagal setelah 113,6 detik. Helper pertama tidak melakukan clamp minimum;
+patch tidak mengubah sumber dan ditolak, lalu regenerasi menulis ulang
+konstanta. 238 tes regresi Windows lolos. Selektor baris perbaikan kini juga
+mengaitkan galat assignment konstanta dengan deklarasi/write asli (termasuk
+increment), tanpa mengganti binding sendiri. Enam tes terarah lolos setelah
+perubahan ini. Pemeriksaan secret scan riwayat menghasilkan nol temuan.
+
+V91 gagal setelah 112,5 detik. Respons terakhir sudah menghitung nearest
+dan minimum serta mengatur properti canvas, tetapi berupa method header
+tanpa kata kunci function. 239 tes regresi Windows lolos sebelum penambahan
+checkpoint. Harness mengenali bentuk ini sebagai sasaran perbaikan header
+oleh model; tidak menambahkan kata kunci sendiri atau menjalankan kode rusak.
+
+Evaluator memiliki opt-in `--resume-failed-parts` bersama `--resume-parts`.
+Bobot, chat serialization, pre-tokenizer, sampling dan thinking tetap harus
+sama. Untuk respons gagal legacy, hash seluruh recipe juga harus identik.
+Hanya respons JS asli lengkap, bukan patch/truncated, yang bisa disimpan
+sebagai kandidat; raw decoding/selection harus persis cocok dengan source.
+Kandidat diberi status gagal, dicetak dalam log, dan diperiksa kembali lewat
+jalur generator biasa. Tidak berarti bagian tersebut sudah lolos. Respons
+patch berikutnya harus tetap berasal dari model dan tercatat dalam provenance.
+
+V92 memakai checkpoint v91, tetapi model mengirim ulang seluruh badan pada
+edit header, sehingga batas satu baris menolaknya. Regenerasi berikutnya
+menulis statement tanpa fungsi; run gagal setelah 90,6 detik. 241 tes regresi
+Windows lolos. Request perbaikan deklarasi sekarang hanya menampilkan header
+asli dan ruang lingkup sintaks; badan tetap disimpan untuk penerapan patch
+dan pemeriksaan. Tidak ada kata kunci yang disisipkan evaluator. Dua tes
+terarah lolos sesudah perubahan konteks header.

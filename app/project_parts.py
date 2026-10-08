@@ -235,6 +235,17 @@ def missing_async_repairable(source,item,errors):
     return any('SyntaxError: await is only valid in async functions' in error for error in errors)
 
 
+def missing_function_keyword_repairable(source,item,errors):
+    """Route a complete-looking method header to model repair; invent no bytes."""
+    names=item.get('functions',[])
+    if item.get('kind')!='js' or len(names)!=1 or not source.rstrip().endswith('}'):return False
+    if any('empty or truncated' in error for error in errors):return False
+    header=r'\s*(?:async\s+)?'+re.escape(names[0])+r'\s*\([^\n]*\)\s*\{\s*$'
+    return bool(re.fullmatch(header,source.splitlines()[0]) and
+                any("SyntaxError: Unexpected token '{'" in error for error in errors) and
+                'Define complete named function '+names[0]+'.' in errors)
+
+
 def helper_failure_identity(error):
     """Changing a wrong value is not a new failing case; case coverage is stable."""
     return error.split(' [observed ',1)[0].split('; actual=',1)[0]
@@ -445,10 +456,10 @@ def js_prompt_context(prior, relevant=None, functions=None):
     contracts=json.loads(js_contract_context(prior,relevant,functions))
     fields=[name+'.'+key for name,keys in contracts['globals'].items() for key in keys]
     signatures=[re.sub(r'^(?:async\s+)?function\s+','',signature) for signature in contracts['existing_functions']]
-    return ('Read and write these existing state properties as required by the task. Keep existing app/ui objects:\n'+
-            ('\n'.join(fields) or '(none required)')+
-            '\nAlready implemented helpers: call these names directly, not app/ui methods. Do not define them again:\n'+
-            ('\n'.join(signatures) or '(none required)'))
+    sections=[]
+    if fields:sections.append('Read and write these existing state properties as required by the task. app and ui are separate existing global objects: ui properties belong to ui, never app.ui. Keep both objects:\n'+'\n'.join(fields))
+    if signatures:sections.append('Already implemented helpers: call these names directly, not app/ui methods. Do not define them again:\n'+'\n'.join(signatures))
+    return '\n'.join(sections)
 
 
 def validated_helper_context(item, helper_sources, max_chars=2400):
@@ -616,6 +627,7 @@ async def generate(brief,ctx,on_event=None):
             if future:context['future_standalone_helpers']='These names will be implemented by later parts; call them directly, not as app/ui or DOM methods: '+', '.join(dict.fromkeys(future))
             context['architecture']=item.get('context','Use the existing app/ui globals and helpers. Browser-native APIs only; no class or module wrappers.')
             context['previous_source']=js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))
+            if not context['previous_source']:context.pop('previous_source')
             helpers_context=validated_helper_context(item,helper_sources)
             if helpers_context:context['validated_helpers']=helpers_context
             if item.get('include_html') is False:
@@ -635,7 +647,8 @@ async def generate(brief,ctx,on_event=None):
             system+=' Required selectors are literal CSS selectors, not placeholders: '+json.dumps(item.get('css_selectors',[]))+'.'
             if item.get('css_declarations'):system+=' Use exactly the required CSS properties/values; do not add other declarations.'
         if 'state_writes' in item:
-            system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' All app state is read-only in this function. Do not assign or reset app properties.')
+            isolated=kind=='js' and item.get('relevant_fields')=={'app':[],'ui':[]} and item.get('relevant_functions')==[]
+            system+=(' Only these app state fields may be assigned: '+', '.join(item['state_writes'])+'. All other app state is read-only. Never reset it.' if item['state_writes'] else ' Do not use or create any global state.' if isolated else ' All app state is read-only in this function. Do not assign or reset app properties.')
         if item.get('system_contract'):system+=' '+item['system_contract']
         source='';repair_chain=[];origin_raw=None;errors=[];source_patchable=False;source_format='raw';initial_selection=''
         for attempt in range(3):
@@ -777,9 +790,10 @@ async def generate(brief,ctx,on_event=None):
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
                 async_header=missing_async_repairable(source,item,errors)
+                function_header=missing_function_keyword_repairable(source,item,errors)
                 # An unchanged patch is evidence that this edit path stalled.
                 # Spend the remaining bounded attempt on fresh model source.
-                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header) and (not missing_structure or async_header) and not patch_error and bool(source)
+                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header or function_header) and (not missing_structure or async_header or function_header) and not patch_error and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'â€¦')

@@ -1868,7 +1868,7 @@
       "functions": [
         "updateText"
       ],
-      "task": "Define ONLY updateText(). Assign ui.textOverlay.textContent from ui.titleInput.value safely, toggle hidden based on trimmed empty text, then call updateTimeline() if loaded. Do not make updateTimeline call updateText or cause recursive loops. No innerHTML from user text, no handlers or globals.",
+      "task": "Write complete function updateText() with no parameters. FIRST set ui.textOverlay.textContent to ui.titleInput.value, for EVERY input including empty strings and whitespace. Do not put that assignment inside a condition. Next set ui.textOverlay.hidden to whether ui.titleInput.value.trim() is empty. Last, call updateTimeline() once only if app.loaded is true. Use the existing ui/app objects directly. No queries, local replacements for ui/app, new elements, other functions or event handlers.",
       "raw_source": true,
       "include_html": false,
       "relevant_fields": {
@@ -1882,20 +1882,81 @@
       },
       "relevant_functions": [
         "updateTimeline"
-      ]
+      ],
+      "behavior_checks": [
+        "video_text_overlay"
+      ],
+      "state_writes": [],
+      "system_contract": "Begin with function updateText(). app and ui are already existing global objects. Use their properties directly, never declare or shadow app or ui. textOverlay is a DOM element with textContent and a boolean hidden property. titleInput is an input element with a string value. Set the hidden property, not a CSS class. updateTimeline already exists; call it without redefining it. Plain JavaScript."
     },
     {
-      "name": "Canvas ekspor",
+      "name": "Prepare export canvas",
       "file": "app.js",
       "kind": "js",
-      "tokens": 700,
+      "tokens": 450,
       "functions": [
-        "prepareCanvas",
-        "paintFrame"
+        "prepareCanvas"
       ],
-      "task": "Define prepareCanvas() using actual preview.videoWidth/videoHeight, require >0. Create offscreen canvas, width min(originalWidth,720), height rounded proportional ratio; get2d context, store app.canvas/app.ctx, throw descriptive errors if unsupported. Define paintFrame(): drawImage(preview,0,0,canvas.width,canvas.height), then if titleInput nonempty draw centered white bold system-font overlay at x width/2,y height*.9; textAlign center, textBaseline middle, font max(14,round(width/30))px, dark shadow or stroke so visible; max text width90% canvas. This part only prepares/paints, no media recorder, loops, events or exports. Preserve shared fields.",
       "raw_source": true,
       "include_html": false,
+      "task": "Write complete function prepareCanvas(). Read actual ui.preview.videoWidth and videoHeight. Require both to be finite positive numbers; otherwise throw a descriptive Error before changing app state. Create a detached canvas using document.createElement with canvas tag. Set width to the smaller of videoWidth and 720. Set height to videoHeight times canvas width divided by videoWidth, rounded and at least 1. Obtain its 2d context; if null, throw a descriptive Error before changing app state. Finally store the canvas in app.canvas and that context in app.ctx. No painting, loops or other functions.",
+      "relevant_fields": {
+        "app": [
+          "canvas",
+          "ctx"
+        ],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_canvas_prepare"
+      ],
+      "state_writes": [
+        "canvas",
+        "ctx"
+      ],
+      "system_contract": "Begin with function prepareCanvas(). app and ui already exist; never declare them again. ui.preview is the existing HTML video element, not app.preview. The export canvas is a new detached HTML canvas, not a query or OffscreenCanvas constructor. Use plain JavaScript."
+    },
+    {
+      "name": "Configure export caption style",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 400,
+      "functions": [
+        "configureCaptionStyle"
+      ],
+      "raw_source": true,
+      "include_html": false,
+      "task": "Write complete function configureCaptionStyle(ctx,width). Divide width by 30 first, round that quotient to the nearest integer with JavaScript Math.round (never floor or ceil), and apply JavaScript Math.max with 14 for a minimum font size. Compute the final size once, without later reassignment. Set ctx.font to a string containing bold, that computed number followed by px, and font family system-ui. Set ctx.fillStyle to white, ctx.textAlign to center, ctx.textBaseline to middle. Set ctx.shadowColor to black and ctx.shadowBlur to a positive number. Configure only these context properties, without drawing or other functions.",
+      "parameters": {
+        "ctx": "existing canvas 2d context whose drawing style properties may be assigned",
+        "width": "positive numeric canvas width in pixels"
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "video_caption_style"
+      ],
+      "state_writes": [],
+      "system_contract": "Begin with function configureCaptionStyle(ctx,width). Use the supplied ctx and width parameters without redeclaring them. Canvas font requires bold weight, numeric px size and system-ui family. Output concise plain JavaScript without comments, imports or painting.",
+      "context": "This function uses only its two supplied parameters and local variables. It does not need shared state or DOM."
+    },
+    {
+      "name": "Paint export frame",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 600,
+      "functions": [
+        "paintFrame"
+      ],
+      "raw_source": true,
+      "include_html": false,
+      "task": "Write complete function paintFrame(). FIRST call app.ctx.drawImage with five arguments in this order: ui.preview, zero, zero, app.canvas.width, app.canvas.height. Do this for EVERY frame, including an empty caption. If ui.titleInput.value.trim() is empty, return. Otherwise call configureCaptionStyle with app.ctx and app.canvas.width. Then call app.ctx.fillText with FOUR arguments in this order: original ui.titleInput.value, app.canvas.width divided by two, app.canvas.height times 0.9, app.canvas.width times 0.9. Preserve video source, playback time and input text. No data URLs, canvas creation, loops, state resets or functions.",
       "relevant_fields": {
         "app": [
           "canvas",
@@ -1906,7 +1967,20 @@
           "titleInput"
         ]
       },
-      "relevant_functions": []
+      "relevant_functions": [
+        "configureCaptionStyle"
+      ],
+      "behavior_checks": [
+        "video_canvas_frame"
+      ],
+      "state_writes": [],
+      "system_contract": "Begin with function paintFrame(). app and ui are TWO separate existing global objects; app.ui does not exist. Use app.canvas, app.ctx, ui.preview and ui.titleInput directly. drawImage copies the existing video onto the canvas, never the other way round. fillText fourth argument limits text width. configureCaptionStyle already exists; call it without redefining it. Plain JavaScript.",
+      "include_helper_sources": [
+        "configureCaptionStyle"
+      ],
+      "behavior_dependencies": [
+        "configureCaptionStyle"
+      ]
     },
     {
       "name": "Encode WebM",

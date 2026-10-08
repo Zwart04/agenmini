@@ -1118,7 +1118,8 @@ def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
     prompt=project_parts.js_prompt_context(prior,{'app':['loaded'],'ui':[]},['setBusy'])
     assert 'app.loaded' in prompt and 'app.busy' not in prompt and 'ui.preview' not in prompt
     assert 'setBusy(flag)' in prompt and 'function setBusy' not in prompt and 'unused' not in prompt
-    assert 'not app/ui methods' in prompt and 'Keep existing app/ui objects' in prompt
+    assert 'not app/ui methods' in prompt and 'app and ui are separate existing global objects' in prompt
+    assert 'never app.ui' in prompt
     assert 'const app=' not in prompt and '"globals"' not in prompt
 
 
@@ -1644,6 +1645,102 @@ async def test_timeline_clip_bounds_preserve_supplied_element_and_use_general_pe
     assert await project_checks.inspect_helper(helpers+bounds.replace('return clip;','clip.textContent="Changed";return clip;'),'timeline_clip_bounds')
 
 
+@pytest.mark.asyncio
+async def test_text_overlay_preserves_literal_content_visibility_and_loaded_refresh():
+    # Reference for the checker only; never provided to generated app code.
+    source="function updateText(){ui.textOverlay.textContent=ui.titleInput.value;ui.textOverlay.hidden=ui.titleInput.value.trim()==='';if(app.loaded)updateTimeline();}"
+    assert not await project_checks.inspect_helper(source,'video_text_overlay')
+    for wrong in [source.replace('textContent=ui.titleInput.value;', 'textContent=ui.titleInput.value.trim();'),
+                  source.replace('textContent=', 'innerHTML='),
+                  source.replace("ui.textOverlay.hidden=ui.titleInput.value.trim()==='';", "ui.textOverlay.classList.toggle('hidden',ui.titleInput.value.trim()==='');"),
+                  source.replace('if(app.loaded)', ''),
+                  source.replace('if(app.loaded)updateTimeline();', '')]:
+        assert await project_checks.inspect_helper(wrong,'video_text_overlay')
+
+
+@pytest.mark.asyncio
+async def test_overlay_text_diagnostics_target_text_assignments_not_visibility():
+    # Reproduce the actual v84 failure without providing this source to models.
+    source="""function updateText(){
+  if(ui.titleInput.value.trim()===''){
+    ui.textOverlay.textContent='';
+    ui.textOverlay.hidden=true;
+  }else{
+    ui.textOverlay.textContent=ui.titleInput.value;
+    ui.textOverlay.hidden=false;
+  }
+  if(app.loaded)updateTimeline();
+}"""
+    errors=await project_checks.inspect_helper(source,'video_text_overlay')
+    assert errors and all('ui.textOverlay.textContent expected' in e and '"   "' in e for e in errors)
+    assert project_patches.failing_lines(source,errors)==[3,6]
+    alias=source.replace('ui.textOverlay.textContent', 'overlay["textContent"]')
+    assert project_patches.failing_lines(alias,errors)==[3,6]
+    missing=source.replace('.textContent','.innerHTML')
+    assert project_patches.failing_lines(missing,errors)==list(range(1,len(source.splitlines())+1))
+
+
+@pytest.mark.asyncio
+async def test_canvas_preparation_preserves_ratio_and_state_on_invalid_or_unsupported_inputs():
+    # Checker reference only; never used as generated runtime or model prompt.
+    source="""function prepareCanvas(){
+      const width=ui.preview.videoWidth,height=ui.preview.videoHeight;
+      if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)throw new Error('Invalid dimensions');
+      const canvas=document.createElement('canvas');canvas.width=Math.min(width,720);canvas.height=Math.max(1,Math.round(height*canvas.width/width));
+      const ctx=canvas.getContext('2d');if(!ctx)throw new Error('2d unavailable');
+      app.canvas=canvas;app.ctx=ctx;
+    }"""
+    assert not await project_checks.inspect_helper(source,'video_canvas_prepare')
+    for wrong in [source.replace('Math.min(width,720)','Math.max(width,720)'),
+                  source.replace('Math.round(height*canvas.width/width)','height'),
+                  source.replace("if(!ctx)throw new Error('2d unavailable');",''),
+                  source.replace("app.canvas=canvas;app.ctx=ctx;",'app.canvas={width:canvas.width,height:canvas.height};app.ctx=ctx;')]:
+        assert await project_checks.inspect_helper(wrong,'video_canvas_prepare')
+
+
+@pytest.mark.asyncio
+async def test_canvas_frame_draws_real_preview_and_original_readable_caption():
+    # Test fixture only, never supplied to the model or inserted into an app.
+    source="""function paintFrame(){
+      const canvas=app.canvas,ctx=app.ctx;ctx.drawImage(ui.preview,0,0,canvas.width,canvas.height);
+      const text=ui.titleInput.value;if(!text.trim())return;
+      ctx.fillStyle='white';ctx.font='bold '+Math.max(14,Math.round(canvas.width/30))+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='black';ctx.shadowBlur=4;
+      ctx.fillText(text,canvas.width/2,canvas.height*.9,canvas.width*.9);
+    }"""
+    assert not await project_checks.inspect_helper(source,'video_canvas_frame')
+    outline=source.replace("ctx.shadowColor='black';ctx.shadowBlur=4;",'ctx.save();ctx.strokeText(text,canvas.width/2,canvas.height*.9,canvas.width*.9);').replace('canvas.width*.9);\n    }','canvas.width*.9);ctx.restore();\n    }')
+    assert not await project_checks.inspect_helper(outline,'video_canvas_frame')
+    for white in ['#FFF', '#ffffffff', 'rgba(255,255,255,1)', 'rgb(100% 100% 100% / 100%)']:
+        assert not await project_checks.inspect_helper(source.replace("ctx.fillStyle='white'",f"ctx.fillStyle='{white}'"),'video_canvas_frame')
+    for wrong in [source.replace('ctx.drawImage(ui.preview','ctx.drawImage(app.canvas'),
+                  source.replace('const text=ui.titleInput.value;','const text=ui.titleInput.value.trim();'),
+                  source.replace('canvas.height*.9','canvas.width*.9'),
+                  source.replace("ctx.fillStyle='white'", "ctx.fillStyle='black'"),
+                  source.replace('ctx.shadowBlur=4','ctx.shadowBlur=0'),
+                  source.replace("ctx.shadowColor='black'","ctx.shadowColor='rgba(0,0,0,0)'"),
+                  source.replace('ctx.fillText(text,',"ui.preview.src='data:image/png';ctx.fillText(text,"),
+                  source.replace('if(!text.trim())return;','')]:
+        assert await project_checks.inspect_helper(wrong,'video_canvas_frame')
+    assert await project_checks.inspect_helper(outline.replace('ctx.strokeText(text,',"ctx.strokeStyle='white';ctx.strokeText(text,"),'video_canvas_frame')
+
+
+@pytest.mark.asyncio
+async def test_export_caption_style_scales_font_and_configures_without_painting():
+    # Reference only for behavioral fixtures; not a model prompt or app source.
+    style="function configureCaptionStyle(ctx,width){ctx.font='bold '+Math.max(14,Math.round(width/30))+'px system-ui';ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='black';ctx.shadowBlur=4;}"
+    assert not await project_checks.inspect_helper(style,'video_caption_style')
+    for wrong in [style.replace('Math.max(14,Math.round(width/30))','14'),
+                  style.replace('Math.round(width/30)','Math.floor(width/30)'),
+                  style.replace('Math.round(width/30)','Math.ceil(width/30)'),
+                  style.replace("+'px system-ui'","+' system-ui'"),
+                  style.replace("ctx.shadowColor='black'","ctx.shadowColor='transparent'"),
+                  style.replace('ctx.shadowBlur=4;',"ctx.shadowBlur=4;ctx.fillText('extra',0,0);")]:
+        assert await project_checks.inspect_helper(wrong,'video_caption_style')
+    frame="function paintFrame(){const canvas=app.canvas,ctx=app.ctx;ctx.drawImage(ui.preview,0,0,canvas.width,canvas.height);if(!ui.titleInput.value.trim())return;configureCaptionStyle(ctx,canvas.width);ctx.fillText(ui.titleInput.value,canvas.width/2,canvas.height*.9,canvas.width*.9);}"
+    assert not await project_checks.inspect_helper(style+frame,'video_canvas_frame')
+    assert await project_checks.inspect_helper(style+frame.replace('configureCaptionStyle(ctx,canvas.width);',''),'video_canvas_frame')
+
+
 def test_validated_helper_context_is_opt_in_scoped_and_never_truncates_source():
     sources={'small':'function small(){return 17;}', 'large':'function large(){'+(' ' * 100)+'return 2;}', 'unrelated':'secret unrelated source'}
     item={'relevant_functions':['small','large'], 'include_helper_sources':['unrelated','missing','large','small','small']}
@@ -1652,6 +1749,104 @@ def test_validated_helper_context_is_opt_in_scoped_and_never_truncates_source():
     assert sources['large'] not in context and 'function large' not in context
     assert sources['unrelated'] not in context
     assert project_parts.validated_helper_context({'relevant_functions':['small']},sources)==''
+
+
+def test_property_diagnostics_follow_computed_value_inputs_without_evaluating_source():
+    # Reproduce v88: the output line was fine; the referenced rounding was not.
+    source="""function configureCaptionStyle(ctx,width){
+ const ratio=width/30;
+ const fontSize=Math.max(14,Math.floor(ratio));
+ ctx.font=`bold ${fontSize}px system-ui`;
+ ctx.fillStyle='white';
+ ctx.shadowColor='black';
+}"""
+    errors=['Helper behavior failed: ctx.font expected bold 20px system font for width=590; actual="bold 19px system-ui"']
+    assert project_patches.failing_lines(source,errors)==[2,3,4]
+    assert project_patches.failing_lines(source.replace('ctx.font=', 'ctx["font"]='),errors)==[2,3,4]
+    assert project_patches.failing_lines(source,errors+['Unknown structural error'])==list(range(1,8))
+    assigned="""function f(ctx,width){
+ let size;
+ size=width/30;
+ ctx.font=String(size);
+ ctx.fillStyle='white';
+}"""
+    assert project_patches.property_dependency_lines(assigned,{'font'})==[2,3,4]
+    assert project_patches.property_dependency_lines('throw new Error("not evaluated");',{'font'})==[]
+    assert project_patches.property_dependency_lines('invalid syntax {',{'font'})==[]
+
+
+def test_parameter_only_context_does_not_introduce_unneeded_global_names():
+    prior='const app={duration:0},ui={preview:null};function formatTime(seconds){return String(seconds);}'
+    assert project_parts.js_prompt_context(prior,{'app':[],'ui':[]},[])==''
+    helper_only=project_parts.js_prompt_context(prior,{'app':[],'ui':[]},['formatTime'])
+    assert 'formatTime(seconds)' in helper_only and 'duration' not in helper_only
+    assert '(none required)' not in helper_only
+
+
+def test_constant_assignment_execution_error_targets_existing_binding_and_write():
+    source="""function f(ctx,width){
+ const size=width/30;
+ if(size<14){
+  size=14;
+ }
+ ctx.font=String(size);
+ ctx.fillStyle='white';
+}"""
+    errors=['Helper execution failed: Assignment to constant variable.']
+    assert project_patches.failing_lines(source,errors)==[2,4]
+    assert project_patches.failing_lines(source.replace('size=14;', 'size++;'),errors)==[2,4]
+    assert project_patches.failing_lines(source.replace('const size=', 'let size='),errors)==list(range(1,9))
+
+
+@pytest.mark.asyncio
+async def test_method_header_is_only_repair_routing_and_model_must_supply_actual_keyword(monkeypatch,tmp_path):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Predicate','file':'app.js','kind':'js','task':'Check MIME','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    bad='isVideoFile(file) {\n return Boolean(file&&typeof file.type==="string"&&file.type.startsWith("video/"));\n}'
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:return {'content':bad,'stats':{'finish_reason':'stop'}}
+        prompt=json.loads(messages[1]['content'])
+        assert prompt['numbered_lines']==[{'line':1,'text':'isVideoFile(file) {'}]
+        assert prompt['source']=='isVideoFile(file) {'
+        assert 'startsWith' not in messages[1]['content']
+        return {'content':json.dumps({'edits':[{'line':1,'replace':'function isVideoFile(file) {'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']=='function '+bad
+            assert project_patches.replay(bad,value['repair_chain'],'app.js')==value['source']
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==2
+    errors=["SyntaxError: Unexpected token '{'",'Define complete named function isVideoFile.']
+    assert project_parts.missing_function_keyword_repairable(bad,item,errors)
+    assert not project_parts.missing_function_keyword_repairable(bad,item,errors+['Source empty or truncated; finish the part concisely.'])
+    assert not project_parts.missing_function_keyword_repairable('wrong(file) {\n}',item,errors)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_model_repair_targets_property_inputs_and_does_not_supply_replacements(monkeypatch,backend):
+    source="function f(ctx,width){\n const size=Math.floor(width/30);\n ctx.font=String(size);\n ctx.fillStyle='white';\n}"
+    async def model(messages,**options):
+        prompt=json.loads(messages[1]['content'])
+        assert [v['line'] for v in prompt['numbered_lines']]==[2,3]
+        assert all(v['text'] in source for v in prompt['numbered_lines'])
+        assert 'Math.round' not in messages[1]['content']
+        if backend=='local':
+            schema=options['fmt']['json_schema']['schema']
+            assert schema['properties']['edits']['items']['properties']['line']['enum']==[2,3]
+        else:assert options['fmt']=='json'
+        return {'content':json.dumps({'edits':[{'line':2,'replace':' const size=width/30;'}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    result=await project_patches.request(source,task='Set readable proportional type',errors=['ctx.font expected a proportional size'],contracts='',indexed=True)
+    assert not result.get('patch_validation_error')
 
 
 @pytest.mark.asyncio

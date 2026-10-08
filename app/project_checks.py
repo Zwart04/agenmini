@@ -6,6 +6,9 @@ They are not a browser, and passing them cannot prove import/export behavior.
 import json
 from . import tools
 from .project_dom_checks import DOM_CASES
+from .project_canvas_checks import CANVAS_CASES
+
+CASE_FIXTURES = {**DOM_CASES, **CANVAS_CASES}
 
 CHECKS = {'video_timeline', 'time_format', 'normalize_seconds', 'seconds_clock', 'status', 'busy', 'release_urls', 'video_load_error', 'video_file', 'video_callbacks', 'video_source', 'video_playback', 'video_seek', 'video_play_started', 'video_play_failed', 'video_start', 'video_pause', 'trim_range', 'trim_apply', 'trim_reject', 'video_trim', 'trim_store', 'trim_export', 'trim_report'}
 RUNNER = r'''
@@ -125,7 +128,7 @@ process.stdin.on('end',()=>{
 '''
 
 
-CHECKS.update(DOM_CASES)
+CHECKS.update(CASE_FIXTURES)
 
 async def inspect_helper(source, check):
     if check not in CHECKS:
@@ -135,7 +138,7 @@ async def inspect_helper(source, check):
     # No fixture bytes are added to model output or delivered application files.
     import base64
     # Include only the selected DOM case to stay below Windows command limits.
-    dom_case=json.dumps(check)+':'+json.dumps(DOM_CASES[check])+',' if check in DOM_CASES else ''
+    dom_case=json.dumps(check)+':'+json.dumps(CASE_FIXTURES[check])+',' if check in CASE_FIXTURES else ''
     runner=RUNNER.replace('__DOM_CASES__',dom_case)
     encoded=base64.b64encode(runner.encode()).decode()
     loader="eval(Buffer.from('"+encoded+"','base64').toString('utf8'))"

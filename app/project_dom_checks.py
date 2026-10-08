@@ -67,6 +67,16 @@ assert(withClass(ui.timeline,'track-row').length===0,'unloading must clear old t
 '''
 
 DOM_CASES = {
+ 'video_text_overlay': DOM_SETUP + r'''
+ ui.textOverlay=node();ui.textOverlay.hidden=false;let timelineCalls=0;
+ function updateTimeline(){timelineCalls++;}
+ for(const loaded of [false,true])for(const value of ['', '   ', '  <b>Hello</b>  ', 'café 日本語']){
+  app.loaded=loaded;ui.titleInput.value=value;const before=timelineCalls;updateText();
+  assert(ui.textOverlay.textContent===value,'ui.textOverlay.textContent expected original literal input '+JSON.stringify(value)+' including spaces; actual='+JSON.stringify(ui.textOverlay.textContent));
+  assert(ui.textOverlay.hidden===(value.trim()===''),'ui.textOverlay.hidden expected '+String(value.trim()==='')+' for input '+JSON.stringify(value)+'; actual='+JSON.stringify(ui.textOverlay.hidden));
+  assert(timelineCalls===before+(loaded?1:0),'overlay must refresh timeline once only when video is loaded; loaded='+loaded+'; actual calls='+String(timelineCalls-before));
+ }
+ ''',
  'video_timeline': TIMELINE_CASE,
  'timeline_element': DOM_SETUP + r'''
  for(const [tag,cls,text] of [['span','label','<img src=x>'],['div','clip','Caption']]){
