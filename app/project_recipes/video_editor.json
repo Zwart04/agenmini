@@ -2288,20 +2288,20 @@
       ]
     },
     {
-      "name": "Schedule bounded seek timeout",
+      "name": "Create bounded seek timer",
       "kind": "js",
       "file": "app.js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 250,
+      "tokens": 220,
       "functions": [
-        "scheduleSeekTimeout"
+        "makeSeekTimer"
       ],
-      "task": "Write only named function scheduleSeekTimeout(job). Call browser setTimeout with a new callback function and delay 5000. Save the returned handle directly on the existing job.timer property. The callback calls existing failSeekJob(job,new Error with a timeout message). Do not call failure before timeout fires. Only schedule the timer; do not access video.",
+      "task": "Write makeSeekTimer(job). Return the actual handle from browser setTimeout. Its new callback calls existing failSeekJob(job, new Error with a timeout message), after 5000 milliseconds. Return the handle unchanged, including zero. Leave job properties unchanged.",
       "parameters": {
-        "job": "Existing mutable job object with video element, timer handle and onSeeked callback properties."
+        "job": "Original caller-supplied job object. The timer callback must retain this same object."
       },
-      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "context": "Small timer factory; failSeekJob is an existing standalone function.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -2311,9 +2311,40 @@
       ],
       "state_writes": [],
       "behavior_checks": [
+        "video_seek_timer_factory"
+      ],
+      "system_contract": "Begin with function makeSeekTimer(job). Plain JavaScript only, no comments, imports, types or other declarations."
+    },
+    {
+      "name": "Schedule bounded seek timeout",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 140,
+      "functions": [
+        "scheduleSeekTimeout"
+      ],
+      "task": "Write scheduleSeekTimeout(job). Assign the return value of existing makeSeekTimer(job) to the existing job.timer property. Keep that exact returned value, including zero. Only compose this operation; the helper already creates the timer and callback.",
+      "parameters": {
+        "job": "Original mutable job object. Its timer property must receive the helper result. Mutating this input property is permitted and is not global/app/ui state."
+      },
+      "context": "Standalone small browser helper. Use the supplied object and existing helper functions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "makeSeekTimer"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
         "video_seek_timer"
       ],
-      "system_contract": "Begin with function scheduleSeekTimeout(job). Output only this complete function, without comments, imports or other declarations."
+      "system_contract": "Begin with function scheduleSeekTimeout(job). Output only this complete function, without comments, imports or other declarations.",
+      "behavior_dependencies": [
+        "makeSeekTimer"
+      ]
     },
     {
       "name": "Assign requested seek seconds",
@@ -2375,6 +2406,7 @@
       ],
       "system_contract": "Begin with function armSeekJob(job,target). Output only this function, without types, imports, exports or global declarations.",
       "behavior_dependencies": [
+        "makeSeekTimer",
         "makeSeekCallback",
         "storeSeekCallback",
         "listenSeekCallback",
@@ -2413,6 +2445,7 @@
       ],
       "system_contract": "Start with async function waitForVideoTime(video,target). Plain JavaScript parameters without types; use supplied video directly. No DOM selectors, imports or exports. Keep concise and complete.",
       "behavior_dependencies": [
+        "makeSeekTimer",
         "makeSeekCallback",
         "storeSeekCallback",
         "listenSeekCallback",
@@ -2449,6 +2482,7 @@
         "waitForVideoTime"
       ],
       "behavior_dependencies": [
+        "makeSeekTimer",
         "makeSeekCallback",
         "storeSeekCallback",
         "listenSeekCallback",

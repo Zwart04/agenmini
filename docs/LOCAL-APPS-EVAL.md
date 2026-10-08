@@ -1533,3 +1533,20 @@ patch span asli. Pemeriksaan berikutnya mencapai tiga kasus handle timer dan
 menemukan job.timer masih null. Kasus handle 0/37/311 tetap gagal sampai nilai
 aktual disimpan; perbaikan nama fungsi tidak dianggap kelulusan timer. 291 tes
 regresi terkait lolos (103,64 detik).
+
+V115 selesai setelah 137 detik dan masih gagal pada penyimpanan job.timer;
+patch terakhir tidak berubah. V116 memisahkan makeSeekTimer yang mengembalikan
+handle browser, lalu scheduleSeekTimeout yang menyimpannya ke input job.
+Pemeriksaan factory menguji callback tertunda, Error asli/job yang sama,
+delay lima detik dan return handle 0/37/311. Pemeriksaan timer gabungan,
+arm, Promise worker dan caller tetap memakai sumber semua helper model
+melalui dependensi eksplisit. 62 tes ekspor terarah lolos (11,57 detik).
+V116 masih menunggu inferensi model lokal; ekspor browser belum lulus.
+
+CI Linux commit ca9b809 berhasil: run 37750642635, 597 tes lolos (122,55 detik).
+
+V116 meloloskan makeSeekTimer dan scheduleSeekTimeout pada respons pertama
+Qwen0.8B. Factory mengembalikan handle setTimeout asli; scheduler menyimpan
+hasilnya ke job.timer. Kasus handle 0/37/311, delay dan callback tertunda
+lulus melalui sumber model aktual dan dependensi gabungan. Bagian 102–103
+tersimpan beserta provenance, lalu run lanjut ke assignment target waktu.

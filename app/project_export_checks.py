@@ -1,6 +1,20 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_seek_timer_factory': r'''
+      let job,callback,delay,handle,failed=[];
+      function setTimeout(fn,ms){callback=fn;delay=ms;return handle;}const window={setTimeout};
+      function failSeekJob(value,error){failed.push([value,error]);}
+      for(handle of [0,37,311]){
+        callback=null;delay=0;failed=[];job={video:{},timer:null,onSeeked:null};
+        const result=makeSeekTimer(job);
+        assert(result===handle,'makeSeekTimer return expected actual browser handle '+handle+'; observed '+String(result));
+        assert(delay===5000&&typeof callback==='function','makeSeekTimer must schedule a function after 5000 milliseconds');
+        assert(failed.length===0&&job.timer===null&&job.onSeeked===null,'timer factory must defer failure and leave job handles unchanged');
+        if(typeof callback==='function')callback();
+        assert(failed.length===1&&failed[0][0]===job&&failed[0][1] instanceof Error&&failed[0][1].message,'timer callback must fail original job once with descriptive Error');
+      }
+    ''',
     'video_seek_callback': r'''
       const completed=[];function completeSeekJob(job){completed.push(job);}
       const first={video:{}},second={video:{}};
