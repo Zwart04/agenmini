@@ -647,6 +647,9 @@ async def generate(brief,ctx,on_event=None):
             context.pop('owner_goal')
             context['required_selectors']='\n'.join(item.get('css_selectors',[]))
             context['required_declarations']=item.get('css_declarations',{})
+            if item.get('media_query'):
+                context['required_media_query']=item['media_query']
+                context['output_scope']='Only a media block for this query. The required declarations belong INSIDE that block, unchanged. Do not write a base/global rule or alternative mobile values.'
             # The part already names its exact selectors. Unrelated selectors
             # invite small models to style the whole application again.
         if kind=='js':
@@ -672,6 +675,8 @@ async def generate(brief,ctx,on_event=None):
         request='\n\n'.join(key.upper()+':\n'+(value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)) for key,value in context.items())
         system=part_system(kind)
         if kind=='css':
+            if item.get('media_query'):
+                system+=' Begin your CSS source with @media '+item['media_query']+'. This part contains ONLY that media block; no global/base rule. Put the requested selector and specified declarations inside it. Do not invent alternative values for the media query.'
             system+=' Required selectors are literal CSS selectors, not placeholders: '+json.dumps(item.get('css_selectors',[]))+'.'
             if item.get('css_declarations'):system+=' Use exactly the required CSS properties/values; do not add other declarations.'
         if 'state_writes' in item:

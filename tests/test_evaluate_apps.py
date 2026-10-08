@@ -57,11 +57,12 @@ def test_failed_resume_prefers_completed_behavior_checks_to_later_structural_fai
 
 
 @pytest.mark.parametrize('fmt',['raw','json_source'])
-def test_failed_html_node_resume_requires_exact_original_span_and_stays_failed(tmp_path,fmt):
+@pytest.mark.parametrize('kind',['node','panel'])
+def test_failed_html_node_resume_requires_exact_original_span_and_stays_failed(tmp_path,fmt,kind):
     import hashlib
     from scripts.evaluate_apps import failed_source_candidates
     from app import project_parts
-    item={'name':'Preview','kind':'node','file':'index.html','root_class':'viewer','task':'Model preview',
+    item={'name':'Preview','kind':kind,'file':'index.html','root_class':'viewer','task':'Model preview',
           'absent_attributes':{'preview':['controls']}}
     recipe=tmp_path/'recipe.json';recipe.write_text(json.dumps({'parts':[item]}))
     report={'generator_source_sha256':{'app/project_recipes/video_editor.json':hashlib.sha256(recipe.read_bytes()).hexdigest()}}

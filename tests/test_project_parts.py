@@ -165,6 +165,171 @@ async def test_one_attribute_choice_cannot_be_repeated_as_multiple_model_edits(m
     with pytest.raises(ValueError):project_patches.apply(source,duplicate)
 
 
+def test_global_css_removal_choices_preserve_media_and_require_unique_actual_spans():
+    global_rule='.stage {\n content: "brace } stays inside string";\n display: flex;\n}'
+    media='@media (max-width:700px) {\n .stage {display:flex;flex-direction:column;}\n}'
+    source='/* before */\n'+global_rule+'\n/* between */\n'+media
+    errors=['Every mobile rule must be inside @media (max-width:700px); no global rules.']
+    assert project_patches.global_css_rule_choices(source,errors)==[global_rule]
+    patch=json.dumps({'edits':[{'find':global_rule,'replace':''}]})
+    assert project_patches.apply(source,patch)=='/* before */\n\n/* between */\n'+media
+    for changed in [global_rule,source.replace('700px','600px'),'.stage{display:flex;}\n@media (max-width:700px){.stage{display:flex;}}']:
+        assert project_patches.global_css_rule_choices(changed,errors)==[]
+    assert project_patches.global_css_rule_choices(source,['Unrelated CSS error'])==[]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_model_css_scope_removal_only_selects_original_global_rules(monkeypatch,backend):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    global_rule='.stage {display:flex;flex-direction:column;}'
+    media='@media (max-width:700px){.stage{display:flex;flex-direction:column;}}'
+    source=global_rule+'\n'+media
+    errors=['Every mobile rule must be inside @media (max-width:700px); no global rules.']
+    patch=json.dumps({'edits':[{'find':global_rule,'replace':''}]})
+    async def model(messages,**options):
+        request=json.loads(messages[1]['content'])
+        assert request['source']==source and request['find_choices']==[global_rule]
+        assert 'top-level CSS' in messages[0]['content']
+        assert 'numbered_lines' not in request
+        if backend=='local':assert options['fmt']['json_schema']['schema']['properties']['edits']['maxItems']==1
+        return {'content':patch,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Mobile layout only',errors=errors,contracts={},indexed=True,diagnose=True)
+    assert not result.get('patch_validation_error')
+    assert project_patches.apply(source,result['content'])=='\n'+media
+    assert not project_parts.part_contract_errors(project_patches.apply(source,result['content']),{
+        'kind':'css','media_query':'(max-width:700px)','css_selectors':['.stage'],
+        'css_declarations':{'display':'flex','flex-direction':'column'}})
+
+
+
+def test_position_removal_preserves_identical_nested_css_and_replays_model_patch():
+    rule='.viewer-surface { flex: none; aspect-ratio: 16/9; min-height: 180px; }'
+    media='@media (max-width:700px) { '+rule+' }'
+    prefix='/* unicode café 日本語 */\r\n'
+    source=prefix+rule+' '+media
+    errors=['Every mobile rule must be inside @media (max-width:700px); no global rules.']
+    assert project_patches.global_css_rule_choices(source,errors)==[]
+    spans=project_patches.global_css_rule_spans(source,errors)
+    assert spans==[{'start':len(prefix),'end':len(prefix)+len(rule),'remove':rule}]
+    raw=json.dumps({'edits':spans})
+    expected=prefix+' '+media
+    assert project_patches.apply(source,raw)==expected
+    chain=[{'base_sha256':project_patches.digest(source),'raw_patch':raw,
+            'raw_sha256':project_patches.digest(raw),'source_sha256':project_patches.digest(expected)}]
+    assert project_patches.replay(source,chain,'style.css')==expected
+    for edits in [spans*2,[{**spans[0],'start':0}],[{**spans[0],'end':len(source)+1}],
+                  [spans[0],{'start':spans[0]['start']+1,'end':spans[0]['end'],'remove':rule[1:]}]]:
+        with pytest.raises(ValueError):project_patches.apply(source,json.dumps({'edits':edits}))
+    assert source==prefix+rule+' '+media
+    for changed in [rule,source.replace('700px','600px'),'.viewer-surface { '+media]:
+        assert project_patches.global_css_rule_spans(changed,errors)==[]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('tamper',[False,True])
+async def test_model_position_removal_only_targets_listed_global_rule(monkeypatch,backend,tamper):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    rule='.viewer-surface { flex: none; aspect-ratio: 16/9; min-height: 180px; }'
+    media='@media (max-width:700px) { '+rule+' }'
+    source=rule+' '+media
+    errors=['Every mobile rule must be inside @media (max-width:700px); no global rules.']
+    choices=project_patches.global_css_rule_spans(source,errors)
+    edited=[{**choices[0],'start':source.rfind(rule),'end':source.rfind(rule)+len(rule)}] if tamper else choices
+    raw=json.dumps({'edits':edited})
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        request=json.loads(messages[1]['content'])
+        assert request['source']==source and request['span_removal_choices']==choices
+        assert 'numbered_lines' not in request and 'find_choices' not in request
+        if backend=='local':
+            schema=options['fmt']['json_schema']['schema']['properties']['edits']
+            assert schema['maxItems']==1 and schema['items']['enum']==choices
+        else:assert options['fmt']=='json'
+        return {'content':raw,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Mobile layout only',errors=errors,contracts={},indexed=True,diagnose=True)
+    assert len(calls)==1 and result['content']==raw
+    if tamper:
+        assert result['patch_validation_error']
+    else:
+        assert not result.get('patch_validation_error')
+        fixed=project_patches.apply(source,raw)
+        assert fixed==' '+media
+        assert not project_parts.part_contract_errors(fixed,{'kind':'css','media_query':'(max-width:700px)',
+            'css_selectors':['.viewer-surface'],'css_declarations':{'flex':'none','aspect-ratio':'16/9','min-height':'180px'}})
+
+
+def test_css_value_repair_scope_requires_all_existing_declarations_and_no_other_failures():
+    source='@media (max-width:700px) {\n.topbar {\n flex-wrap: nowrap;\n min-height: auto;\n padding: 0;\n}\n}'
+    errors=["CSS property flex-wrap must be wrap; observed 'nowrap'.", "CSS property min-height must be 52px; observed 'auto'."]
+    assert project_patches.css_declaration_lines(source,errors)=={3:'flex-wrap',4:'min-height'}
+    assert project_patches.css_declaration_lines(source,errors+['Unrelated structural failure'])=={}
+    assert project_patches.css_declaration_lines(source,errors+["CSS property gap must be 12px; observed 'missing'."])=={}
+    assert project_patches.css_declaration_lines('.topbar {flex-wrap:nowrap;}',errors)=={}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+@pytest.mark.parametrize('tamper',[False,True])
+async def test_css_value_model_patch_preserves_names_and_unrelated_media_source(monkeypatch,backend,tamper):
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    source='@media (max-width:700px) {\n.topbar {\n flex-wrap: nowrap;\n min-height: auto;\n padding: 12px;\n}\n}'
+    errors=["CSS property flex-wrap must be wrap; observed 'nowrap'.", "CSS property min-height must be 52px; observed 'auto'."]
+    raw=json.dumps({'edits':[{'line':3,'replace':' flex-direction: wrap;' if tamper else ' flex-wrap: wrap;'},
+                             {'line':4,'replace':' min-height: 52px;'}]})
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        request=json.loads(messages[1]['content'])
+        assert request['numbered_lines']==[{'line':3,'text':' flex-wrap: nowrap;'}, {'line':4,'text':' min-height: auto;'}]
+        assert request['source']==' flex-wrap: nowrap;\n min-height: auto;'
+        assert request['retained_css_properties']=={'3':'flex-wrap','4':'min-height'}
+        assert 'repair_plan' not in request
+        if backend=='local':
+            schema=options['fmt']['json_schema']['schema']['properties']['edits']
+            assert schema['maxItems']==2 and schema['items']['properties']['line']['enum']==[3,4]
+        return {'content':raw,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Responsive header',errors=errors,contracts={},indexed=True,diagnose=True)
+    assert len(calls)==1 and result['content']==raw
+    if tamper:assert result['patch_validation_error']
+    else:
+        assert not result.get('patch_validation_error')
+        fixed=project_patches.apply(source,raw)
+        assert fixed==source.replace('flex-wrap: nowrap;','flex-wrap: wrap;').replace('min-height: auto;','min-height: 52px;')
+        assert not project_parts.part_contract_errors(fixed,{'kind':'css','media_query':'(max-width:700px)',
+             'css_selectors':['.topbar'],'css_declarations':{'flex-wrap':'wrap','min-height':'52px','padding':'12px'}})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_mobile_generation_prompts_only_media_scope_without_evaluator_source(monkeypatch,tmp_path,backend):
+    item={'name':'Mobile layout','file':'style.css','kind':'css','task':'Model creates mobile style',
+          'css_selectors':['.topbar'],'media_query':'(max-width:700px)','css_declarations':{'flex-wrap':'wrap'}}
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    raw=json.dumps({'source':'@media (max-width:700px) {.topbar {flex-wrap:wrap;}}'})
+    async def model(messages,**options):
+        assert 'Begin your CSS source with @media (max-width:700px)' in messages[0]['content']
+        assert 'REQUIRED_MEDIA_QUERY:\n(max-width:700px)' in messages[1]['content']
+        assert 'OUTPUT_SCOPE:' in messages[1]['content']
+        assert '.topbar {' not in json.dumps(messages) and 'flex-wrap:wrap;' not in json.dumps(messages)
+        return {'content':raw,'stats':{'finish_reason':'stop','served_model':backend}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']=='@media (max-width:700px) {.topbar {flex-wrap:wrap;}}'
+            assert value['raw_source']==raw
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('Real owner request',object(),event)
+
 def test_nonvoid_self_closing_html_is_rejected_and_localized():
     item={'kind':'panel'}
     source='<section>\n<video id="preview" />\n<input id="seekInput" />\n</section>'

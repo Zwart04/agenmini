@@ -15,7 +15,7 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
 
     Legacy attempts have no per-task hash. Require the exact recipe file hash
     from their report before deriving that metadata. Only complete original
-    JS or complete HTML node responses are eligible; patched/truncated text
+    JS or complete HTML node/panel responses are eligible; patched/truncated text
     needs stronger origins. An HTML node must replay its exact original span.
     The normal generator checks every candidate again before using it.
     """
@@ -28,13 +28,13 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
             value=json.loads(path.read_text(encoding='utf-8'));index=value['index']
             if type(index) is not int or index<0 or index>=len(recipe['parts']) or index in accepted:continue
             item=recipe['parts'][index]
-            eligible=item.get('kind')=='js' or item.get('kind')=='node' and bool(item.get('root_class'))
+            eligible=item.get('kind')=='js' or item.get('kind') in ('node','panel') and bool(item.get('root_class'))
             if not eligible or item['name']!=value.get('part') or value.get('response_kind')!='source':continue
             if value.get('repair_chain') or value.get('patch_error') or value.get('stats',{}).get('finish_reason')!='stop':continue
             source=value['source'];raw=value['raw_source'];fmt=value.get('source_format','raw')
             if not isinstance(source,str) or not source.strip() or len(source.encode())>65536:continue
             decoded=project_parts.decode_source(raw,item['file'],fmt)
-            selected=project_parts.extract_node(decoded,item['root_class']) if item.get('kind')=='node' else project_parts.select_model_helper(decoded,item)
+            selected=project_parts.extract_node(decoded,item['root_class']) if item.get('kind') in ('node','panel') else project_parts.select_model_helper(decoded,item)
             if selected!=source:continue
             check_path=previous/'checks'/path.name
             priority=4;failure_count=99
@@ -67,7 +67,7 @@ def main():
     p.add_argument('--thinking-budget',type=int,default=0,help='Opt-in bounded Qwen reasoning tokens per part (0 disables).')
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
     p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
-    p.add_argument('--resume-failed-parts',action='store_true',help='Also recheck exact complete failed JS or HTML node responses from an identical recipe; never treat them as passed.')
+    p.add_argument('--resume-failed-parts',action='store_true',help='Also recheck exact complete failed JS or HTML node/panel responses from an identical recipe; never treat them as passed.')
     p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25','greedy'],default='default')
     p.add_argument('--chat-template-file',type=Path,help='Explicit model-author chat serialization when GGUF metadata lacks it; not application source.')
     p.add_argument('--tokenizer-pre',choices=['deepseek-coder'],help='Explicit llama.cpp pre-tokenizer for legacy DeepSeek GGUF missing this metadata.')

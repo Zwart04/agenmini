@@ -1415,3 +1415,46 @@ direproduksi ditolak. DeepSeek current-v2 memakai checkpoint valid v1. Kandidat
 preview lama tidak dipakai karena kind-nya panel, sementara pemulihan baru
 mencakup node. Model menghasilkannya ulang dan meloloskan patch satu penghapusan;
 provenance/replay tersimpan pada parts/05.json. CSS masih sedang dikerjakan.
+
+DeepSeek current-v2 selesai dengan kegagalan setelah 406,7 detik pada CSS
+mobile .stage. Dokumen, panel dan CSS desktop sampai bagian 41 telah lulus;
+editor belum lengkap. current-v3 meloloskan bagian 42–45 melalui patch asli
+model: menghapus aturan global, lalu membetulkan urutan library berdasarkan
+galat pemeriksaan. Run gagal setelah 167,3 detik pada .viewer-surface karena
+teks aturan global identik dengan aturan yang benar di dalam media block.
+Patch find ambigu tidak boleh menghapus salinan yang benar.
+
+Penghapusan kini dapat memakai start/end/remove dari posisi teks asli yang
+ditemukan parser CSS. Model memilih span global yang ditawarkan; harness tidak
+menulis deklarasi pengganti. Penguji menolak span lain, rentang berubah,
+duplikasi atau overlap; provenance dapat direplay dengan hash asal dan patch.
+28 tes terarah lolos (1,65 detik), termasuk Unicode/CRLF, salinan CSS identik
+dan penolakan edit ke blok media pada local/online/router stub. Pembuktian
+provider nyata tetap berbeda dari tes stub. current-v4 memakai bobot,
+serialization, sampling dan checkpoint DeepSeek yang sama; hasil model nyata
+dan ekspor di browser masih harus ditunggu.
+
+251 tes regresi sebelum penambahan edit posisi lolos (160,35 detik). CI Linux
+commit c6282e6 berhasil: run 37745943560, 558 tes lolos (124,24 detik).
+
+current-v4 meloloskan .viewer-surface dengan patch posisi yang benar-benar
+dikeluarkan DeepSeek (start 0, end 70, span asli), kemudian #preview. Run gagal
+setelah 81 detik pada .topbar: patch nilai justru mengganti flex-wrap menjadi
+flex-direction. Seluruh sumber/patch gagal tetap disimpan; tidak diperbaiki
+secara manual. 258 tes regresi terkait lolos (98,58 detik).
+
+Perbaikan nilai CSS sekarang memakai konteks hanya deklarasi asli yang gagal,
+jika semua galat memang menyangkut nilai properti yang sudah ada. Nomor baris
+asli tetap dipakai; respons tidak boleh mengganti nama properti, menambah
+deklarasi atau menyentuh blok lain. Galat struktur/properti yang hilang tetap
+memakai editor sumber biasa. 24 tes CSS/posisi lolos (1,02 detik) setelah
+pembatasan satu deklarasi per baris. current-v5 menguji mekanisme ini melalui
+model lokal yang sama. Editor dan ekspor nyata belum dinyatakan lulus.
+
+current-v5 gagal setelah 34,8 detik: model menyalin nilai lama dan menambahkan
+newline pada setiap pengganti deklarasi; patch ditolak. 265 tes terkait lolos
+(85,49 detik). Konteks generasi CSS mobile kini menyebut query dan scope sejak
+awal, serta meminta deklarasi yang diminta hanya di dalam media block.
+Harness tidak menyediakan kode CSS lengkap. 27 tes terarah lolos (1,63 detik),
+termasuk pemeriksaan prompt local/online/router tanpa source evaluator.
+current-v6 sedang menguji perubahan itu pada model DeepSeek yang sama.

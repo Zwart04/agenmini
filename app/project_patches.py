@@ -27,6 +27,13 @@ REMOVAL_SCHEMA = {
         'type':'object','additionalProperties':False,'required':['line','remove'],
         'properties':{'line':{'type':'integer','minimum':1},'remove':{'type':'string','minLength':1,'maxLength':9000}}}}}
 }
+SPAN_REMOVAL_SCHEMA = {
+    'type':'object','additionalProperties':False,'required':['edits'],
+    'properties':{'edits':{'type':'array','minItems':1,'maxItems':4,'items':{
+        'type':'object','additionalProperties':False,'required':['start','end','remove'],
+        'properties':{'start':{'type':'integer','minimum':0},'end':{'type':'integer','minimum':1},
+                      'remove':{'type':'string','minLength':1,'maxLength':9000}}}}}
+}
 
 
 def digest(source):
@@ -82,6 +89,47 @@ def duplicate_id_choices(source, errors):
         def handle_startendtag(self,tag,attrs):self.handle_starttag(tag,attrs)
     IdSpans().feed(source)
     return [choice for choices in occurrences.values() if len(choices)>1 for choice in choices]
+
+
+def global_css_rule_spans(source, errors):
+    """Locate original global rules without confusing identical nested rules."""
+    queries={match[1] for error in errors if (match:=re.fullmatch(r'Every mobile rule must be inside @media (.+); no global rules\.',error))}
+    if not queries or len(source.encode())>65536:return []
+    import tinycss2
+    nodes=tinycss2.parse_stylesheet(source,skip_comments=False,skip_whitespace=False)
+    normalize=lambda value:re.sub(r'\s+','',value).lower()
+    if not any(node.type=='at-rule' and node.lower_at_keyword=='media' and node.content is not None
+               and normalize(tinycss2.serialize(node.prelude)) in {normalize(query) for query in queries} for node in nodes):return []
+    offsets=[0]
+    for line in source.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    def position(node):return offsets[node.source_line-1]+node.source_column-1
+    choices=[]
+    for index,node in enumerate(nodes):
+        if node.type!='qualified-rule':continue
+        end=position(nodes[index+1]) if index+1<len(nodes) else len(source)
+        start=position(node);span=source[start:end]
+        if span:choices.append({'start':start,'end':end,'remove':span})
+    return choices
+
+
+def global_css_rule_choices(source, errors):
+    """Keep exact-find edits for global rules with unambiguous original text."""
+    return [span['remove'] for span in global_css_rule_spans(source,errors) if source.count(span['remove'])==1]
+
+
+def css_declaration_lines(source, errors):
+    """Narrow value-only failures to existing single-declaration lines."""
+    properties=set()
+    for error in errors:
+        found=re.fullmatch(r'CSS property ([\w-]+) must be .+; observed .+\.',error)
+        if not found:return {}
+        properties.add(found[1])
+    choices={}
+    for number,line in enumerate(source.splitlines(),1):
+        found=re.fullmatch(r'\s*([\w-]+)\s*:[^;{}\r\n]*;\s*',line)
+        if found and found[1] in properties:choices[number]=found[1]
+    # Missing properties or mixed errors need the ordinary whole-part editor.
+    return choices if properties and properties==set(choices.values()) else {}
 
 
 PROPERTY_LOCATIONS = r'''
@@ -219,12 +267,22 @@ def apply(source, raw):
     """Apply a complete unambiguous patch in memory, or reject all its edits."""
     import jsonschema
     patch=json.loads(projects.unwrap_file(raw,'patch.json'))
+    span_removal=isinstance(patch,dict) and isinstance(patch.get('edits'),list) and any(isinstance(edit,dict) and 'start' in edit for edit in patch['edits'])
     removal=isinstance(patch,dict) and isinstance(patch.get('edits'),list) and any(isinstance(edit,dict) and 'remove' in edit for edit in patch['edits'])
     indexed=isinstance(patch,dict) and isinstance(patch.get('edits'),list) and any(isinstance(edit,dict) and 'line' in edit for edit in patch['edits'])
-    try:jsonschema.validate(patch,REMOVAL_SCHEMA if removal else INDEXED_SCHEMA if indexed else SCHEMA)
+    try:jsonschema.validate(patch,SPAN_REMOVAL_SCHEMA if span_removal else REMOVAL_SCHEMA if removal else INDEXED_SCHEMA if indexed else SCHEMA)
     except jsonschema.ValidationError as exc:raise ValueError('Invalid source patch schema.') from exc
     result=source
-    if removal:
+    if span_removal:
+        ordered=sorted(patch['edits'],key=lambda edit:edit['start'])
+        previous_end=0
+        for edit in ordered:
+            start,end,span=edit['start'],edit['end'],edit['remove']
+            if start<previous_end or not start<end<=len(source) or source[start:end]!=span:
+                raise ValueError('Removal range must match an original non-overlapping source span.')
+            previous_end=end
+        for edit in reversed(ordered):result=result[:edit['start']]+result[edit['end']:]
+    elif removal:
         lines=source.splitlines(keepends=True);seen=set()
         for edit in patch['edits']:
             line,span=edit['line'],edit['remove'];identity=(line,span)
@@ -277,29 +335,35 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     # bounded model can select a line or the whole part without inventing find
     # strings. Exact-match application still validates online/plain JSON output.
     attribute_choices=forbidden_attribute_choices(source,errors)
+    css_choices=global_css_rule_choices(source,errors) if not attribute_choices else []
+    css_spans=global_css_rule_spans(source,errors) if not (attribute_choices or css_choices) else []
     examples=prompt_errors(errors)
     check_context={'test_context':'Each input example is a separate invocation of the same function. Fix general behavior; do not combine examples into one invocation or hard-code their values.'} if any(e.startswith('Helper behavior failed: ') for e in errors) else {}
-    removal_choices=duplicate_id_choices(source,errors) if not attribute_choices else []
-    if attribute_choices:indexed=False
-    schema=json.loads(json.dumps(REMOVAL_SCHEMA if removal_choices else INDEXED_SCHEMA if indexed else SCHEMA))
+    removal_choices=duplicate_id_choices(source,errors) if not (attribute_choices or css_choices or css_spans) else []
+    if attribute_choices or css_choices or css_spans:indexed=False
+    schema=json.loads(json.dumps(SPAN_REMOVAL_SCHEMA if css_spans else REMOVAL_SCHEMA if removal_choices else INDEXED_SCHEMA if indexed else SCHEMA))
     choices=[source]+[line.strip() for line in source.splitlines() if line.strip() and source.count(line.strip())==1]
-    targets=failing_lines(source,errors) if indexed else []
+    css_lines=css_declaration_lines(source,errors) if indexed else {}
+    targets=list(css_lines) if css_lines else failing_lines(source,errors) if indexed else []
     header_only=targets==[1] and any("SyntaxError: Unexpected token '{'" in e for e in errors) and any(e.startswith('Define complete named function ') for e in errors)
     argument_scope=bool(indexed and targets and len(targets)<len(source.splitlines()) and any(re.search(r'\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\s+[A-Za-z_$][\w$]*\s+expected',e) for e in errors))
-    prompt_source=source.splitlines()[0] if header_only else '\n'.join(source.splitlines()[number-1] for number in targets) if argument_scope else source
-    if removal_choices:
+    prompt_source=source.splitlines()[0] if header_only else '\n'.join(source.splitlines()[number-1] for number in targets) if argument_scope or css_lines else source
+    if css_spans:
+        schema['properties']['edits']['items']['enum']=css_spans
+        schema['properties']['edits']['maxItems']=min(4,len(css_spans))
+    elif removal_choices:
         schema['properties']['edits']['items']['enum']=removal_choices
     elif indexed:
         schema['properties']['edits']['items']['properties']['line']['enum']=targets
         schema['properties']['edits']['maxItems']=min(8,len(targets))
         if single_line:schema['properties']['edits']['items']['properties']['replace']['pattern']='^[^\r\n]*$'
     else:
-        if attribute_choices:
-            choices=attribute_choices
+        if attribute_choices or css_choices:
+            choices=attribute_choices or css_choices
             schema['properties']['edits']['items']['properties']['replace']['const']=''
             # A model must not pad a single removal into four repeated edits.
             # Every find choice is an actual unique span in the original source.
-            schema['properties']['edits']['maxItems']=min(4,len(attribute_choices))
+            schema['properties']['edits']['maxItems']=min(4,len(choices))
         schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
     wire_schema=json.loads(json.dumps(schema))
     # Use the backend's escaped JSON string grammar. A broad replace pattern
@@ -308,7 +372,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':wire_schema}} if llm.active_backend()=='local' else 'json'
     reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
     diagnosis=None
-    if diagnose and not attribute_choices and not removal_choices:
+    if diagnose and not attribute_choices and not css_choices and not css_spans and not css_lines and not removal_choices:
         diagnosis=await llm.chat([
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
             {'role':'user','content':json.dumps({'errors':examples,'total_error_count':len(errors),'task':task,'source':source,**check_context},ensure_ascii=False)}
@@ -321,6 +385,12 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         system='Remove only the duplicate ID attribute from the wrong element. Select edits from removal_choices verbatim: line is the original line and remove is existing text to delete. Read required controls in contracts to decide which element keeps its ID. Keep every element and all other source unchanged. Return JSON with edits only. Do not remove the ID from the required control.'
     else:
         system=None
+    if css_choices:
+        system='Remove only the listed forbidden top-level CSS rule spans. Return JSON edits with find copied exactly from find_choices and replace set to the empty string. Each span exists once in the original source; select each at most once. Retain the existing media block and all other source. Do not rewrite CSS, add rules or delete anything else.'
+    if css_spans:
+        system='Remove only forbidden top-level CSS rules by selecting original entries from span_removal_choices verbatim. Return JSON with edits containing start, end and remove, using the supplied character offsets and existing text. Select each range at most once. Identical text inside the media block must remain. Do not rewrite or add source. All offsets refer to the unchanged original source.'
+    if css_lines:
+        system='Correct only the CSS declaration values on supplied numbered lines. Return JSON with edits containing line and replace. Each replacement is one complete declaration with the SAME property name and a semicolon. Read actual errors to choose the correct value yourself. Do not change property names, add declarations, selectors, braces or other lines. Omitted CSS remains unchanged.'
     if header_only:
         system='Correct only the JavaScript function declaration header. Return JSON with edits containing exactly one original line number and its corrected single-line replacement. Keep the existing function name, parameters and opening brace. Do not output the function body, closing brace, comments or literal backslash-n sequences.'
         schema['properties']['edits']['minItems']=1
@@ -329,16 +399,19 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
         {'role':'system','content':system or ('Remove ALL listed forbidden attribute spans from the current source. Return one JSON object with edits, an array of find/replace strings. Copy each find exactly from find_choices and set replace to the empty string. Keep the element, its ID, every other attribute and surrounding source. No replacement markup or other changes. Other errors will be checked again afterwards.' if attribute_choices else 'You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
         {'role':'user','content':json.dumps({'source':prompt_source,'errors':['The declaration is missing its JavaScript function keyword.'] if header_only else examples,'total_error_count':len(errors),'contracts':{'scope':'declaration header only; the rest of the source is retained'} if header_only else contracts,'task':'Correct declaration syntax on the supplied header only.' if header_only else task,**check_context,
             **({'source_scope':'Only affected statements and their local inputs are shown; original line numbers remain authoritative. All omitted source is retained unchanged.'} if argument_scope else {}),
-            **({'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
+            **({'retained_css_properties':css_lines,'source_scope':'Only existing failing declarations are shown. All selectors, media blocks and correct declarations are retained unchanged.'} if css_lines else {}),
+            **({'span_removal_choices':css_spans} if css_spans else {'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}
     ],fmt=fmt,max_tokens=max_tokens+reasoning_allowance,temperature=.2)
-    if attribute_choices or removal_choices or indexed:
+    if attribute_choices or css_choices or css_spans or removal_choices or indexed:
         import jsonschema
         try:
             decoded=json.loads(projects.unwrap_file(result.get('content',''),'patch.json'))
             jsonschema.validate(decoded,schema)
             if indexed and not removal_choices and single_line and any('\n' in edit['replace'] or '\r' in edit['replace'] for edit in decoded['edits']):
                 raise ValueError('A single-line replacement cannot contain CR or LF.')
-        except (ValueError,jsonschema.ValidationError):result['patch_validation_error']='Indexed edit must use listed lines and respect replacement boundaries.' if indexed and not removal_choices else 'Attribute edit must select listed existing spans and only delete them.'
+            if css_lines and any(not re.fullmatch(r'\s*'+re.escape(css_lines[edit['line']])+r'\s*:[^;{}\r\n]*;\s*',edit['replace']) for edit in decoded['edits']):
+                raise ValueError('CSS value edits must retain each original property name.')
+        except (ValueError,jsonschema.ValidationError):result['patch_validation_error']='Indexed edit must use listed lines and respect replacement boundaries.' if indexed and not removal_choices else 'Removal edit must select listed existing spans and only delete them.'
     if diagnosis:
         result['repair_plan']={'text':plan,'sha256':digest(plan),'model':diagnosis.get('stats',{}).get('served_model',''),
                                'finish_reason':diagnosis.get('stats',{}).get('finish_reason')}
