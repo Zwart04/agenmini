@@ -734,3 +734,22 @@ kode asli Qwen 0.8B, semuanya lolos pemeriksaan perilaku. Pemeriksaan start
 memakai kedua callback model yang benar-benar dihasilkan. Toggle gagal
 setelah 230,5 detik karena cabang playing tidak memanggil pause. Editor
 lengkap tetap belum lolos; scrub, timeline dan ekspor belum teruji nyata.
+
+
+### Validasi trim terpisah (8 Oktober 2026)
+
+v56 menyelesaikan toggle playback dan scrub. Keduanya lolos pemeriksaan
+perilaku, termasuk komposisi callback/start/pause hasil model. Timeline
+masih gagal setelah 437,2 detik: respons mengulang instruksi, terpotong,
+dan kemudian memakai sintaks objek yang tidak valid sebagai fungsi.
+Commit cb199d6 lolos **456 tes Linux** pada Actions run 37715870059.
+
+Validasi trim kini dipisah menjadi predicate rentang, penerapan nilai valid,
+penolakan nilai invalid dan penghubung kontrol. Pemeriksaan menguji angka
+finite tanpa koersi pada predicate, batas 0 <= start < end <= duration,
+input kontrol string, pelestarian rentang valid sebelumnya, pembaruan timeline
+hanya untuk rentang valid, serta larangan mengaktifkan ekspor saat busy.
+Gabungan validator memakai helper yang benar-benar dihasilkan model.
+Render timeline tetap harus ditulis model dan dibuktikan di browser.
+
+**204 tes terkait lolos di Windows** untuk perubahan validasi trim ini.

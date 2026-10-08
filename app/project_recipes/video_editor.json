@@ -1384,38 +1384,138 @@
       "task": "Write ONLY function seekVideo(value), at most 9 lines. Return if !app.loaded or app.busy. Convert value using Number(value); if not Number.isFinite return. Clamp converted number to 0..app.duration and assign ui.preview.currentTime. Then call standalone updateTimeline() exactly once. updateTimeline is implemented later, not a method of ui or preview. No globals or other functions."
     },
     {
-      "name": "Trim dan timeline nyata",
+      "name": "Check trim range",
       "file": "app.js",
       "kind": "js",
-      "tokens": 1300,
+      "tokens": 220,
+      "raw_source": true,
+      "include_html": false,
       "functions": [
-        "validateTrim",
+        "isTrimRange"
+      ],
+      "task": "Write only JavaScript function isTrimRange(start,end,duration), at most 5 lines. Return Boolean true only when all three arguments are finite numbers and 0 <= start < end <= duration. Otherwise return false. Do not coerce strings or access globals. Use Number.isFinite and separate comparisons joined with logical AND; JavaScript cannot use chained comparisons.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_checks": [
+        "trim_range"
+      ]
+    },
+    {
+      "name": "Apply valid trim",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 260,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "applyTrim"
+      ],
+      "task": "Write only function applyTrim(start,end), at most 7 lines. Store start/end in app.start/app.end. Set ui.exportBtn.disabled to app.busy. Call setStatus with a success message containing the numeric value end-start and seconds. Call standalone updateTimeline() once; it is implemented later. Return Boolean true. No validation, other helpers, globals or imports.",
+      "relevant_fields": {
+        "app": [
+          "start",
+          "end",
+          "busy"
+        ],
+        "ui": [
+          "exportBtn"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "behavior_checks": [
+        "trim_apply"
+      ]
+    },
+    {
+      "name": "Reject invalid trim",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 180,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "rejectTrim"
+      ],
+      "task": "Write only function rejectTrim(), at most 5 lines. Disable ui.exportBtn. Call setStatus with a useful invalid trim message and true error flag. Return Boolean false. Do not change app state or update the timeline.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "exportBtn"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "behavior_checks": [
+        "trim_reject"
+      ]
+    },
+    {
+      "name": "Validate trim controls",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 230,
+      "raw_source": true,
+      "include_html": false,
+      "functions": [
+        "validateTrim"
+      ],
+      "task": "Write only function validateTrim(), at most 6 lines. Parse ui.startInput.value and ui.endInput.value with Number into local start/end variables. Return a ternary expression: condition is isTrimRange(start,end,app.duration), true branch calls applyTrim(start,end), false branch calls rejectTrim(). These helpers already implement all side effects. No other functions, globals, imports, comments or direct state updates.",
+      "relevant_fields": {
+        "app": [
+          "duration"
+        ],
+        "ui": [
+          "startInput",
+          "endInput"
+        ]
+      },
+      "relevant_functions": [
+        "isTrimRange",
+        "applyTrim",
+        "rejectTrim"
+      ],
+      "behavior_checks": [
+        "video_trim"
+      ],
+      "behavior_dependencies": [
+        "isTrimRange",
+        "applyTrim",
+        "rejectTrim"
+      ]
+    },
+    {
+      "name": "Render actual timeline",
+      "file": "app.js",
+      "kind": "js",
+      "tokens": 1100,
+      "functions": [
         "updateTimeline"
       ],
-      "task": "Define validateTrim() returning boolean; parse ui.startInput/endInput numeric seconds and require finite0<=start<end<=duration. Invalid: setStatus error and disable exportBtn, keep previous valid app.start/end. Valid: update app.start/end, enable export unless busy, setStatus duration of selected clip, call updateTimeline. Define updateTimeline(): if no loaded media show truthful empty state. Otherwise use DOM createElement/textContent (safe filenames/text, no raw user HTML) to clear and render actual .timeline-ruler with duration, .track-row labelled Video and Text, .track-label, .track-lane. Video clip .video-clip absolute left/start divided duration percent, width (end-start)/duration percent, text filename and selected seconds; Text clip .text-clip exists only if titleInput has text. Each lane has .playhead at currentTime/duration percentage. Do not create IDs that duplicate controls; no fake sample footage. ui.seekInput.value updated from currentTime. Timeline click handler belongs to final init. No global app/ui redeclarations.",
+      "task": "Write ONLY function updateTimeline(). Clear ui.timeline with textContent. If !app.loaded, show a truthful import-video empty state and return. Otherwise use document.createElement, className, textContent and appendChild to render: a .timeline-ruler with formatTime(app.duration); two .track-row elements labelled Video and Text using .track-label and .track-lane. Video lane contains .video-clip with left app.start/app.duration*100 percent, width (app.end-app.start)/app.duration*100 percent, and filename plus selected seconds as safe text. Text lane contains .text-clip only when ui.titleInput.value is nonempty. Each lane contains .playhead with left ui.preview.currentTime/app.duration*100 percent. Set ui.seekInput.value to ui.preview.currentTime. No innerHTML, duplicated control IDs, fake sample footage, handlers, new globals, or other functions. Return complete JavaScript only; do not echo the task or state inventory.",
       "raw_source": true,
       "include_html": false,
       "relevant_fields": {
         "app": [
           "loaded",
-          "busy",
           "start",
           "end",
           "duration",
           "filename"
         ],
         "ui": [
-          "startInput",
-          "endInput",
-          "exportBtn",
-          "seekInput",
-          "preview",
           "timeline",
-          "titleInput"
+          "titleInput",
+          "preview",
+          "seekInput"
         ]
       },
       "relevant_functions": [
-        "setStatus",
         "formatTime"
       ]
     },

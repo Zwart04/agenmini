@@ -1349,3 +1349,26 @@ async def test_decomposed_playback_validates_callbacks_and_their_real_compositio
     assert await project_checks.inspect_helper(started+failed+start.replace('.catch(playbackFailed)',''),'video_start')
     assert await project_checks.inspect_helper(started+failed+start.replace('preview.currentTime>=app.end','preview.currentTime>app.end'),'video_start')
     assert await project_checks.inspect_helper(pause.replace('pause()','play()'),'video_pause')
+
+
+@pytest.mark.asyncio
+async def test_trim_range_requires_finite_numbers_and_ordered_bounds():
+    source='function isTrimRange(start,end,duration){return Number.isFinite(start)&&Number.isFinite(end)&&Number.isFinite(duration)&&start>=0&&end>start&&end<=duration;}'
+    assert not await project_checks.inspect_helper(source,'trim_range')
+    assert await project_checks.inspect_helper(source.replace('Number.isFinite','isFinite'),'trim_range')
+    assert await project_checks.inspect_helper(source.replace('end>start','end>=start'),'trim_range')
+    assert await project_checks.inspect_helper('function isTrimRange(){return true;}','trim_range')
+
+
+@pytest.mark.asyncio
+async def test_trim_composition_preserves_last_valid_bounds_and_busy_export_guard():
+    predicate='function isTrimRange(start,end,duration){return Number.isFinite(start)&&Number.isFinite(end)&&Number.isFinite(duration)&&start>=0&&end>start&&end<=duration;}'
+    apply='function applyTrim(start,end){app.start=start;app.end=end;ui.exportBtn.disabled=app.busy;setStatus(String(end-start)+" seconds");updateTimeline();return true;}'
+    reject='function rejectTrim(){ui.exportBtn.disabled=true;setStatus("Invalid trim range",true);return false;}'
+    validate='function validateTrim(){const start=Number(ui.startInput.value);const end=Number(ui.endInput.value);return isTrimRange(start,end,app.duration)?applyTrim(start,end):rejectTrim();}'
+    assert not await project_checks.inspect_helper(apply,'trim_apply')
+    assert not await project_checks.inspect_helper(reject,'trim_reject')
+    assert not await project_checks.inspect_helper(predicate+apply+reject+validate,'video_trim')
+    assert await project_checks.inspect_helper(apply.replace('disabled=app.busy','disabled=false'),'trim_apply')
+    assert await project_checks.inspect_helper(reject.replace('return false;','app.start=0;return false;'),'trim_reject')
+    assert await project_checks.inspect_helper(predicate+apply+reject+validate.replace('Number(ui.startInput.value)','ui.startInput.value'),'video_trim')
