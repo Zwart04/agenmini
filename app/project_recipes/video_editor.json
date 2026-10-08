@@ -1536,7 +1536,7 @@
       "functions": [
         "validateTrim"
       ],
-      "task": "Implement complete function validateTrim() with no parameters. Read the two existing controls ui.startInput.value and ui.endInput.value, converting each to a number in local variables. Ask existing isTrimRange whether those numbers are valid for app.duration. When valid, call existing applyTrim with the two numbers and return its result. Otherwise call existing rejectTrim with no arguments and return its result. Both branches must invoke their helper. Do not implement validation or side effects yourself; the three helpers already do that. Use the existing outer app and ui objects.",
+      "task": "Write only validateTrim(), a function with no parameters. Steps: 1. Convert ui.startInput.value and ui.endInput.value using Number into local start and end. Preserve fractional seconds. 2. If isTrimRange(start,end,app.duration) returns true, return the result of calling applyTrim(start,end). 3. Otherwise return the result of calling rejectTrim(). Call these three existing standalone helpers directly. Do not define them or create any app/ui objects.",
       "relevant_fields": {
         "app": [
           "duration"
@@ -1592,6 +1592,9 @@
       },
       "relevant_functions": [
         "formatTime"
+      ],
+      "behavior_checks": [
+        "video_timeline"
       ]
     },
     {
@@ -1602,7 +1605,21 @@
       "functions": [
         "updateText"
       ],
-      "task": "Define ONLY updateText(). Assign ui.textOverlay.textContent from ui.titleInput.value safely, toggle hidden based on trimmed empty text, then call updateTimeline() if loaded. Do not make updateTimeline call updateText or cause recursive loops. No innerHTML from user text, no handlers or globals."
+      "task": "Define ONLY updateText(). Assign ui.textOverlay.textContent from ui.titleInput.value safely, toggle hidden based on trimmed empty text, then call updateTimeline() if loaded. Do not make updateTimeline call updateText or cause recursive loops. No innerHTML from user text, no handlers or globals.",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "loaded"
+        ],
+        "ui": [
+          "textOverlay",
+          "titleInput"
+        ]
+      },
+      "relevant_functions": [
+        "updateTimeline"
+      ]
     },
     {
       "name": "Canvas ekspor",
@@ -1613,7 +1630,20 @@
         "prepareCanvas",
         "paintFrame"
       ],
-      "task": "Define prepareCanvas() using actual preview.videoWidth/videoHeight, require >0. Create offscreen canvas, width min(originalWidth,720), height rounded proportional ratio; get2d context, store app.canvas/app.ctx, throw descriptive errors if unsupported. Define paintFrame(): drawImage(preview,0,0,canvas.width,canvas.height), then if titleInput nonempty draw centered white bold system-font overlay at x width/2,y height*.9; textAlign center, textBaseline middle, font max(14,round(width/30))px, dark shadow or stroke so visible; max text width90% canvas. This part only prepares/paints, no media recorder, loops, events or exports. Preserve shared fields."
+      "task": "Define prepareCanvas() using actual preview.videoWidth/videoHeight, require >0. Create offscreen canvas, width min(originalWidth,720), height rounded proportional ratio; get2d context, store app.canvas/app.ctx, throw descriptive errors if unsupported. Define paintFrame(): drawImage(preview,0,0,canvas.width,canvas.height), then if titleInput nonempty draw centered white bold system-font overlay at x width/2,y height*.9; textAlign center, textBaseline middle, font max(14,round(width/30))px, dark shadow or stroke so visible; max text width90% canvas. This part only prepares/paints, no media recorder, loops, events or exports. Preserve shared fields.",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "canvas",
+          "ctx"
+        ],
+        "ui": [
+          "preview",
+          "titleInput"
+        ]
+      },
+      "relevant_functions": []
     },
     {
       "name": "Encode WebM",

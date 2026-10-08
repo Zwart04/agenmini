@@ -1300,7 +1300,7 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
-async def test_noop_patch_keeps_valid_source_for_bounded_diagnosed_retry(monkeypatch,tmp_path,backend):
+async def test_noop_patch_uses_last_bounded_attempt_for_fresh_validated_source(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     item={'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME safely','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
     (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
@@ -1313,23 +1313,19 @@ async def test_noop_patch_keeps_valid_source_for_bounded_diagnosed_retry(monkeyp
         calls.append(messages)
         if len(calls)==1:content=bad
         elif len(calls)==2:content=json.dumps({'edits':[{'line':1,'replace':bad}]})
-        elif len(calls)==3:
-            assert json.loads(messages[1]['content'])['source']==bad
-            content='The constant false rejects valid MIME types; inspect the File type safely.'
         else:
-            request=json.loads(messages[1]['content'])
-            assert request['source']==bad and 'repair_plan' in request
-            content=json.dumps({'edits':[{'line':1,'replace':good}]})
+            assert 'Write a fresh complete source part' in messages[1]['content']
+            assert 'Patch cannot empty the part or leave it unchanged' in messages[1]['content']
+            content=good
         return {'content':content,'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
     async def event(kind,value):
         if kind=='source_part':
-            assert value['source']==good and len(value['repair_chain'])==1
-            assert project_patches.replay(bad,value['repair_chain'],'app.js')==good
+            assert value['source']==good and not value.get('repair_chain')
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
-    assert len(calls)==4
+    assert len(calls)==3
 
 
 @pytest.mark.asyncio
@@ -1505,3 +1501,40 @@ def test_repair_contracts_exclude_evaluator_metadata_but_keep_source_requirement
     assert project_parts.repair_contracts(html)=={'controls':html['controls'],'present_attributes':html['present_attributes']}
     css={'css_selectors':['body'],'css_declarations':{'display':'grid'},'media_query':'(max-width: 600px)','include_html':True}
     assert set(project_parts.repair_contracts(css))=={'css_selectors','css_declarations','media_query'}
+
+
+@pytest.mark.asyncio
+async def test_timeline_check_rejects_unsafe_html_and_missing_tracks():
+    unsafe='function updateTimeline(){ui.timeline.innerHTML=app.filename;}'
+    errors=await project_checks.inspect_helper(unsafe,'video_timeline')
+    assert any('innerHTML' in e for e in errors)
+    empty='function updateTimeline(){ui.timeline.textContent="Import video";}'
+    errors=await project_checks.inspect_helper(empty,'video_timeline')
+    assert any('two track rows' in e for e in errors)
+
+
+@pytest.mark.asyncio
+async def test_timeline_check_accepts_safe_dom_and_rejects_accumulation_and_wrong_positions():
+    # Checker fixture only. Never supplied to the model or generated app.
+    source="""function updateTimeline(){
+      ui.timeline.textContent='';
+      if(!app.loaded){ui.timeline.textContent='Import video';return;}
+      const ruler=document.createElement('div');ruler.className='timeline-ruler';ruler.textContent=formatTime(app.duration);ui.timeline.appendChild(ruler);
+      for(const kind of ['Video','Text']){
+        const row=document.createElement('div');row.className='track-row';
+        const label=document.createElement('span');label.className='track-label';label.textContent=kind;row.appendChild(label);
+        const lane=document.createElement('div');lane.className='track-lane';row.appendChild(lane);
+        if(kind==='Video'||ui.titleInput.value){
+          const clip=document.createElement('div');clip.className=kind==='Video'?'video-clip':'text-clip';
+          clip.textContent=kind==='Video'?app.filename:ui.titleInput.value;
+          clip.style.left=(app.start/app.duration*100)+'%';clip.style.width=((app.end-app.start)/app.duration*100)+'%';lane.appendChild(clip);
+        }
+        const head=document.createElement('div');head.className='playhead';head.style.left=(ui.preview.currentTime/app.duration*100)+'%';lane.appendChild(head);ui.timeline.appendChild(row);
+      }
+      ui.seekInput.value=ui.preview.currentTime;
+    }"""
+    assert not await project_checks.inspect_helper(source,'video_timeline')
+    errors=await project_checks.inspect_helper(source.replace("ui.timeline.textContent='';",''),'video_timeline')
+    assert any('accumulate' in error for error in errors)
+    errors=await project_checks.inspect_helper(source.replace('app.start/app.duration*100','0'),'video_timeline')
+    assert any('position/width' in error for error in errors)

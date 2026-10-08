@@ -758,8 +758,9 @@ async def generate(brief,ctx,on_event=None):
                 # contract. A fragment without a syntax tree needs a complete
                 # model-written part, not successive edits to a bare selector.
                 async_header=missing_async_repairable(source,item,errors)
-                retry_unchanged=patch_error=='Patch rejected: Patch cannot empty the part or leave it unchanged.' and patch_base is not None
-                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header) and (not missing_structure or async_header) and (not patch_error or retry_unchanged) and bool(source)
+                # An unchanged patch is evidence that this edit path stalled.
+                # Spend the remaining bounded attempt on fresh model source.
+                source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header) and (not missing_structure or async_header) and not patch_error and bool(source)
             if not errors:break
             if attempt==2:raise ValueError(name+' gagal: '+' '.join(errors)[:1700])
             await emit('status','Memperbaiki bagian '+name+'â€¦')

@@ -902,3 +902,40 @@ berakhir gagal setelah 178,3 detik: model mendefinisikan ulang helper, lalu
 pada perbaikan memanggil rejectTrim sebagai metode objek. Guard tetap
 menolak keluaran itu. Penyaringan konteks belum membuktikan editor berhasil.
 CI Linux untuk commit 7efc940 sebelumnya lolos 468 tes.
+
+## Pemulihan setelah patch tanpa perubahan
+
+v70 gagal setelah 154,9 detik: validateTrim mempertahankan pecahan detik
+tetapi langsung menerapkan trim tanpa memeriksa rentang. Patch pertama
+tidak mengubah sumber; diagnosis berikutnya berulang dan keliru, lalu
+patch melanggar format baris.
+
+Setelah patch ditolak karena tidak mengubah sumber, percobaan terakhir kini
+meminta penulisan ulang bagian tersebut dari spesifikasi dan galat aktual.
+Batas tiga percobaan tetap berlaku, seluruh pemeriksaan tetap dijalankan,
+dan kode lama/patch gagal tetap tersimpan di jurnal. Sumber baru tidak
+dicatat sebagai replay patch lama. Tes lokal/online/router membuktikan
+alur tiga panggilan model dan validasi sumber baru; ini menggantikan jalur
+diagnosis-plus-patch setelah no-op yang didokumentasikan sebelumnya.
+
+V71 menulis validateTrim dengan benar pada percobaan pertama: Number
+mempertahankan pecahan, kedua cabang memanggil helper yang sesuai dan
+mengembalikan hasil. video_trim lolos dengan helper model yang sudah
+tervalidasi. Keberhasilan itu bukan akibat jalur fallback no-op; fallback
+diverifikasi terpisah oleh tes.
+
+V71 berakhir gagal setelah 638,1 detik pada kanvas ekspor (keluaran
+terpotong, deklarasi ulang app/helper). Timeline sempat lolos sintaks tetapi
+menggunakan innerHTML untuk nama berkas/teks serta menumpuk elemen.
+Pemeriksaan DOM terbatas kini menolak keluaran nyata tersebut, memeriksa
+dua jalur, posisi klip/playhead, durasi aktual, scrub, penghapusan caption,
+unload dan render ulang tanpa pertumbuhan node. Fixture bukan browser dan
+tidak menggantikan pengujian media nyata. Tes memakai implementasi referensi
+hanya di tests; fixture/kode referensi tidak diberikan kepada model atau
+disisipkan ke aplikasi hasil.
+
+Konteks overlay dan kanvas dipersempit ke simbol yang diperlukan, dengan
+keluaran JavaScript langsung. CI Linux commit 95eb52c lolos 469 tes.
+
+217 tes terkait Windows lolos setelah pemeriksaan DOM dan fallback baru.
+Pemeriksaan langsung pada sumber timeline v71 menolak pemakaian innerHTML.
