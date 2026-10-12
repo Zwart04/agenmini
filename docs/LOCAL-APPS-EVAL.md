@@ -1613,6 +1613,46 @@ hash bagian 108 disimpan; implementasi tidak diambil dari reference penguji.
 310 tes regresi terkait lolos (181,08 detik). Sambungan audio dan ekspor
 lengkap masih dalam proses pemeriksaan model nyata.
 
+V120 selesai gagal setelah 322,7 detik pada connectExportAudio. Model menambah
+context.createAudioContext yang bukan metode native, lalu patch tidak berubah.
+V121 menambahkan diagnostik panggilan API tersebut melalui AST: parameter
+context sudah merupakan instance dan harus digunakan langsung. Pemeriksaan
+juga membedakan panggilan asli, computed member, komentar, string, dan properti
+yang tidak dipanggil; tidak mengeksekusi source saat memeriksa sintaks.
+7 tes terarah kontrak/API lolos (4,86 detik). Kandidat sumber model bagian 109
+diperiksa ulang, tidak diterima sebagai lulus hanya karena tersimpan di cache.
+
+V121 selesai gagal setelah 254,5 detik. Model mengganti API palsu dengan API
+native, tetapi menyimpan source node pada variabel audioContext lalu memanggil
+metode context pada node tersebut. 315 tes regresi terkait lolos (203,90 detik);
+kelulusan validator tidak dianggap kelulusan kode model. V122 memisahkan tiga
+operasi parameter-only: factory sumber dari video asli, factory destination,
+dan koneksi source ke speaker/destination. connectExportAudio hanya menyimpan
+hasil factory dan menyusun helper; wrapper ekspor memeriksa seluruh dependensi
+transitif beserta lifecycle audio gabungan. Tidak ada source fixture yang
+masuk ke recipe, prompt atau aplikasi hasil.
+
+85 tes ekspor terarah lolos (23,93 detik) dan 325 tes regresi terkait lolos
+(190,30 detik). V122 selesai gagal setelah 186 detik: fungsi sumber audio yang
+benar muncul pada respons kedua model, tetapi dibungkus export; respons lain
+memakai body tanpa deklarasi atau import yang tidak diperlukan.
+
+V123 memperluas pemilihan helper asli: bila parsing script gagal, hanya jalur
+seleksi helper boleh membaca AST module dan mengambil rentang deklarasi asli
+di dalam export. Byte isi fungsi tetap tepat berasal dari respons model.
+Anonymous default export tidak diberi nama buatan, referensi import tidak
+ditulis ulang, dan caller tanpa behavioral check tidak memakai seleksi ini.
+6 tes seleksi/behavior terkait lolos (3,95 detik), termasuk penolakan body palsu
+dan dependency import yang tidak tersedia. Kandidat checkpoint yang tidak
+mereplay seleksi aktual tetap ditolak; kode tidak disalin dari fixture.
+
+330 tes regresi terkait lolos (217,26 detik). V123 model nyata meloloskan
+createExportAudioSource pada regenerasi dan createExportAudioDestination pada
+respons pertama. Kedua respons yang diterima berupa fungsi biasa tanpa export;
+dukungan module span tidak boleh diklaim digunakan pada kedua bagian tersebut.
+Raw source, model ID dan hash disimpan pada parts/109.json dan parts/110.json.
+Sambungan target, cache node dan ekspor lengkap masih dalam proses.
+
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.

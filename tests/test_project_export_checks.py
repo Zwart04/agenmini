@@ -8,6 +8,9 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_audio_source': 'function createExportAudioSource(context,video){return context.createMediaElementSource(video);}',
+    'video_audio_destination': 'function createExportAudioDestination(context){return context.createMediaStreamDestination();}',
+    'video_audio_targets': 'function connectExportAudioTargets(source,context,destination){source.connect(context.destination);source.connect(destination);}',
     'video_audio_context': "function getExportAudioContext(){if(app.audioContext)return app.audioContext;const Type=window.AudioContext||window.webkitAudioContext;if(!Type)throw new Error('No Web Audio');app.audioContext=new Type();return app.audioContext;}",
     'video_audio_connections': 'function connectExportAudio(context,video){if(!app.audioSource){app.audioSource=context.createMediaElementSource(video);app.audioDest=context.createMediaStreamDestination();app.audioSource.connect(context.destination);app.audioSource.connect(app.audioDest);}return app.audioDest;}',
     'video_audio_tracks': 'function addExportAudioTracks(stream,destination){const tracks=destination.stream.getAudioTracks();for(const track of tracks)if(!stream.getAudioTracks().includes(track))stream.addTrack(track);return tracks.length>0;}',
@@ -102,6 +105,12 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_audio_source', 'createMediaElementSource(video)', 'createMediaElementSource({...video})'),
+    ('video_audio_source', 'return context.createMediaElementSource(video)', 'context.createMediaElementSource(video);return {}'),
+    ('video_audio_destination', 'return context.createMediaStreamDestination()', 'context.createMediaStreamDestination();return {}'),
+    ('video_audio_targets', 'source.connect(context.destination)', 'source.connect(context)'),
+    ('video_audio_targets', 'source.connect(destination);', ''),
+    ('video_audio_targets', 'source.connect(destination);', 'source.connect(destination);source.connect(destination);'),
     ('video_audio_context', 'if(app.audioContext)', 'if(false)'),
     ('video_audio_context', 'new Type()', 'Type'),
     ('video_audio_connections', 'if(!app.audioSource)', 'if(true)'),
@@ -169,7 +178,18 @@ async def test_audio_workers_preserve_full_context_reuse_and_silent_failure_case
     assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('await context.resume();',''),'video_export_audio')
     recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text(encoding='utf-8'))
     audio=next(part for part in recipe['parts'] if part.get('functions')==['attachExportAudio'])
-    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks'}
+    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks','createExportAudioSource','createExportAudioDestination','connectExportAudioTargets'}
+
+
+@pytest.mark.asyncio
+async def test_audio_factory_workers_compose_without_changing_full_export_audio_cases():
+    factories='\n'.join(REFERENCES[name] for name in ('video_audio_source','video_audio_destination','video_audio_targets'))
+    connection='function connectExportAudio(context,video){if(app.audioSource)return app.audioDest;app.audioSource=createExportAudioSource(context,video);app.audioDest=createExportAudioDestination(context);connectExportAudioTargets(app.audioSource,context,app.audioDest);return app.audioDest;}'
+    assert not await project_checks.inspect_helper(factories+'\n'+connection,'video_audio_connections')
+    workers=REFERENCES['video_audio_context']+'\n'+REFERENCES['video_audio_tracks']+'\n'+factories+'\n'+connection
+    wrapper="async function attachExportAudio(stream){try{const context=getExportAudioContext();const destination=connectExportAudio(context,ui.preview);await context.resume();if(!addExportAudioTracks(stream,destination))throw new Error('No tracks');return true;}catch(error){setStatus('Silent export: '+error.message);return false;}}"
+    assert not await project_checks.inspect_helper(workers+'\n'+wrapper,'video_export_audio')
+    assert await project_checks.inspect_helper(workers.replace('app.audioSource=createExportAudioSource','createExportAudioSource')+'\n'+wrapper,'video_export_audio')
 
 
 @pytest.mark.asyncio

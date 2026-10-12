@@ -2534,12 +2534,93 @@
       "system_contract": "Start with function getExportAudioContext. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
     },
     {
+      "name": "Create original video audio source",
+      "functions": [
+        "createExportAudioSource"
+      ],
+      "tokens": 160,
+      "task": "Write createExportAudioSource(context,video). Return the actual result of context.createMediaElementSource(video), called once. context is already an AudioContext instance. Do only this operation; no constructors, caches, connections, guards or other methods.",
+      "parameters": {
+        "context": "Existing AudioContext instance with the method createMediaElementSource. Use this argument directly.",
+        "video": "Original video element to pass as the only method argument."
+      },
+      "behavior_checks": [
+        "video_audio_source"
+      ],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "context": "Parameter-only browser helper. Use supplied objects directly; no shared app/ui state.",
+      "system_contract": "Start with function createExportAudioSource. Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+    },
+    {
+      "name": "Create original recording audio destination",
+      "functions": [
+        "createExportAudioDestination"
+      ],
+      "tokens": 140,
+      "task": "Write createExportAudioDestination(context). Return the actual result of context.createMediaStreamDestination(), called once with no arguments. context is already an AudioContext instance. Do only this operation; no constructors, caches, connections, guards or other methods.",
+      "parameters": {
+        "context": "Existing AudioContext instance with the method createMediaStreamDestination. Use this argument directly."
+      },
+      "behavior_checks": [
+        "video_audio_destination"
+      ],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "context": "Parameter-only browser helper. Use supplied objects directly; no shared app/ui state.",
+      "system_contract": "Start with function createExportAudioDestination. Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+    },
+    {
+      "name": "Connect audio source to actual targets",
+      "functions": [
+        "connectExportAudioTargets"
+      ],
+      "tokens": 180,
+      "task": "Write connectExportAudioTargets(source,context,destination). Call source.connect with context.destination, then call source.connect with destination. Each call uses the supplied original objects. Only these two connection operations. Do not call any method on destination or create/change any objects.",
+      "parameters": {
+        "source": "Actual MediaElementAudioSourceNode with connect(target) method.",
+        "context": "Actual AudioContext with destination property for playback. It is not the source node.",
+        "destination": "Actual recording destination node supplied directly."
+      },
+      "behavior_checks": [
+        "video_audio_targets"
+      ],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "context": "Parameter-only browser helper. Use supplied objects directly; no shared app/ui state.",
+      "system_contract": "Start with function connectExportAudioTargets. Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+    },
+    {
       "name": "Reuse audio source connections",
       "functions": [
         "connectExportAudio"
       ],
       "tokens": 260,
-      "task": "Write connectExportAudio(context,video). If app.audioSource is absent, create it using context.createMediaElementSource(video), store app.audioDest from context.createMediaStreamDestination(), and connect that source to context.destination and app.audioDest. Otherwise preserve both existing objects and connections. Return app.audioDest. Do not create a context, resume it or attach tracks.",
+      "task": "Write connectExportAudio(context,video). If app.audioSource exists, return app.audioDest immediately. Otherwise store result of createExportAudioSource(context,video) in app.audioSource, then store result of createExportAudioDestination(context) in app.audioDest. Call connectExportAudioTargets(app.audioSource,context,app.audioDest). Return app.audioDest. Only compose these existing helpers and cache their actual results; do not implement their browser operations again.",
       "parameters": {
         "context": "Actual AudioContext instance already created. Its createMediaElementSource and createMediaStreamDestination methods return browser objects.",
         "video": "Actual video element supplied directly, not a URL or stream."
@@ -2551,7 +2632,11 @@
         ],
         "ui": []
       },
-      "relevant_functions": [],
+      "relevant_functions": [
+        "createExportAudioSource",
+        "createExportAudioDestination",
+        "connectExportAudioTargets"
+      ],
       "state_writes": [
         "audioSource",
         "audioDest"
@@ -2559,12 +2644,22 @@
       "behavior_checks": [
         "video_audio_connections"
       ],
-      "context": "Initialize recording/playback connections once using the supplied context and video.",
+      "context": "All three existing helpers below are validated model-authored implementations. Only app.audioSource and app.audioDest cache their results. The context parameter is already an AudioContext instance.",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "system_contract": "Start with function connectExportAudio. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
+      "system_contract": "Start with function connectExportAudio. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations.",
+      "include_helper_sources": [
+        "createExportAudioSource",
+        "createExportAudioDestination",
+        "connectExportAudioTargets"
+      ],
+      "behavior_dependencies": [
+        "createExportAudioSource",
+        "createExportAudioDestination",
+        "connectExportAudioTargets"
+      ]
     },
     {
       "name": "Attach actual audio destination tracks",
@@ -2622,6 +2717,9 @@
         "video_export_audio"
       ],
       "behavior_dependencies": [
+        "createExportAudioSource",
+        "createExportAudioDestination",
+        "connectExportAudioTargets",
         "getExportAudioContext",
         "connectExportAudio",
         "addExportAudioTracks"

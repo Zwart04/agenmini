@@ -1016,6 +1016,23 @@ def test_js_rejects_invented_shared_state_and_browser_methods():
     assert not project_parts.js_shared_reference_errors('app.ctx.drawImage(ui.preview,0,0);',prior)
 
 
+@pytest.mark.parametrize('method',['createMediaSource','createMediaDestination','createAudioContext'])
+def test_browser_method_diagnostics_parse_real_member_calls(method):
+    errors=project_parts.js_shared_reference_errors('function f(context){return context["'+method+'"]();}', '')
+    assert any('Unsupported Web Audio method '+method in error for error in errors)
+    if method=='createAudioContext':assert any('already an AudioContext instance' in error for error in errors)
+
+
+def test_browser_method_diagnostics_ignore_comments_strings_and_uncalled_properties():
+    source='function f(context){const note="context.createAudioContext()";/* context.createMediaSource() */return context.createMediaDestination;}'
+    assert not project_parts.js_shared_reference_errors(source,'')
+
+
+def test_browser_method_diagnostics_allow_actual_audio_instance_operations():
+    source='function f(context,video){const source=context.createMediaElementSource(video);const dest=context.createMediaStreamDestination();source.connect(dest);return dest;}'
+    assert not project_parts.js_shared_reference_errors(source,'')
+
+
 def test_function_contract_rejects_simulated_replacements_and_missing_startup():
     item={'functions':['initEditor'],'required_patterns':[r'\}\s*initEditor\(\s*\)\s*;?\s*$']}
     assert project_parts.part_contract_errors('function initEditor(){ /* Simulate loading video */ function loadVideo(){} }',item)
@@ -1244,6 +1261,40 @@ async def test_selected_model_helper_still_fails_actual_behavior_check():
     selected=project_parts.select_model_helper(source,item)
     assert selected=='function formatTime(value){return "00:00";}'
     assert await project_checks.inspect_helper(selected,'time_format')
+
+
+@pytest.mark.parametrize('prefix,target',[
+    ('export ', 'function selected(value){return value+1;}'),
+    ('export default ', 'function selected(value){return value+1;}'),
+    ('export ', 'const selected=(value)=>value+1;'),
+])
+def test_module_wrapper_selection_retains_exact_model_callable_bytes(prefix,target):
+    item={'kind':'js','functions':['selected'],'behavior_checks':['test']}
+    raw=prefix+target
+    assert project_parts.select_model_helper(raw,item)==target
+    assert target in raw
+
+
+def test_module_wrapper_selection_does_not_invent_names_or_rewrite_imported_references():
+    item={'kind':'js','functions':['selected'],'behavior_checks':['test']}
+    target='function selected(value){return external(value);}'
+    raw="import external from 'missing';export "+target
+    assert project_parts.select_model_helper(raw,item)==target
+    anonymous='export default function(value){return value+1;}'
+    assert project_parts.select_model_helper(anonymous,item)==anonymous
+    no_behavior={'kind':'js','functions':['selected']}
+    assert project_parts.select_model_helper(raw,no_behavior)==raw
+
+
+@pytest.mark.asyncio
+async def test_module_selected_helpers_still_require_real_browser_method_behavior():
+    item={'kind':'js','functions':['createExportAudioSource'],'behavior_checks':['video_audio_source']}
+    good='function createExportAudioSource(context,video){return context.createMediaElementSource(video);}'
+    assert not await project_checks.inspect_helper(project_parts.select_model_helper('export '+good,item),'video_audio_source')
+    broken='export function createExportAudioSource(context,video){return {fake:true};}'
+    assert await project_checks.inspect_helper(project_parts.select_model_helper(broken,item),'video_audio_source')
+    imported="import external from 'missing';export function createExportAudioSource(context,video){return external(video);}"
+    assert await project_checks.inspect_helper(project_parts.select_model_helper(imported,item),'video_audio_source')
 
 
 def test_js_contracts_preserve_outer_fields_after_nested_objects_and_ignore_locals():

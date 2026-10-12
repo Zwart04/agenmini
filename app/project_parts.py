@@ -22,7 +22,9 @@ HELPER_SELECTOR=r'''
 const fs=require('node:fs'),acorn=require(process.argv[1]);
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 try{
- const ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'script'});
+ let ast;
+ try{ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'script'});}
+ catch(error){if(input.mode)throw error;ast=acorn.parse(input.source,{ecmaVersion:'latest',sourceType:'module'});}
  if(input.mode==='member_helpers'){
   const known=new Set(input.names),bad=new Set();
   function walk(node){
@@ -35,7 +37,7 @@ try{
   }
   walk(ast);console.log(JSON.stringify({methods:[...bad]}));
  }else if(input.mode==='contracts'){
-  const globals={},functions=[],shadowed=new Set(),members=new Set();
+  const globals={},functions=[],shadowed=new Set(),members=new Set(),calledMethods=new Set();
   function bindingNames(node){
    if(!node)return [];
    if(node.type==='Identifier')return [node.name];
@@ -47,6 +49,10 @@ try{
   }
   function walk(node){
    if(!node||typeof node!=='object')return;
+   if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+    const callee=node.callee,key=callee.computed?callee.property.type==='Literal'?callee.property.value:null:callee.property.name;
+    if(typeof key==='string')calledMethods.add(key);
+   }
    if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&['app','ui'].includes(node.object.name)){
     const key=node.computed?node.property.type==='Literal'?node.property.value:null:node.property.name;
     if(typeof key==='string')members.add(JSON.stringify([node.object.name,key]));
@@ -68,9 +74,10 @@ try{
    }
    if(node.type==='FunctionDeclaration')functions.push(input.source.slice(node.start,node.body.start).trim());
   }
-  console.log(JSON.stringify({globals,existing_functions:functions,shadowed_state:[...shadowed],shared_members:[...members].map(value=>JSON.parse(value))}));
+  console.log(JSON.stringify({globals,existing_functions:functions,shadowed_state:[...shadowed],shared_members:[...members].map(value=>JSON.parse(value)),called_methods:[...calledMethods]}));
  }else{
- const choices=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
+ const declarations=ast.body.map(node=>['ExportNamedDeclaration','ExportDefaultDeclaration'].includes(node.type)?node.declaration:node).filter(Boolean);
+ const choices=declarations.filter(n=>n.type==='FunctionDeclaration'&&n.id?.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
  const spans=choices.map(n=>input.source.slice(n.start,n.end));
  if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
  else {
@@ -205,7 +212,7 @@ def select_model_helper(source,item):
 
 def parsed_js_contracts(source, include_members=False):
     """Read top-level property names through syntax, never execute declarations."""
-    if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[],**({'shared_members':[]} if include_members else {})}
+    if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[],**({'shared_members':[],'called_methods':[]} if include_members else {})}
     if len(source.encode())>65536:return None
     try:
         result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
@@ -214,8 +221,9 @@ def parsed_js_contracts(source, include_members=False):
             **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
         if result.returncode:return None
         value=json.loads(result.stdout)
-        if set(value)=={'globals','existing_functions','shadowed_state','shared_members'}:
-            if not include_members:value.pop('shared_members')
+        if set(value)=={'globals','existing_functions','shadowed_state','shared_members','called_methods'}:
+            if not include_members:
+                value.pop('shared_members');value.pop('called_methods')
             return value
     except (OSError,subprocess.TimeoutExpired,ValueError):pass
     return None
@@ -473,9 +481,10 @@ def js_shared_reference_errors(source, prior):
     for obj,key in sorted({tuple(pair) for pair in parsed.get('shared_members',[])} if parsed is not None else set()):
         if obj in fields and key not in fields[obj]:
             errors.append('Undefined shared field '+obj+'.'+key+'; use the declared contracts.')
-    for fake in ('createMediaSource','createMediaDestination'):
-        if re.search(r'\.'+fake+r'\s*\(',source):
-            errors.append('Unsupported Web Audio method '+fake+'; use documented browser APIs.')
+    for fake in ('createMediaSource','createMediaDestination','createAudioContext'):
+        called=fake in parsed.get('called_methods',[]) if parsed is not None else bool(re.search(r'\.'+fake+r'\s*\(',source))
+        if called:
+            errors.append('Unsupported Web Audio method '+fake+('; the supplied context is already an AudioContext instance. Use its native createMediaElementSource/createMediaStreamDestination methods directly; do not create another context.' if fake=='createAudioContext' else '; use documented browser APIs.'))
     return errors
 
 

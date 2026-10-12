@@ -1,6 +1,22 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_audio_source': r'''
+      let calls=0;const video={},source={connect(){}};
+      const context={createMediaElementSource(element){calls++;assert(element===video,'audio source factory must pass original video');return source;}};
+      assert(createExportAudioSource(context,video)===source&&calls===1,'audio source factory must return actual browser source from one method call');
+    ''',
+    'video_audio_destination': r'''
+      let calls=0;const destination={stream:{}};
+      const context={createMediaStreamDestination(){calls++;return destination;}};
+      assert(createExportAudioDestination(context)===destination&&calls===1,'audio destination factory must return actual destination from one method call');
+    ''',
+    'video_audio_targets': r'''
+      const speaker={},destination={},context={destination:speaker},targets=[];
+      const source={connect(target){targets.push(target);}};
+      connectExportAudioTargets(source,context,destination);
+      assert(targets.length===2&&targets[0]===speaker&&targets[1]===destination,'connect audio source to original playback and recording targets once each');
+    ''',
     'video_audio_context': r'''
       let creations=0;class AudioContext{constructor(){creations++;}}
       const window={AudioContext};app.audioContext=null;
