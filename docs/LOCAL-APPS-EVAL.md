@@ -1759,6 +1759,11 @@ urutan operasi positif yang singkat dan kontrak global yang sudah tersedia.
 104 tes pemeriksaan ekspor tetap lolos (18,79 detik). Perubahan instruksi
 tidak melonggarkan persyaratan cleanup atau menyisipkan implementasi runtime.
 
+V133 selesai gagal setelah 133,0 detik. Respons pertama memanggil metode
+cancel pada nomor RAF; respons terakhir mendeklarasikan app dan ui lokal
+yang menutupi state aplikasi asli. Kedua kegagalan ditolak. Jumlah bagian
+yang lolos tetap 119; belum ada artefak editor yang dapat diserahkan.
+
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.
