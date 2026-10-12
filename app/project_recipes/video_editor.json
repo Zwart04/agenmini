@@ -2429,8 +2429,8 @@
         "video": "Video element already passed into the function. Use this argument directly; do not declare or find another video.",
         "target": "Requested playback seconds, already validated. Zero is valid. Use this argument directly."
       },
-      "task": "Write async waitForVideoTime(video,target). If the absolute difference between video.currentTime and target is below .02, return immediately without writes. Otherwise return a new Promise. In its executor, use existing makeSeekJob(video,resolve,reject) to create a local job, then call existing armSeekJob(job,target). These helpers already implement the bounded event and cleanup lifecycle. Do not duplicate their implementations, query DOM or play the video.",
-      "context": "Standalone parameter-only browser helper. All variables and event callbacks are local to this function.",
+      "task": "Write async waitForVideoTime(video,target). Return immediately if Math.abs(video.currentTime-target) is below .02. Otherwise return a NEW Promise whose executor receives resolve and reject. Inside that executor, create a local job using makeSeekJob(video,resolve,reject), then pass that job and target to armSeekJob. makeSeekJob returns plain data immediately, never a Promise. armSeekJob sets up the events which will resolve or reject this NEW Promise. Keep this function concise; no input guards, imports, DOM queries, playback or then/catch chains.",
+      "context": "Both existing helper implementations are provided below. Call them directly without redefining them. makeSeekJob returns a job object; armSeekJob arms that object. The wait is implemented by the new Promise in the requested function.",
       "relevant_fields": {
         "app": [],
         "ui": []
@@ -2456,6 +2456,10 @@
         "registerSeekEvent",
         "scheduleSeekTimeout",
         "assignSeekTarget",
+        "armSeekJob"
+      ],
+      "include_helper_sources": [
+        "makeSeekJob",
         "armSeekJob"
       ]
     },
@@ -2503,38 +2507,131 @@
       ]
     },
     {
+      "name": "Reuse actual audio context",
+      "functions": [
+        "getExportAudioContext"
+      ],
+      "tokens": 260,
+      "task": "Write getExportAudioContext(). If app.audioContext already exists, return it unchanged. Otherwise choose the constructor window.AudioContext or window.webkitAudioContext. Throw a descriptive Error when neither exists. Instantiate that constructor using new, store its actual instance in app.audioContext and return that instance. No await, audio source, destination, tracks or imports.",
+      "relevant_fields": {
+        "app": [
+          "audioContext"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [
+        "audioContext"
+      ],
+      "behavior_checks": [
+        "video_audio_context"
+      ],
+      "context": "Browser AudioContext is a constructor, not an existing instance. This helper only obtains a cached context.",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "system_contract": "Start with function getExportAudioContext. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
+    },
+    {
+      "name": "Reuse audio source connections",
+      "functions": [
+        "connectExportAudio"
+      ],
+      "tokens": 260,
+      "task": "Write connectExportAudio(context,video). If app.audioSource is absent, create it using context.createMediaElementSource(video), store app.audioDest from context.createMediaStreamDestination(), and connect that source to context.destination and app.audioDest. Otherwise preserve both existing objects and connections. Return app.audioDest. Do not create a context, resume it or attach tracks.",
+      "parameters": {
+        "context": "Actual AudioContext instance already created. Its createMediaElementSource and createMediaStreamDestination methods return browser objects.",
+        "video": "Actual video element supplied directly, not a URL or stream."
+      },
+      "relevant_fields": {
+        "app": [
+          "audioSource",
+          "audioDest"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [
+        "audioSource",
+        "audioDest"
+      ],
+      "behavior_checks": [
+        "video_audio_connections"
+      ],
+      "context": "Initialize recording/playback connections once using the supplied context and video.",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "system_contract": "Start with function connectExportAudio. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
+    },
+    {
+      "name": "Attach actual audio destination tracks",
+      "functions": [
+        "addExportAudioTracks"
+      ],
+      "tokens": 260,
+      "task": "Write addExportAudioTracks(stream,destination). Obtain destination.stream.getAudioTracks(). For each actual track, add it to the supplied stream using stream.addTrack only when stream.getAudioTracks() does not already include that same track. Return Boolean true when destination has at least one audio track, false when it has none. Do not create, stop or replace tracks, streams or contexts.",
+      "parameters": {
+        "stream": "Existing export MediaStream. Its getAudioTracks returns current attached track objects and addTrack attaches a supplied track.",
+        "destination": "Existing MediaStreamAudioDestinationNode. Its stream.getAudioTracks returns actual audio track objects."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_audio_tracks"
+      ],
+      "context": "Parameter-only helper. Preserve original track identities and avoid duplicates.",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "system_contract": "Start with function addExportAudioTracks. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
+    },
+    {
       "name": "Attach reusable export audio",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "tokens": 600,
+      "tokens": 360,
       "functions": [
         "attachExportAudio"
       ],
-      "task": "Write async attachExportAudio(stream), returning Boolean. Use window.AudioContext or window.webkitAudioContext. Lazily create app.audioContext, app.audioSource using createMediaElementSource(ui.preview), app.audioDest using createMediaStreamDestination. Only initialize source and connections once: connect source to context.destination and audioDest. Reuse existing objects across exports. Await context.resume(); add destination audio tracks to the supplied canvas stream once each; return true if audio tracks attached. On unsupported API or error, report explicit silent-export status through setStatus and return false, without throwing. Keep reusable tracks alive.",
+      "task": "Write async attachExportAudio(stream). Inside try, obtain context from getExportAudioContext(), then destination from connectExportAudio(context,ui.preview). Await context.resume(). Use addExportAudioTracks(stream,destination); if it returns false throw a descriptive Error about no audio tracks. Return true on success. Catch actual Error, report Silent export plus its message through existing setStatus, and return false. These helpers already implement context caching, connections and track handling; only compose them.",
       "relevant_fields": {
-        "app": [
-          "audioContext",
-          "audioSource",
-          "audioDest"
-        ],
+        "app": [],
         "ui": [
           "preview"
         ]
       },
       "relevant_functions": [
+        "getExportAudioContext",
+        "connectExportAudio",
+        "addExportAudioTracks",
         "setStatus"
       ],
-      "state_writes": [
-        "audioContext",
-        "audioSource",
-        "audioDest"
-      ],
+      "state_writes": [],
       "system_contract": "Begin with async function attachExportAudio(stream). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [
         "video_export_audio"
-      ]
+      ],
+      "behavior_dependencies": [
+        "getExportAudioContext",
+        "connectExportAudio",
+        "addExportAudioTracks"
+      ],
+      "include_helper_sources": [
+        "getExportAudioContext",
+        "connectExportAudio",
+        "addExportAudioTracks"
+      ],
+      "context": "Existing helpers below are validated model-written implementations. Call them unchanged; never redeclare app, ui or setStatus."
     },
     {
       "name": "Clean export playback and video tracks",

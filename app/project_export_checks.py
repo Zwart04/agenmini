@@ -1,6 +1,38 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_audio_context': r'''
+      let creations=0;class AudioContext{constructor(){creations++;}}
+      const window={AudioContext};app.audioContext=null;
+      let first,second,failure='';
+      try{first=getExportAudioContext();second=getExportAudioContext();}catch(error){failure=error.message;}
+      assert(!failure,'getExportAudioContext must accept available window.AudioContext constructor; observed '+failure);
+      if(!failure)assert(first instanceof AudioContext&&first===second&&first===app.audioContext&&creations===1,'audio context must store actual instance in app.audioContext and reuse it; observed creations='+creations+' stored='+(first===app.audioContext)+' reused='+(first===second));
+      window.AudioContext=undefined;window.webkitAudioContext=AudioContext;app.audioContext=null;creations=0;failure='';let fallback;
+      try{fallback=getExportAudioContext();}catch(error){failure=error.message;}
+      assert(!failure,'getExportAudioContext must accept available window.webkitAudioContext when primary constructor is absent; observed '+failure);
+      if(!failure)assert(fallback instanceof AudioContext&&fallback===app.audioContext&&creations===1,'webkit audio context must instantiate once and store actual instance; observed creations='+creations+' stored='+(fallback===app.audioContext));
+      window.webkitAudioContext=undefined;app.audioContext=null;failure='';
+      try{getExportAudioContext();}catch(error){failure=error.message;}
+      assert(failure.length>0&&app.audioContext===null,'missing audio constructor must throw a descriptive Error without storing fake state');
+    ''',
+    'video_audio_connections': r'''
+      let sources=0,destinations=0,connections=[];const video={},speaker={},destination={stream:{}},source={connect(target){connections.push(target);}};
+      const context={destination:speaker,createMediaElementSource(element){assert(element===video,'audio source must use supplied video argument');sources++;return source;},createMediaStreamDestination(){destinations++;return destination;}};
+      app.audioSource=null;app.audioDest=null;
+      const first=connectExportAudio(context,video),second=connectExportAudio(context,video);
+      assert(first===destination&&second===destination&&app.audioSource===source&&app.audioDest===destination,'audio connections must retain and return actual browser objects');
+      assert(sources===1&&destinations===1&&connections.length===2&&connections.includes(speaker)&&connections.includes(destination),'audio connections must initialize once and connect both playback and recording destinations');
+    ''',
+    'video_audio_tracks': r'''
+      const first={kind:'audio'},second={kind:'audio'};let tracks=[],added=[];
+      const stream={getAudioTracks(){return tracks;},addTrack(track){added.push(track);tracks.push(track);}};
+      let available=[first,second];const destination={stream:{getAudioTracks(){return available;}}};
+      assert(addExportAudioTracks(stream,destination)===true&&added.length===2&&added[0]===first&&added[1]===second,'audio tracks must attach original destination tracks and return Boolean true');
+      assert(addExportAudioTracks(stream,destination)===true&&added.length===2,'audio tracks already attached must not be duplicated');
+      available=[];tracks=[];added=[];
+      assert(addExportAudioTracks(stream,destination)===false&&added.length===0,'an empty audio destination must return Boolean false without adding fake tracks');
+    ''',
     'video_seek_timer_factory': r'''
       let job,callback,delay,handle,failed=[];
       function setTimeout(fn,ms){callback=fn;delay=ms;return handle;}const window={setTimeout};

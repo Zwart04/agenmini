@@ -8,6 +8,9 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_audio_context': "function getExportAudioContext(){if(app.audioContext)return app.audioContext;const Type=window.AudioContext||window.webkitAudioContext;if(!Type)throw new Error('No Web Audio');app.audioContext=new Type();return app.audioContext;}",
+    'video_audio_connections': 'function connectExportAudio(context,video){if(!app.audioSource){app.audioSource=context.createMediaElementSource(video);app.audioDest=context.createMediaStreamDestination();app.audioSource.connect(context.destination);app.audioSource.connect(app.audioDest);}return app.audioDest;}',
+    'video_audio_tracks': 'function addExportAudioTracks(stream,destination){const tracks=destination.stream.getAudioTracks();for(const track of tracks)if(!stream.getAudioTracks().includes(track))stream.addTrack(track);return tracks.length>0;}',
     'video_seek_timer_factory': "function makeSeekTimer(job){return setTimeout(()=>failSeekJob(job,new Error('Seek timeout')),5000);}",
     'video_seek_callback': 'function makeSeekCallback(job){return ()=>completeSeekJob(job);}',
     'video_seek_store': 'function storeSeekCallback(job){job.onSeeked=makeSeekCallback(job);}',
@@ -99,6 +102,13 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_audio_context', 'if(app.audioContext)', 'if(false)'),
+    ('video_audio_context', 'new Type()', 'Type'),
+    ('video_audio_connections', 'if(!app.audioSource)', 'if(true)'),
+    ('video_audio_connections', 'app.audioSource.connect(context.destination);', ''),
+    ('video_audio_tracks', 'if(!stream.getAudioTracks().includes(track))', 'if(true)'),
+    ('video_audio_tracks', 'stream.addTrack(track)', 'stream.addTrack({...track})'),
+    ('video_audio_tracks', 'return tracks.length>0', 'return true'),
     ('video_seek_callback', 'return ()=>completeSeekJob(job)', 'return completeSeekJob(job)'),
     ('video_seek_store', 'job.onSeeked=makeSeekCallback(job)', 'makeSeekCallback(job)'),
     ('video_seek_store', 'makeSeekCallback(job)', 'makeSeekCallback({...job})'),
@@ -147,6 +157,31 @@ async def test_seek_jobs_compose_with_full_event_timeout_and_cleanup_cases():
     assert await project_checks.inspect_helper(workers.replace('clearTimeout(job.timer);','')+'\n'+wait,'video_export_wait')
     reversed_order=workers.replace('registerSeekEvent(job);scheduleSeekTimeout(job);','scheduleSeekTimeout(job);registerSeekEvent(job);')
     assert await project_checks.inspect_helper(reversed_order,'video_seek_arm')
+
+
+@pytest.mark.asyncio
+async def test_audio_workers_preserve_full_context_reuse_and_silent_failure_cases():
+    names=('video_audio_context','video_audio_connections','video_audio_tracks')
+    workers='\n'.join(REFERENCES[name] for name in names)
+    wrapper="async function attachExportAudio(stream){try{const context=getExportAudioContext();const destination=connectExportAudio(context,ui.preview);await context.resume();if(!addExportAudioTracks(stream,destination))throw new Error('No tracks');return true;}catch(error){setStatus('Silent export: '+error.message);return false;}}"
+    assert not await project_checks.inspect_helper(workers+'\n'+wrapper,'video_export_audio')
+    assert await project_checks.inspect_helper(workers.replace('if(!app.audioSource)','if(true)')+'\n'+wrapper,'video_export_audio')
+    assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('await context.resume();',''),'video_export_audio')
+    recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text(encoding='utf-8'))
+    audio=next(part for part in recipe['parts'] if part.get('functions')==['attachExportAudio'])
+    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks'}
+
+
+@pytest.mark.asyncio
+async def test_audio_context_diagnostics_isolate_constructor_support_from_cache_failure():
+    primary_only='function getExportAudioContext(){if(app.audioContext)return app.audioContext;if(!window.AudioContext)throw new Error("AudioContext not supported");app.audioContext=new window.AudioContext();return app.audioContext;}'
+    errors=await project_checks.inspect_helper(primary_only,'video_audio_context')
+    assert any('must accept available window.webkitAudioContext' in error and 'AudioContext not supported' in error for error in errors)
+    no_cache='function getExportAudioContext(){if(app.audioContext)return app.audioContext;const Type=window.AudioContext||window.webkitAudioContext;if(!Type)throw new Error("No audio");return new Type();}'
+    errors=await project_checks.inspect_helper(no_cache,'video_audio_context')
+    assert any('store actual instance in app.audioContext and reuse it' in error for error in errors)
+    assert not any('must accept available window.webkitAudioContext' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed:') for error in errors)
 
 
 @pytest.mark.asyncio

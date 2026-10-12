@@ -1571,6 +1571,48 @@ di dalam try/catch dan mendelagasikan Error asli. 298 tes regresi terkait
 meloloskan perubahan diagnostik (137,37 detik). Rangkaian ekspor masih berjalan;
 kelulusan helper bukan bukti bahwa editor lengkap sudah berfungsi.
 
+V117 selesai dengan kegagalan setelah 333,3 detik. armSeekJob lulus setelah
+regenerasi, tetapi waitForVideoTime berulang kali memanggil .then pada data
+makeSeekJob dan tidak membuat executor yang benar. V118 memberi konteks dua
+implementasi helper yang sudah ditulis Qwen dan lolos pemeriksaan sebelumnya.
+Kontrak membedakan objek job yang dikembalikan langsung dari Promise baru
+yang menunggu event. Sumber tersebut berasal dari checkpoint model, bukan
+fixture atau template penguji; helper tetap tidak ditulis ulang oleh harness.
+
+V118 meloloskan waitForVideoTime dan seekExportStart pada respons pertama
+Qwen0.8B. Pemeriksaan event, timeout, waktu nol, galat setter dan cleanup
+gabungan tetap lulus memakai seluruh dependensi kode model. Run selesai gagal
+setelah 293,3 detik pada attachExportAudio: model menganggap konstruktor audio
+sebagai instance, membuat metode palsu, lalu menghasilkan imports/exports.
+
+V119 memisahkan tiga operasi Web Audio: mendapatkan konteks asli yang di-cache,
+menyambungkan sumber video ke speaker/destination sekali, dan memasang track
+audio asli tanpa duplikasi. Wrapper hanya menyusun operasi tersebut, menangani
+resume yang ditolak dan melaporkan ekspor silent. Pemeriksaan audio gabungan
+asli tetap dipakai bersama sumber ketiga helper model. 74 tes ekspor terkait
+lolos (22,97 detik), termasuk identitas track, constructor webkit, penggunaan
+ulang context/koneksi, track kosong dan penolakan resume. Inferensi V119 sedang
+berjalan; editor lengkap dan ekspor browser belum dibuktikan.
+
+CI Linux commit 7c8d286 berhasil: run 37753116567, 611 tes lolos (127,58 detik).
+
+V119 selesai gagal setelah 240 detik. Respons awal konteks audio mengabaikan
+constructor webkit; regenerasi menerima kedua constructor tetapi tidak
+menyimpan instance di app.audioContext. Pemeriksaan diagnostik kini menangkap
+exception pada kasus constructor yang seharusnya didukung dan mereset hitungan
+constructor antarplatform, agar kegagalan cache tidak salah dilaporkan sebagai
+kegagalan dukungan webkit. Kasus unsupported tetap harus melempar Error.
+309 tes regresi terkait sebelumnya lolos (213,94 detik); setelah perbaikan
+diagnostik 75 tes ekspor terarah lolos (21,23 detik). V120 memeriksa kandidat
+kode model asli bagian 108 dengan bobot, recipe dan parameter inferensi sama.
+
+V120 meloloskan getExportAudioContext melalui regenerasi lengkap Qwen0.8B.
+Instance constructor utama dan webkit disimpan ke app.audioContext, dipakai
+ulang, dan missing constructor tetap menghasilkan Error. Source mentah dan
+hash bagian 108 disimpan; implementasi tidak diambil dari reference penguji.
+310 tes regresi terkait lolos (181,08 detik). Sambungan audio dan ekspor
+lengkap masih dalam proses pemeriksaan model nyata.
+
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.
