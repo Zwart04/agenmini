@@ -1,7 +1,7 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V149 sudah meloloskan 136 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V151 sudah meloloskan 139 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
@@ -1933,6 +1933,44 @@ memakai variabel bare raf/recorder/preview/currentTime dan app.preview yang
 tidak tersedia; respons akhir mengganti app.recorder dan terpotong. Perekam
 yang lolos berasal dari source model, bukan runtime evaluator. Pembuktian
 ekspor video dan UI browser masih belum dilakukan.
+
+V150 memisahkan recordingMustStop, recordingProgress, stopRecordingAtBoundary
+dan paintRecordingStep dari penjadwalan watchExportFrames. Fixture gabungan
+tetap memeriksa trim end, cancel, ended, kondisi inactive, serta handle RAF
+aktual termasuk nol. 191 tes terarah lolos (23,01 detik) dan 445 tes terkait
+lolos (140,14 detik). Model meloloskan predicate berhenti pada regenerasi;
+sumber dibaca ulang dan memakai ended/cancelled serta batas end minus 0,025.
+
+V150 selesai gagal setelah 267,4 detik pada recordingProgress. Deklarasi
+awalnya kehilangan keyword function; setelah koreksi model, pembagi masih
+end sehingga progres tengah trim menjadi 33, bukan 50. V151 memperjelas
+elapsed time, selected duration end-start dan deklarasi fungsi lengkap.
+Tidak ada rumus runtime yang ditulis atau diganti manual dalam hasil model.
+
+Commit c173dc5 lolos seluruh workflow GitHub. Tests 38207550739 meloloskan
+734 tes dalam container Linux (121,86 detik); Secret scan 38207550713,
+Windows installer 38207550914 dan Original harness runtimes 38207550641
+berhasil. Itu memeriksa commit sebelum perubahan V150–V151.
+
+V151 meloloskan recordingProgress dan stopRecordingAtBoundary pada respons
+model pertama. Sumber progres dibaca ulang: elapsed=time-start, duration=end-start,
+hasil dibulatkan dan dibatasi 0–100. Run selesai gagal setelah 284,1 detik
+pada paintRecordingStep: respons awal mengabaikan hasil predicate dan langsung
+return false, sehingga tidak menggambar; respons akhir terpotong.
+
+V152 memperjelas penyimpanan Boolean predicate serta cabang painting yang
+mengembalikan true. Fixture step kini memeriksa progres dinamis 0,25,50,75,80
+agar angka tetap tidak bisa lolos. 192 tes terarah lolos (26,00 detik).
+Source progres/batas rekaman tidak diganti manual, dan pembuktian ekspor
+serta tampilan browser masih belum dilakukan.
+
+V152 selesai gagal setelah 231,9 detik pada paintRecordingStep. Respons awal
+bukan deklarasi fungsi JavaScript yang sah, tidak memanggil paintFrame dan
+memformat label dengan end alih-alih persen. Perbaikan berikutnya membuat
+app.percent yang tidak tersedia serta memanggil stopRecordingAtBoundary
+sebagai metode objek. Pemeriksaan menolak source tersebut. Jumlah fragmen
+yang lolos tetap 139; penjadwalan frame, orkestrasi ekspor, init kontrol dan
+browser belum terbukti berhasil.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes

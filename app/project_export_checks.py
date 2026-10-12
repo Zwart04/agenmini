@@ -508,19 +508,50 @@ EXPORT_CASES = {
       fallback.onerror({});fallback.onstop();
       assert(finished.length===1&&typeof finished[0][2]==='string'&&finished[0][2].length>0,'recorder error without error payload must report fallback once even with following stop');
     ''',
+    'video_recording_end_test': r'''
+      for(const [time,end,ended,cancelled,expected] of [[0,5,false,false,false],[4.96,5,false,false,false],[4.98,5,false,false,true],[1,5,true,false,true],[1,5,false,true,true]]){
+        assert(recordingMustStop(time,end,ended,cancelled)===expected,'recording stop predicate must use actual cancellation, ended and selected end threshold');
+      }
+    ''',
+    'video_recording_progress': r'''
+      for(const [time,start,end,expected] of [[1,2,6,0],[2,2,6,0],[4,2,6,50],[6,2,6,100],[8,2,6,100],[1.33,0,3,44]]){
+        assert(recordingProgress(time,start,end)===expected,'recording progress must clamp and round actual selected interval percentage; expected='+expected+' observed='+recordingProgress(time,start,end));
+      }
+    ''',
+    'video_recording_stop_boundary': r'''
+      for(const time of [3,5.98,6.1]){
+        let stops=0;const recorder={stop(){stops++;}},video={currentTime:time};
+        stopRecordingAtBoundary(recorder,video,6);
+        assert(stops===1&&video.currentTime===(time>=5.975?6:time),'boundary stop must stop actual recorder once and only move video to trim end when threshold reached');
+      }
+    ''',
+    'video_recording_step': r'''
+      let paints=0,stops=0;function paintFrame(){paints++;}
+      app.start=2;app.end=6;app.cancelled=false;app.recorder={state:'recording',stop(){stops++;this.state='inactive';}};
+      ui.preview={currentTime:4,ended:false};ui.progressLabel={textContent:''};
+      for(const [time,expected] of [[2,0],[3,25],[4,50],[5,75],[5.2,80]]){
+        ui.preview.currentTime=time;const drawn=paints,result=paintRecordingStep();
+        assert(result===true&&paints===drawn+1&&ui.progressLabel.textContent===expected+'%','active step must paint once, display dynamic selected progress and return true; expected label='+expected+'% observed label='+ui.progressLabel.textContent+' result='+String(result)+' paint calls='+String(paints-drawn));
+      }
+      for(const [state,time,ended,cancelled] of [['inactive',3,false,false],['recording',5.98,false,false],['recording',3,true,false],['recording',3,false,true]]){
+        app.recorder.state=state;ui.preview.currentTime=time;ui.preview.ended=ended;app.cancelled=cancelled;const before=stops,drawn=paints;
+        assert(paintRecordingStep()===false&&paints===drawn&&stops===before+(state==='inactive'?0:1),'inactive, ended or cancelled step must return false without painting and stop only active recorder');
+      }
+    ''',
     'video_export_frames': r'''
       let paints=0,queued=[],stops=0;
       function paintFrame(){paints++;}
-      function requestAnimationFrame(fn){queued.push(fn);return queued.length+10;}
+      let lastHandle=0;function requestAnimationFrame(fn){queued.push(fn);lastHandle=lastHandle===0?37:0;return lastHandle;}
       ui.progressLabel={textContent:''};ui.preview={currentTime:2,ended:false};
       app.start=2;app.end=6;app.cancelled=false;app.recorder={state:'recording',stop(){stops++;this.state='inactive';}};
-      watchExportFrames();assert(paints===1&&queued.length===1&&app.raf!==null,'watchExportFrames must paint and schedule the active recording');
-      ui.preview.currentTime=4;queued.shift()();assert(paints===2&&/50/.test(ui.progressLabel.textContent),'frame progress must reflect selected trim interval, not full duration');
+      watchExportFrames();assert(paints===1&&queued.length===1&&app.raf===lastHandle,'watchExportFrames must paint and store the actual scheduled animation handle');
+      ui.preview.currentTime=4;queued.shift()();assert(paints===2&&/50/.test(ui.progressLabel.textContent)&&app.raf===lastHandle,'frame progress must reflect selected trim interval and preserve actual RAF handle including zero');
       ui.preview.currentTime=5.98;queued.shift()();assert(stops===1&&app.recorder.state==='inactive'&&ui.preview.currentTime===6&&queued.length===0,'frame loop must stop at selected trim end and stop scheduling');
       for(const [cancelled,ended] of [[true,false],[false,true]]){
         app.recorder.state='recording';app.cancelled=cancelled;ui.preview.ended=ended;ui.preview.currentTime=3;queued=[];const before=stops;
         watchExportFrames();assert(stops===before+1&&queued.length===0,'cancelled or ended video must stop recording without scheduling another frame');
       }
+      queued=[];const drawn=paints,before=stops;watchExportFrames();assert(queued.length===0&&paints===drawn&&stops===before,'inactive recorder must not paint, stop or schedule');
     ''',
     'video_export_orchestration': r'''
       let log=[],valid=true,playError=false,stream={getVideoTracks(){return [];}};

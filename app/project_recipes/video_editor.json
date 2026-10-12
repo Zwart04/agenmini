@@ -3132,6 +3132,50 @@
       "behavior_dependencies": ["makeRecordingChunkCallback", "finishRecordingOnce", "makeRecordingStopCallback", "recordingErrorMessage", "settleRecordingError", "makeRecordingErrorCallback"]
     },
     {
+      "name": "Check original recording end conditions",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 180,
+      "functions": ["recordingMustStop"],
+      "task": "Write recordingMustStop(time,end,ended,cancelled). Return Boolean true when cancelled or ended is true, or time is at least end minus 0.025 seconds. Otherwise return false. Use original supplied values without global state.",
+      "parameters": {"time": "Actual video currentTime number.", "end": "Selected trim end number.", "ended": "Video ended Boolean.", "cancelled": "User cancellation Boolean."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Start with function recordingMustStop(time,end,ended,cancelled). Output only this complete function returning a Boolean. No globals, comments, imports or other helpers.",
+      "behavior_checks": ["video_recording_end_test"]
+    },
+    {
+      "name": "Calculate selected recording progress",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 180,
+      "functions": ["recordingProgress"],
+      "task": "Write recordingProgress(time,start,end). Compute elapsed as time minus start and selected duration as end minus start. Divide elapsed by SELECTED DURATION, not by end, then multiply by 100. Round that percentage to an integer and clamp from 0 to 100. Return the number. end is greater than start. Use separate local numeric variables if helpful.",
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "First line must be a plain JavaScript function declaration beginning with the keyword function and name recordingProgress(time,start,end). Output only this complete function using supplied numeric arguments and native Math. No globals, comments, imports or extra helpers.",
+      "behavior_checks": ["video_recording_progress"]
+    },
+    {
+      "name": "Stop actual recording at selected boundary",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 180,
+      "functions": ["stopRecordingAtBoundary"],
+      "task": "Write stopRecordingAtBoundary(recorder,video,end). If original video.currentTime is at least end minus 0.025, set video.currentTime to end. Otherwise preserve currentTime. Then call original recorder.stop() once. The caller only calls this helper for an active recorder.",
+      "parameters": {"recorder": "Original active MediaRecorder with callable stop.", "video": "Original video element with mutable numeric currentTime.", "end": "Selected trim end number."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Start with function stopRecordingAtBoundary(recorder,video,end). Output only this complete function. Modify only the original video time when threshold reached. No globals, comments, imports or extra helpers.",
+      "behavior_checks": ["video_recording_stop_boundary"]
+    },
+    {
+      "name": "Paint one original recording step",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 330,
+      "functions": ["paintRecordingStep"],
+      "task": "Write paintRecordingStep(). If app.recorder.state is not the STRING \"recording\", return false. Store the actual Boolean returned by recordingMustStop(ui.preview.currentTime,app.end,ui.preview.ended,app.cancelled) in a local variable. If that variable is true, stopRecordingAtBoundary(app.recorder,ui.preview,app.end) then return false. If it is false, paintFrame(), calculate progress using recordingProgress(ui.preview.currentTime,app.start,app.end), assign that number plus percent sign to ui.progressLabel.textContent, then return true. Do not ignore the predicate result or return false in the painting branch.",
+      "relevant_fields": {"app": ["recorder", "start", "end", "cancelled"], "ui": ["preview", "progressLabel"]},
+      "relevant_functions": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintFrame"], "state_writes": [],
+      "system_contract": "Start with function paintRecordingStep(). Output only this complete function. Use existing app/ui objects and standalone helpers directly; do not redeclare or replace them. No comments, imports or copied helpers.",
+      "behavior_checks": ["video_recording_step"],
+      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress"]
+    },
+    {
       "name": "Paint and monitor recording frames",
       "file": "app.js",
       "kind": "js",
@@ -3141,22 +3185,13 @@
       "functions": [
         "watchExportFrames"
       ],
-      "task": "Write watchExportFrames(). Define a local frame callback and invoke it immediately. While recorder is recording, if cancelled or preview.ended or currentTime>=app.end-.025, stop recorder and do not schedule another frame; at trim end set preview.currentTime=app.end. Otherwise paintFrame(), show clamped rounded percentage (currentTime-app.start)/(app.end-app.start)*100 in progressLabel, then store requestAnimationFrame(frame) handle in app.raf. An inactive recorder must not schedule work. Finalization belongs to recorder onstop.",
+      "task": "Write watchExportFrames(). Create a local function named frame. Inside frame, call existing paintRecordingStep(). If its Boolean result is true, assign the number returned by native requestAnimationFrame(frame) to app.raf; if false, do nothing else. After defining frame, call frame() once immediately. The existing step handles painting, progress and stopping. app.raf is a numeric handle, not a function.",
       "relevant_fields": {
-        "app": [
-          "recorder",
-          "cancelled",
-          "start",
-          "end",
-          "raf"
-        ],
-        "ui": [
-          "preview",
-          "progressLabel"
-        ]
+        "app": ["raf"],
+        "ui": []
       },
       "relevant_functions": [
-        "paintFrame"
+        "paintRecordingStep"
       ],
       "state_writes": [
         "raf"
@@ -3164,7 +3199,8 @@
       "system_contract": "Begin with function watchExportFrames(). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [
         "video_export_frames"
-      ]
+      ],
+      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingStep"]
     },
     {
       "name": "Orchestrate actual WebM export",

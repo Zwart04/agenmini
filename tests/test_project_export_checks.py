@@ -102,6 +102,14 @@ REFERENCES = {
       recorder.onerror=event=>{failure=event.error?.message||'Recording failed';if(recorder.state!=='inactive')recorder.stop();else finish();};
       return recorder;
     }""",
+    'video_recording_end_test': 'function recordingMustStop(time,end,ended,cancelled){return cancelled||ended||time>=end-.025;}',
+    'video_recording_progress': 'function recordingProgress(time,start,end){return Math.max(0,Math.min(100,Math.round((time-start)/(end-start)*100)));}',
+    'video_recording_stop_boundary': 'function stopRecordingAtBoundary(recorder,video,end){if(video.currentTime>=end-.025)video.currentTime=end;recorder.stop();}',
+    'video_recording_step': """function paintRecordingStep(){
+      if(app.recorder.state!=='recording')return false;
+      if(recordingMustStop(ui.preview.currentTime,app.end,ui.preview.ended,app.cancelled)){stopRecordingAtBoundary(app.recorder,ui.preview,app.end);return false;}
+      paintFrame();ui.progressLabel.textContent=recordingProgress(ui.preview.currentTime,app.start,app.end)+'%';return true;
+    }""",
     'video_export_frames': """function watchExportFrames(){
       function frame(){
         if(app.recorder.state!=='recording')return;
@@ -130,6 +138,7 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     source=REFERENCES[check]
     if check=='video_seek_arm':source='\n'.join(REFERENCES[name] for name in ('video_seek_register','video_seek_timer','video_seek_assign'))+'\n'+source
     if check in ('video_recording_stop_callback','video_recording_error_callback','video_settle_recording_error'):source=REFERENCES['video_recording_finish_once']+source
+    if check=='video_recording_step':source='\n'.join(REFERENCES[name] for name in ['video_recording_end_test','video_recording_progress','video_recording_stop_boundary'])+source
     assert not await project_checks.inspect_helper(source, check)
 
 
@@ -217,6 +226,15 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_recording_error_callback', 'event.error?.message', 'event.error.message'),
     ('video_recording_error_callback', 'if(recorder.state', 'finishExport(stream,audioEnabled,errorState.message);if(recorder.state'),
     ('video_export_recorder', 'event.data&&event.data.size', 'event.data'),
+    ('video_recording_end_test', 'cancelled||ended', 'cancelled&&ended'),
+    ('video_recording_end_test', 'end-.025', 'end+1'),
+    ('video_recording_progress', '(end-start)', 'end'),
+    ('video_recording_progress', 'Math.max(0,Math.min(100,', 'Math.max(-100,Math.min(200,'),
+    ('video_recording_stop_boundary', 'if(video.currentTime>=end-.025)', 'if(true)'),
+    ('video_recording_stop_boundary', 'recorder.stop();', ''),
+    ('video_recording_step', "app.recorder.state!=='recording'", "app.recorder.state==='recording'"),
+    ('video_recording_step', "+'%'", "+''"),
+    ('video_recording_step', 'recordingProgress(ui.preview.currentTime,app.start,app.end)', '50'),
     ('video_export_frames', 'app.end-.025', 'app.end+1'),
     ('video_export_orchestration', 'recorder.start();await ui.preview.play();', 'await ui.preview.play();recorder.start();'),
 ])
@@ -224,6 +242,7 @@ async def test_export_fixtures_reject_broken_behavior(check, old, new):
     assert old in REFERENCES[check]
     source=REFERENCES[check].replace(old,new)
     if check in ('video_recording_stop_callback','video_recording_error_callback','video_settle_recording_error'):source=REFERENCES['video_recording_finish_once']+source
+    if check=='video_recording_step':source='\n'.join(REFERENCES[name] for name in ['video_recording_end_test','video_recording_progress','video_recording_stop_boundary'])+source
     assert await project_checks.inspect_helper(source, check)
 
 
@@ -594,3 +613,18 @@ async def test_recorder_factories_compose_with_deferred_stop_and_real_error_scop
     if broken=='double_finish':source=source.replace('if(recorder.state', 'finishExport(stream,audioEnabled,errorState.message);if(recorder.state')
     if broken=='wrong_message_target':source=source.replace('errorState.message=recordingErrorMessage(event)','event.error.message=recordingErrorMessage(event)')
     assert bool(await project_checks.inspect_helper(source,'video_export_recorder'))==bool(broken)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('broken',[None,'wrong_handle','invoke_callback','schedule_stopped'])
+async def test_frame_loop_composes_actual_stop_progress_and_step_helpers(broken):
+    source='\n'.join(REFERENCES[name] for name in ['video_recording_end_test','video_recording_progress','video_recording_stop_boundary','video_recording_step'])+"""
+      function watchExportFrames(){
+        function frame(){if(paintRecordingStep())app.raf=requestAnimationFrame(frame);}
+        frame();
+      }
+    """
+    if broken=='wrong_handle':source=source.replace('app.raf=requestAnimationFrame(frame)','requestAnimationFrame(frame);app.raf=123')
+    if broken=='invoke_callback':source=source.replace('requestAnimationFrame(frame)','requestAnimationFrame(frame())')
+    if broken=='schedule_stopped':source=source.replace('if(paintRecordingStep())','paintRecordingStep();')
+    assert bool(await project_checks.inspect_helper(source,'video_export_frames'))==bool(broken)
