@@ -1653,6 +1653,48 @@ dukungan module span tidak boleh diklaim digunakan pada kedua bagian tersebut.
 Raw source, model ID dan hash disimpan pada parts/109.json dan parts/110.json.
 Sambungan target, cache node dan ekspor lengkap masih dalam proses.
 
+V123 meloloskan connectExportAudioTargets dan connectExportAudio pada respons
+pertama model. Target helper mengambil rentang fungsi model yang memakai
+parameter asli; require yang tidak diperlukan berada di luar rentang tersebut.
+Cache source/destination dan dua koneksi gabungan lolos pemeriksaan identitas.
+Run berakhir gagal setelah 416,5 detik pada pemasangan track: respons awal
+hanya mengembalikan Boolean dari jumlah track; regenerasi membuat array lokal
+dan filter type yang palsu tanpa memanggil stream.addTrack.
+
+V124 memisahkan pemasangan satu track berdasarkan identitas dan loop seluruh
+track destination. Checker membedakan return Boolean dari efek addTrack dan
+menguji duplikasi pada stream yang memang sudah berisi track, agar kegagalan
+menambah track tidak dilabeli keliru sebagai duplikasi. Diagnostic menyebut
+jumlah tambahan aktual. Seluruh pemeriksaan lifecycle audio gabungan tetap
+dipakai bersama helper model; tidak ada kode reference yang diberikan ke model.
+
+90 tes ekspor terarah lolos (23,09 detik) dan 335 tes regresi terkait lolos
+(188,24 detik). V124 selesai gagal setelah 203,2 detik: helper satu track
+memanggil addTrack tanpa memeriksa duplikasi; regenerasi menambah track lama
+yang berbeda dari argumen. Diagnostic V125 kini memisahkan jumlah panggilan,
+identitas argumen, kasus stream kosong, track berbeda dan track yang sudah
+ada. Pesan tidak lagi menyebut hitungan yang sama sebagai penyebab kegagalan
+identitas. Kontrak dan seluruh kasus lifecycle tetap diperiksa.
+
+CI Linux commit 779a533 berhasil: run 38194658185, 643 tes lolos (141,95 detik).
+
+91 tes ekspor terarah lolos (24,05 detik) dan 336 tes regresi terkait lolos
+(183,37 detik). V125 selesai gagal setelah 171,6 detik: model menambah track
+hanya pada stream kosong dan membandingkan track.id dengan dirinya sendiri.
+Kasus track lain yang sudah ada tetap gagal; tidak dianggap hasil siap pakai.
+V126 memisahkan predicate membership berdasarkan identitas objek dari tindakan
+menambahkan track. Helper tindakan dan loop mendapat konteks helper model yang
+benar-benar lolos; semua dependensi transitif tetap dipakai pada uji gabungan.
+
+95 tes ekspor terarah lolos (25,88 detik) dan 340 tes regresi terkait lolos
+(195,98 detik). V126 model nyata meloloskan hasExportAudioTrack dan
+addSingleExportAudioTrack pada respons pertama; pemeriksaan membedakan track
+asli, track lain sejenis, stream kosong dan duplikasi. addExportAudioTracks
+lolos pada regenerasi ketiga dengan loop atas array aktual dan pemanggilan
+helper tersebut. Source model dan hash disimpan pada parts/113–115.json.
+Wrapper audio gabungan serta perekam WebM masih dalam proses; ekspor browser
+belum dibuktikan.
+
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.

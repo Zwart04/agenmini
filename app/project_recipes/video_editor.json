@@ -2662,12 +2662,74 @@
       ]
     },
     {
+      "name": "Check existing audio track identity",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": [
+        "hasExportAudioTrack"
+      ],
+      "task": "Write hasExportAudioTrack(stream,track). Read the actual array from stream.getAudioTracks() once. Return the Boolean result of that array including the supplied track by object identity, using Array.includes. Do not compare id/type/kind fields, inspect array length, add anything or mutate objects. No loops or input guards.",
+      "parameters": {
+        "stream": "Existing MediaStream. getAudioTracks returns the actual JavaScript array of current audio tracks.",
+        "track": "Original audio track object. Check this exact argument in that array, not a clone or another property."
+      },
+      "context": "Read-only parameter helper. Use native array membership and return its actual Boolean.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_audio_track_membership"
+      ],
+      "system_contract": "Start with function hasExportAudioTrack(stream,track). Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+    },
+    {
+      "name": "Attach one original audio track when absent",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 180,
+      "functions": [
+        "addSingleExportAudioTrack"
+      ],
+      "task": "Write addSingleExportAudioTrack(stream,track). If existing hasExportAudioTrack(stream,track) returns true, return without doing anything. Otherwise call stream.addTrack(track) once with the supplied original argument. That helper already checks original object identity, not whether any audio exists. Only compose its result with this native addTrack operation; no loops, arrays, fields, type filters or other operations.",
+      "parameters": {
+        "stream": "Existing MediaStream. getAudioTracks returns its current array and addTrack attaches a supplied object.",
+        "track": "Original audio track object supplied directly. Do not clone, recreate, filter or replace it."
+      },
+      "context": "Use the validated model-written membership helper below unchanged. Preserve the original stream and track.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "hasExportAudioTrack"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_audio_single_track"
+      ],
+      "system_contract": "Start with function addSingleExportAudioTrack(stream,track). Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations.",
+      "include_helper_sources": [
+        "hasExportAudioTrack"
+      ],
+      "behavior_dependencies": [
+        "hasExportAudioTrack"
+      ]
+    },
+    {
       "name": "Attach actual audio destination tracks",
       "functions": [
         "addExportAudioTracks"
       ],
       "tokens": 260,
-      "task": "Write addExportAudioTracks(stream,destination). Obtain destination.stream.getAudioTracks(). For each actual track, add it to the supplied stream using stream.addTrack only when stream.getAudioTracks() does not already include that same track. Return Boolean true when destination has at least one audio track, false when it has none. Do not create, stop or replace tracks, streams or contexts.",
+      "task": "Write addExportAudioTracks(stream,destination). Obtain the actual array from destination.stream.getAudioTracks(). Loop over every track in that array and call existing addSingleExportAudioTrack(stream,track). That helper already handles duplicates and native stream mutation. After the loop return Boolean true if the array has any tracks, false if empty. All returned tracks are already audio; no type/kind validation, local collection arrays, cloned objects or other operations.",
       "parameters": {
         "stream": "Existing export MediaStream. Its getAudioTracks returns current attached track objects and addTrack attaches a supplied track.",
         "destination": "Existing MediaStreamAudioDestinationNode. Its stream.getAudioTracks returns actual audio track objects."
@@ -2676,17 +2738,26 @@
         "app": [],
         "ui": []
       },
-      "relevant_functions": [],
+      "relevant_functions": [
+        "addSingleExportAudioTrack"
+      ],
       "state_writes": [],
       "behavior_checks": [
         "video_audio_tracks"
       ],
-      "context": "Parameter-only helper. Preserve original track identities and avoid duplicates.",
+      "context": "Call the validated model-written helper below for every actual destination track. The supplied stream must receive actual tracks before returning the Boolean.",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "system_contract": "Start with function addExportAudioTracks. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations."
+      "system_contract": "Start with function addExportAudioTracks. Output only this complete plain JavaScript function. No comments, imports, exports or other declarations.",
+      "include_helper_sources": [
+        "addSingleExportAudioTrack"
+      ],
+      "behavior_dependencies": [
+        "addSingleExportAudioTrack",
+        "hasExportAudioTrack"
+      ]
     },
     {
       "name": "Attach reusable export audio",
@@ -2722,7 +2793,9 @@
         "connectExportAudioTargets",
         "getExportAudioContext",
         "connectExportAudio",
-        "addExportAudioTracks"
+        "addExportAudioTracks",
+        "addSingleExportAudioTrack",
+        "hasExportAudioTrack"
       ],
       "include_helper_sources": [
         "getExportAudioContext",

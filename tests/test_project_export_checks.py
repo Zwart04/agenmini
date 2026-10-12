@@ -8,6 +8,8 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_audio_track_membership': 'function hasExportAudioTrack(stream,track){const tracks=stream.getAudioTracks();return tracks.includes(track);}',
+    'video_audio_single_track': 'function addSingleExportAudioTrack(stream,track){if(!stream.getAudioTracks().includes(track))stream.addTrack(track);}',
     'video_audio_source': 'function createExportAudioSource(context,video){return context.createMediaElementSource(video);}',
     'video_audio_destination': 'function createExportAudioDestination(context){return context.createMediaStreamDestination();}',
     'video_audio_targets': 'function connectExportAudioTargets(source,context,destination){source.connect(context.destination);source.connect(destination);}',
@@ -105,6 +107,10 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_audio_track_membership', 'return tracks.includes(track)', 'return tracks.length>0'),
+    ('video_audio_track_membership', 'tracks.includes(track)', 'tracks.some(value=>value.kind===track.kind)'),
+    ('video_audio_single_track', 'if(!stream.getAudioTracks().includes(track))', 'if(true)'),
+    ('video_audio_single_track', 'stream.addTrack(track)', 'stream.addTrack({...track})'),
     ('video_audio_source', 'createMediaElementSource(video)', 'createMediaElementSource({...video})'),
     ('video_audio_source', 'return context.createMediaElementSource(video)', 'context.createMediaElementSource(video);return {}'),
     ('video_audio_destination', 'return context.createMediaStreamDestination()', 'context.createMediaStreamDestination();return {}'),
@@ -178,7 +184,17 @@ async def test_audio_workers_preserve_full_context_reuse_and_silent_failure_case
     assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('await context.resume();',''),'video_export_audio')
     recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text(encoding='utf-8'))
     audio=next(part for part in recipe['parts'] if part.get('functions')==['attachExportAudio'])
-    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks','createExportAudioSource','createExportAudioDestination','connectExportAudioTargets'}
+    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks','createExportAudioSource','createExportAudioDestination','connectExportAudioTargets','addSingleExportAudioTrack','hasExportAudioTrack'}
+
+
+@pytest.mark.asyncio
+async def test_membership_and_single_track_workers_retain_complete_attachment_checks():
+    membership=REFERENCES['video_audio_track_membership']
+    single='function addSingleExportAudioTrack(stream,track){if(hasExportAudioTrack(stream,track))return;stream.addTrack(track);}'
+    assert not await project_checks.inspect_helper(membership+'\n'+single,'video_audio_single_track')
+    caller='function addExportAudioTracks(stream,destination){const tracks=destination.stream.getAudioTracks();for(const track of tracks)addSingleExportAudioTrack(stream,track);return tracks.length>0;}'
+    assert not await project_checks.inspect_helper(membership+'\n'+single+'\n'+caller,'video_audio_tracks')
+    assert await project_checks.inspect_helper(membership+'\n'+single.replace('if(hasExportAudioTrack(stream,track))return;',''),'video_audio_single_track')
 
 
 @pytest.mark.asyncio
@@ -190,6 +206,37 @@ async def test_audio_factory_workers_compose_without_changing_full_export_audio_
     wrapper="async function attachExportAudio(stream){try{const context=getExportAudioContext();const destination=connectExportAudio(context,ui.preview);await context.resume();if(!addExportAudioTracks(stream,destination))throw new Error('No tracks');return true;}catch(error){setStatus('Silent export: '+error.message);return false;}}"
     assert not await project_checks.inspect_helper(workers+'\n'+wrapper,'video_export_audio')
     assert await project_checks.inspect_helper(workers.replace('app.audioSource=createExportAudioSource','createExportAudioSource')+'\n'+wrapper,'video_export_audio')
+
+
+@pytest.mark.asyncio
+async def test_single_track_worker_composes_with_full_audio_attachment_lifecycle():
+    helper=REFERENCES['video_audio_single_track']
+    caller='function addExportAudioTracks(stream,destination){const tracks=destination.stream.getAudioTracks();for(const track of tracks)addSingleExportAudioTrack(stream,track);return tracks.length>0;}'
+    assert not await project_checks.inspect_helper(helper+'\n'+caller,'video_audio_tracks')
+    workers=REFERENCES['video_audio_context']+'\n'+REFERENCES['video_audio_connections']+'\n'+helper+'\n'+caller
+    wrapper="async function attachExportAudio(stream){try{const context=getExportAudioContext();const destination=connectExportAudio(context,ui.preview);await context.resume();if(!addExportAudioTracks(stream,destination))throw new Error('No tracks');return true;}catch(error){setStatus('Silent export: '+error.message);return false;}}"
+    assert not await project_checks.inspect_helper(workers+'\n'+wrapper,'video_export_audio')
+    assert await project_checks.inspect_helper(helper+'\n'+caller.replace('addSingleExportAudioTrack(stream,track);',''),'video_audio_tracks')
+
+
+@pytest.mark.asyncio
+async def test_track_attachment_diagnostic_names_actual_missing_side_effect():
+    source='function addExportAudioTracks(stream,destination){return destination.stream.getAudioTracks().length>0;}'
+    errors=await project_checks.inspect_helper(source,'video_audio_tracks')
+    assert any('expected additions=2 observed=0' in error for error in errors)
+    assert not any('must not be duplicated' in error for error in errors)
+    assert not any('must return Boolean true' in error for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_single_track_diagnostics_distinguish_existing_identity_and_wrong_argument():
+    duplicate='function addSingleExportAudioTrack(stream,track){stream.addTrack(track);}'
+    errors=await project_checks.inspect_helper(duplicate,'video_audio_single_track')
+    assert any('supplied track already present: do not add it again' in error and 'expected additions=0 observed=1' in error for error in errors)
+    copied='function addSingleExportAudioTrack(stream,track){if(!stream.getAudioTracks().includes(track))stream.addTrack({...track});}'
+    errors=await project_checks.inspect_helper(copied,'video_audio_single_track')
+    assert any('must receive original supplied track object' in error and 'same identity=false' in error for error in errors)
+    assert not any('expected additions=1 observed=1' in error for error in errors)
 
 
 @pytest.mark.asyncio

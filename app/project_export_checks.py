@@ -1,6 +1,27 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_audio_track_membership': r'''
+      const track={kind:'audio'},other={kind:'audio'};let tracks=[],calls=0;
+      const stream={getAudioTracks(){calls++;return tracks;}};
+      for(const initial of [[],[other],[track],[other,track]]){
+        tracks=[...initial];calls=0;const result=hasExportAudioTrack(stream,track);
+        assert(result===initial.includes(track),'track membership must return Boolean for original object identity; expected='+initial.includes(track)+' observed='+String(result));
+        assert(calls===1&&tracks.length===initial.length&&tracks.every((value,index)=>value===initial[index]),'track membership must read once without mutating original stream tracks');
+      }
+    ''',
+    'video_audio_single_track': r'''
+      const track={kind:'audio'},other={kind:'audio'};let tracks=[],added=[];
+      const stream={getAudioTracks(){return tracks;},addTrack(value){added.push(value);tracks.push(value);}};
+      for(const initial of [[],[other],[track]]){
+        tracks=[...initial];added=[];addSingleExportAudioTrack(stream,track);
+        const expected=initial.includes(track)?0:1;
+        const scenario=initial.includes(track)?'supplied track already present: do not add it again':initial.length?'existing unrelated track: add supplied track once':'no existing tracks: add supplied track once';
+        assert(added.length===expected,scenario+'; expected additions='+expected+' observed='+added.length);
+        if(expected===1&&added.length===1)assert(added[0]===track,'stream.addTrack must receive original supplied track object; observed same identity='+(added[0]===track));
+        assert(initial.every(value=>tracks.includes(value))&&tracks.includes(track),'single track attachment must preserve existing tracks and retain original supplied track');
+      }
+    ''',
     'video_audio_source': r'''
       let calls=0;const video={},source={connect(){}};
       const context={createMediaElementSource(element){calls++;assert(element===video,'audio source factory must pass original video');return source;}};
@@ -44,8 +65,11 @@ EXPORT_CASES = {
       const first={kind:'audio'},second={kind:'audio'};let tracks=[],added=[];
       const stream={getAudioTracks(){return tracks;},addTrack(track){added.push(track);tracks.push(track);}};
       let available=[first,second];const destination={stream:{getAudioTracks(){return available;}}};
-      assert(addExportAudioTracks(stream,destination)===true&&added.length===2&&added[0]===first&&added[1]===second,'audio tracks must attach original destination tracks and return Boolean true');
-      assert(addExportAudioTracks(stream,destination)===true&&added.length===2,'audio tracks already attached must not be duplicated');
+      const result=addExportAudioTracks(stream,destination);
+      assert(result===true,'audio destination with two tracks must return Boolean true; observed '+String(result));
+      assert(added.length===2&&added[0]===first&&added[1]===second,'audio destination must attach both original tracks using stream.addTrack; expected additions=2 observed='+added.length);
+      tracks=[first,second];added=[];
+      assert(addExportAudioTracks(stream,destination)===true&&added.length===0&&tracks.length===2,'audio tracks already attached must not be duplicated; expected new additions=0 observed='+added.length);
       available=[];tracks=[];added=[];
       assert(addExportAudioTracks(stream,destination)===false&&added.length===0,'an empty audio destination must return Boolean false without adding fake tracks');
     ''',
