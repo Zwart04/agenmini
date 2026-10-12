@@ -302,9 +302,27 @@ EXPORT_CASES = {
       assert(!rejected&&result===false,'missing AudioContext must return false without rejecting; observed result='+String(result)+' error='+rejected);
       assert(/silent/i.test(ui.status.textContent),'missing AudioContext must report silent export; observed status='+ui.status.textContent);
     ''',
+    'video_stop_export_tracks': r'''
+      let videoStops=0,audioStops=0;
+      const video={stop(){videoStops++;}},audio={stop(){audioStops++;}};
+      const stream={getVideoTracks(){return [video];},getTracks(){return [video,audio];}};
+      stopExportVideoTracks(stream);
+      assert(videoStops===1&&audioStops===0,'stopExportVideoTracks must stop actual video tracks once and preserve audio tracks');
+      stopExportVideoTracks(null);
+      assert(videoStops===1&&audioStops===0,'absent stream must not stop additional tracks');
+    ''',
+    'video_cancel_export_frame': r'''
+      let cancelled=[];function cancelAnimationFrame(handle){cancelled.push(handle);}
+      const window={cancelAnimationFrame};
+      for(const handle of [0,27,311,null]){
+        cancelled=[];cancelExportFrame(handle);
+        assert(handle===null?cancelled.length===0:cancelled.length===1&&cancelled[0]===handle,'cancelExportFrame must call native cancelAnimationFrame once with actual numeric handle including zero; handle='+handle+' observed='+JSON.stringify(cancelled));
+      }
+    ''',
     'video_export_cleanup': r'''
       let pauses=0,cancelled=[],busy=[];
       function cancelAnimationFrame(id){cancelled.push(id);}
+      const window={cancelAnimationFrame};
       function setBusy(value){busy.push(value);app.busy=value;}
       ui.preview={pause(){pauses++;}};ui.progressLabel={textContent:'52%'};
       for(const raf of [0,27,null]){

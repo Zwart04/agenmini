@@ -56,6 +56,12 @@ REFERENCES = {
         return true;
       }catch(error){setStatus('Silent export: '+error.message);return false;}
     }""",
+    'video_stop_export_tracks': """function stopExportVideoTracks(stream){
+      if(stream)for(const track of stream.getVideoTracks())track.stop();
+    }""",
+    'video_cancel_export_frame': """function cancelExportFrame(handle){
+      if(handle!==null)cancelAnimationFrame(handle);
+    }""",
     'video_export_cleanup': """function cleanupExport(stream){
       if(stream)for(const track of stream.getVideoTracks())track.stop();
       if(app.raf!==null)cancelAnimationFrame(app.raf);app.raf=null;
@@ -153,6 +159,10 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_export_seek', 'clearTimeout(timer);', ''),
     ('video_export_audio', 'if(!app.audioSource)', 'if(true)'),
     ('video_export_audio', "setStatus('Silent export: '+error.message);return false;", 'throw error;'),
+    ('video_stop_export_tracks', 'stream.getVideoTracks()', 'stream.getTracks()'),
+    ('video_stop_export_tracks', 'if(stream)', 'if(true)'),
+    ('video_cancel_export_frame', 'handle!==null', 'handle'),
+    ('video_cancel_export_frame', 'cancelAnimationFrame(handle)', 'cancelAnimationFrame(27)'),
     ('video_export_cleanup', 'stream.getVideoTracks()', 'stream.getTracks()'),
     ('video_export_cleanup', 'app.raf!==null', 'app.raf'),
     ('video_export_finish', 'new Blob(app.chunks,', 'new Blob([],'),
@@ -424,3 +434,33 @@ async def test_literal_dependency_keeps_exact_model_bytes_and_replay_evidence(mo
             assert cached and cached['content']==source
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('omitted',[None,'stopExportVideoTracks(stream);','cancelExportFrame(app.raf);'])
+async def test_export_cleanup_composes_actual_track_and_frame_helpers(omitted):
+    source = REFERENCES['video_stop_export_tracks'] + REFERENCES['video_cancel_export_frame'] + """
+      function cleanupExport(stream){
+        stopExportVideoTracks(stream);cancelExportFrame(app.raf);app.raf=null;
+        ui.preview.pause();ui.playBtn.textContent='Play';ui.progressLabel.textContent='';setBusy(false);
+      }
+    """
+    if omitted:source=source.replace(omitted,'')
+    errors=await project_checks.inspect_helper(source,'video_export_cleanup')
+    assert bool(errors)==bool(omitted)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('owner',['','window.','globalThis.'])
+async def test_frame_cancel_accepts_actual_browser_global_api_spellings(owner):
+    source=REFERENCES['video_cancel_export_frame'].replace('cancelAnimationFrame(handle)',owner+'cancelAnimationFrame(handle)')
+    assert not await project_checks.inspect_helper(source,'video_cancel_export_frame')
+    composite=REFERENCES['video_stop_export_tracks']+source+"""
+      function cleanupExport(stream){
+        stopExportVideoTracks(stream);cancelExportFrame(app.raf);app.raf=null;
+        ui.preview.pause();ui.playBtn.textContent='Play';ui.progressLabel.textContent='';setBusy(false);
+      }
+    """
+    assert not await project_checks.inspect_helper(composite,'video_export_cleanup')
+    broken=source.replace(owner+'cancelAnimationFrame(handle)',owner+'cancelAnimationFrame(311)')
+    assert await project_checks.inspect_helper(broken,'video_cancel_export_frame')

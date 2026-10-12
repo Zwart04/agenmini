@@ -2865,6 +2865,38 @@
       "context": "All existing helpers are validated model-written implementations. Use them unchanged, with supplied arguments. Recoverable audio failure must produce false so video export can continue silently."
     },
     {
+      "name": "Stop original export video tracks",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 160,
+      "functions": ["stopExportVideoTracks"],
+      "task": "Write stopExportVideoTracks(stream). For a non-null stream, get its video tracks and call stop on each original track once. For a null stream, do nothing. The getVideoTracks method already selects video tracks.",
+      "parameters": {"stream": "Nullable browser MediaStream; getVideoTracks returns original video track objects with callable stop."},
+      "relevant_fields": {"app": [], "ui": []},
+      "relevant_functions": [],
+      "state_writes": [],
+      "system_contract": "Output only one complete function stopExportVideoTracks(stream). Use the supplied argument directly. No globals, imports, exports, comments or other functions.",
+      "behavior_checks": ["video_stop_export_tracks"]
+    },
+    {
+      "name": "Cancel original numeric export frame",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 130,
+      "functions": ["cancelExportFrame"],
+      "task": "Write cancelExportFrame(handle). When handle is not null, call browser cancelAnimationFrame(handle) once. Zero is a valid handle and must be cancelled. When null, do nothing.",
+      "parameters": {"handle": "Number or null. It has no cancel method. Pass the original number directly to native cancelAnimationFrame."},
+      "relevant_fields": {"app": [], "ui": []},
+      "relevant_functions": [],
+      "state_writes": [],
+      "system_contract": "Output only one complete function cancelExportFrame(handle). Use the native standalone cancelAnimationFrame function. No globals, comments, imports, exports or other functions.",
+      "behavior_checks": ["video_cancel_export_frame"]
+    },
+    {
       "name": "Clean export playback and video tracks",
       "file": "app.js",
       "kind": "js",
@@ -2874,7 +2906,7 @@
       "functions": [
         "cleanupExport"
       ],
-      "task": "Implement only cleanupExport(stream) using the existing globals. Perform these operations in order: (1) when stream exists, stop each item returned by stream.getVideoTracks(); (2) when app.raf is not null, cancelAnimationFrame using its original number, including zero; (3) assign null to app.raf; (4) pause ui.preview, set ui.playBtn.textContent to Play and ui.progressLabel.textContent to an empty string; (5) call setBusy(false). Operations 2 through 5 also run for a null stream. Finish the complete function within 200 tokens.",
+      "task": "Write cleanupExport(stream) using existing globals. Call stopExportVideoTracks(stream), then cancelExportFrame(app.raf), then store null in app.raf. Immediately pause ui.preview, set ui.playBtn.textContent to Play, set ui.progressLabel.textContent to an empty string and call setBusy(false). The two existing helpers handle null inputs. Use their implementations unchanged.",
       "relevant_fields": {
         "app": [
           "raf"
@@ -2886,12 +2918,15 @@
         ]
       },
       "relevant_functions": [
+        "stopExportVideoTracks",
+        "cancelExportFrame",
         "setBusy"
       ],
       "state_writes": [
         "raf"
       ],
-      "system_contract": "Start immediately with function cleanupExport(stream). Return exactly that one plain function and nothing else. app and ui already exist; use them directly. app.raf is a nullable animation frame number. setBusy and cancelAnimationFrame are callable functions.",
+      "system_contract": "Start immediately with function cleanupExport(stream). Output only this complete function. app and ui are existing outer objects; use them directly without declarations. Call existing helpers directly, not as methods.",
+      "behavior_dependencies": ["stopExportVideoTracks", "cancelExportFrame"],
       "behavior_checks": [
         "video_export_cleanup"
       ]

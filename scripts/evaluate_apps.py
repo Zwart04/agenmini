@@ -10,7 +10,7 @@ def print_case_result(name, result):
     print('CASE RESULT',name,json.dumps(result,ensure_ascii=True)[:1400],flush=True)
 
 
-def failed_source_candidates(previous, report, recipe_path, accepted):
+def failed_source_candidates(previous, report, recipe_path, accepted, *, all_candidates=False):
     """Resume exact failed model text, never call it a validated implementation.
 
     Legacy attempts have no per-task hash. Require the exact recipe file hash
@@ -22,7 +22,7 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
     from app import project_parts
     expected=report.get('generator_source_sha256',{}).get('app/project_recipes/video_editor.json')
     if expected != hashlib.sha256(recipe_path.read_bytes()).hexdigest():return {}
-    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));candidates={};ranks={}
+    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));candidates={};ranks={};alternatives={}
     for path in sorted((previous/'attempts').glob('*.json')):
         try:
             value=json.loads(path.read_text(encoding='utf-8'));index=value['index']
@@ -46,16 +46,46 @@ def failed_source_candidates(previous, report, recipe_path, accepted):
                 priority=0 if project_parts.missing_function_keyword_repairable(source,item,errors) else 1 if errors and all(error.startswith('Helper behavior failed:') for error in errors) else 2 if errors and all(error.startswith('Helper execution failed:') for error in errors) else 3
                 failure_count=len({project_parts.helper_failure_identity(error) for error in errors})
             rank=(priority,failure_count,-int(value.get('attempt',0)))
-            if index in ranks and ranks[index]<=rank:continue
+            if not all_candidates and index in ranks and ranks[index]<=rank:continue
             item={**item,'generation_contract_revision':2}
             evidence={'task_sha256':hashlib.sha256(json.dumps(item,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),
                       'sha256':hashlib.sha256(source.encode()).hexdigest(),'raw_sha256':hashlib.sha256(raw.encode()).hexdigest(),
                       'model':value.get('stats',{}).get('served_model',''),'source_format':fmt,
                       'checkpoint_status':'failed source; requires full validation and model repair'}
-            candidates[index]={'source':source,'raw_source':raw,'evidence':evidence}
+            candidate={'source':source,'raw_source':raw,'evidence':evidence}
+            alternatives.setdefault(index,[]).append((rank,candidate))
+            candidates[index]=candidate
             ranks[index]=rank
         except (ValueError,KeyError,TypeError):continue
-    return candidates
+    return {index:[candidate for _,candidate in sorted(values,key=lambda value:value[0])] for index,values in alternatives.items()} if all_candidates else candidates
+
+
+async def rechecked_failed_source_candidates(previous, report, recipe_path, accepted):
+    """Prefer an original response passing current behavior checks after fixture fixes.
+
+    Selection never edits model text or bypasses the generator's full validation.
+    A later bad regeneration must not erase an earlier correct browser API call.
+    """
+    from app import project_checks, project_parts
+    alternatives=failed_source_candidates(previous,report,recipe_path,accepted,all_candidates=True)
+    recipe=json.loads(recipe_path.read_text(encoding='utf-8'));helpers={}
+    for index,value in accepted.items():
+        if index>=len(recipe['parts']):continue
+        for name in recipe['parts'][index].get('functions',[]):
+            helpers[name]=project_parts.select_model_helper(value['source'],{'functions':[name]})
+    selected={}
+    for index,values in alternatives.items():
+        item=recipe['parts'][index];selected[index]=values[0]
+        checks=item.get('behavior_checks',[]);dependencies=item.get('behavior_dependencies',[])
+        if item.get('kind')!='js' or not checks or any(not helpers.get(name) for name in dependencies):continue
+        for value in values:
+            source='\n'.join([*(helpers[name] for name in dependencies),value['source']])
+            errors=[]
+            for check in checks:errors+=await project_checks.inspect_helper(source,check)
+            if not errors:
+                selected[index]=value
+                break
+    return selected
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -107,7 +137,7 @@ def main():
             if (old.get('chat_template_sha256'),old.get('tokenizer_pre'),old.get('sampling_profile','default'),old.get('thinking_budget',0)) != (actual_template,args.tokenizer_pre,args.sampling_profile,args.thinking_budget):
                 raise ValueError('Resume requires matching chat serialization, pre-tokenizer and inference settings.')
             accepted={int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')}
-            failed=failed_source_candidates(args.resume_parts,old,repo_root/'app/project_recipes/video_editor.json',accepted) if args.resume_failed_parts else {}
+            failed=await rechecked_failed_source_candidates(args.resume_parts,old,repo_root/'app/project_recipes/video_editor.json',accepted) if args.resume_failed_parts else {}
             project_parts.part_cache.set({**failed,**accepted})
             if failed:print('RECHECK FAILED MODEL CHECKPOINTS',sorted(failed),flush=True)
         llm.coding_reasoning.set(bool(args.thinking_budget))

@@ -1,10 +1,10 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V131 sudah meloloskan 119 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V135 sudah meloloskan 122 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
-Fallback audio lolos pemeriksaan perilaku helper; pembersihan setelah ekspor
-masih gagal. Perekam, integrasi kontrol dan ekspor
+Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
+helper. Penyelesaian berkas masih gagal; perekam, integrasi kontrol dan ekspor
 browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
@@ -1763,6 +1763,35 @@ V133 selesai gagal setelah 133,0 detik. Respons pertama memanggil metode
 cancel pada nomor RAF; respons terakhir mendeklarasikan app dan ui lokal
 yang menutupi state aplikasi asli. Kedua kegagalan ditolak. Jumlah bagian
 yang lolos tetap 119; belum ada artefak editor yang dapat diserahkan.
+
+V134 memisahkan stopExportVideoTracks dan cancelExportFrame, kemudian memakai
+keduanya pada cleanupExport. 113 tes terarah lolos (13,95 detik) dan 359 tes
+terkait lolos (132,34 detik). Model meloloskan stopExportVideoTracks pada
+respons pertama. Run gagal setelah 144,3 detik pada cancelExportFrame; respons
+awal sebenarnya memakai API browser yang sah, window.cancelAnimationFrame,
+tetapi fixture tidak menyediakan window. Regenerasi terakhir memakai browser,
+yang bukan global standar. Fixture V135 menyediakan window dengan API native
+yang sama, tetap memeriksa nomor asli, nol dan null. Tes menerima panggilan
+langsung, window dan globalThis, tetapi menolak penggantian nomor dengan konstanta.
+
+Pemulihan benchmark kini memeriksa perilaku terkini semua respons asli yang
+lengkap, bukan hanya kandidat dengan ranking galat terbaik. Recipe, bobot,
+parameter inferensi, raw source dan hash tetap diverifikasi; kandidat belum
+dinyatakan valid sebelum pemeriksaan penuh generator. V135 memulihkan respons
+awal cancelExportFrame tanpa mengubah satu byte kode model, lalu meloloskan
+cleanupExport pada respons model pertama dengan kedua helper aktual. 124 tes
+ekspor/pemulihan terarah lolos (16,53 detik); 370 tes terkait lolos pada Windows
+(144,00 detik). Pembuktian browser belum dilakukan pada editor lengkap.
+
+Tests GitHub Actions commit fb10c53 (run 38200360962) meloloskan 662 tes dalam
+container Linux (136,07 detik). Itu memeriksa commit sebelum perubahan V134/V135.
+
+V135 selesai gagal setelah 214,9 detik pada finishExport. Respons pertama
+menutupi app, membuat nama field unduhan yang tidak ada dan memperlakukan
+stream sebagai string. Respons terakhir mendeklarasikan ulang helper dan
+variabel Blob URL. Tidak ada ZIP editor lengkap atau hasil ekspor browser
+yang dinyatakan berhasil. Bagian 119–121 menyimpan helper video, pembatalan
+RAF asli yang dipulihkan, serta cleanup gabungan dengan hash sumber model.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes

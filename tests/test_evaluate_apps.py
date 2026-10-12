@@ -7,6 +7,30 @@ import sys
 import pytest
 
 
+@pytest.mark.asyncio
+async def test_failed_resume_rechecks_earlier_valid_browser_call_after_fixture_fix(tmp_path):
+    import hashlib
+    from scripts.evaluate_apps import rechecked_failed_source_candidates
+    recipe=tmp_path/'recipe.json'
+    item={'name':'Cancel frame','kind':'js','file':'app.js','functions':['cancelExportFrame'],
+          'task':'Cancel original numeric handle','behavior_checks':['video_cancel_export_frame']}
+    recipe.write_text(json.dumps({'parts':[item]}))
+    report={'generator_source_sha256':{'app/project_recipes/video_editor.json':hashlib.sha256(recipe.read_bytes()).hexdigest()}}
+    previous=tmp_path/'old';(previous/'attempts').mkdir(parents=True);(previous/'checks').mkdir()
+    original='const cancelExportFrame=(handle)=>{if(handle!==null)window.cancelAnimationFrame(handle);};'
+    for attempt,source in [(0,original),(2,original.replace('window.','browser.'))]:
+        name=f'00-{attempt}.json'
+        (previous/'attempts'/name).write_text(json.dumps({'index':0,'attempt':attempt,'part':item['name'],
+            'response_kind':'source','raw_source':source,'source':source,'stats':{'finish_reason':'stop'}}))
+        (previous/'checks'/name).write_text(json.dumps({'source_sha256':hashlib.sha256(source.encode()).hexdigest(),
+            'errors':['Helper execution failed: owner is not defined']}))
+    selected=await rechecked_failed_source_candidates(previous,report,recipe,{})
+    assert selected[0]['source']==original and selected[0]['raw_source']==original
+    assert selected[0]['evidence']['checkpoint_status'].startswith('failed')
+    recipe.write_text(json.dumps({'parts':[{**item,'task':'Different task'}]}))
+    assert await rechecked_failed_source_candidates(previous,report,recipe,{})=={}
+
+
 def test_unicode_failure_report_prints_in_cp1252_without_losing_json_text():
     expected={'text':'Caption café 日本語 failed','meta':{'status':'failed'}}
     script='from scripts.evaluate_apps import print_case_result; print_case_result("video",'+repr(expected)+')'
