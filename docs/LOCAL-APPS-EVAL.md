@@ -1,9 +1,10 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V126 sudah meloloskan 116 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V131 sudah meloloskan 119 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
-Fallback audio masih gagal; perekam, integrasi kontrol dan ekspor
+Fallback audio lolos pemeriksaan perilaku helper; pembersihan setelah ekspor
+masih gagal. Perekam, integrasi kontrol dan ekspor
 browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
@@ -1726,6 +1727,37 @@ Error dalam dua panggilan yang saling menimpa. V129 memperjelas satu string
 gabungan dan satu panggilan setter, tetap memakai pesan Error asli serta
 return false. Tidak ada string runtime atau source reference yang disuntikkan
 ke hasil model.
+
+V129 meloloskan reportSilentAudio pada respons pertama model: satu pesan
+gabungan berisi label dan Error asli, kemudian return false. Run selesai
+gagal setelah 131,1 detik pada requireExportAudioTracks karena model menyalin
+isi helper attachment, bukan memanggil helper tersebut. V130 menghilangkan
+konteks implementasi yang tidak diperlukan pada guard Boolean ini, memberi
+kontrak argumen opaque dan menyebut hasil helper secara eksplisit. Pemeriksaan
+attachment, Error pada hasil false dan lifecycle audio gabungan tetap dipakai.
+
+V130 selesai gagal setelah 128,5 detik: guard hanya meneruskan Boolean false;
+respons terakhir mengulang beberapa implementasi sehingga tidak dipilih
+sembarangan. V131 memperjelas dua hasil guard dan melarang deklarasi berulang.
+Model meloloskan guard dan wrapper audio pada respons pertama, dengan Error
+ketika track kosong dan reporter silent untuk kegagalan audio. Run selesai
+gagal setelah 172,0 detik pada cleanup: respons awal memakai timer dan filter
+track palsu; regenerasi menganggap handle RAF sebagai objek. V132 memperjelas
+pembersihan sinkron, handle numerik termasuk nol, serta helper standalone.
+Source aplikasi tetap seluruhnya berasal dari model; tidak ada runtime yang
+ditulis evaluator. 342 tes terkait lolos pada Windows (123,26 detik).
+
+Tests GitHub Actions commit 9482494 (run 38198763294) meloloskan 662 tes dalam
+container Linux, 99,04 detik. Secret scan, Windows installer dan Original
+harness runtimes pada commit tersebut juga berhasil. Ini bukti regresi kode,
+bukan bukti UI atau ekspor browser dari editor model lokal.
+
+V132 selesai gagal setelah 153,1 detik pada cleanup. Model mengubah RAF
+sebelum pembatalan, menambah app.audio yang tidak dideklarasikan, kemudian
+menghasilkan ulang global app sehingga integrasi gagal sintaks. V133 memakai
+urutan operasi positif yang singkat dan kontrak global yang sudah tersedia.
+104 tes pemeriksaan ekspor tetap lolos (18,79 detik). Perubahan instruksi
+tidak melonggarkan persyaratan cleanup atau menyisipkan implementasi runtime.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes

@@ -2793,10 +2793,10 @@
         "requireExportAudioTracks"
       ],
       "tokens": 180,
-      "task": "Write requireExportAudioTracks(stream,destination). Call existing addExportAudioTracks(stream,destination) once. If its actual Boolean result is false, throw a descriptive Error about missing audio tracks. Otherwise return Boolean true. Do not duplicate its track loop or change objects.",
+      "task": "Write one requireExportAudioTracks(stream,destination) function with two outcomes. Call existing addExportAudioTracks(stream,destination) once and store its Boolean result. Outcome false: throw a new Error with a missing-audio message; returning false is WRONG because the caller needs an exception to enter its silent-export catch. Outcome true: return true. Never redefine addExportAudioTracks. Both arguments are opaque: forward unchanged, do not read properties or browser methods.",
       "parameters": {
-        "stream": "Actual export stream supplied directly.",
-        "destination": "Actual destination supplied directly."
+        "stream": "Opaque original object to forward unchanged to addExportAudioTracks. Do not inspect its properties.",
+        "destination": "Opaque original object to forward unchanged to addExportAudioTracks. Do not inspect its properties."
       },
       "relevant_fields": {
         "app": [],
@@ -2805,19 +2805,16 @@
       "relevant_functions": [
         "addExportAudioTracks"
       ],
-      "include_helper_sources": [
-        "addExportAudioTracks"
-      ],
       "state_writes": [],
       "behavior_checks": [
         "video_audio_require_tracks"
       ],
-      "context": "Existing attachment helper below returns true with tracks, false when empty.",
+      "context": "Existing standalone addExportAudioTracks returns Boolean true after actual attachment, false when no tracks exist. This part only checks that result; it needs no knowledge of browser object internals.",
       "file": "app.js",
       "kind": "js",
       "raw_source": true,
       "include_html": false,
-      "system_contract": "Start with function requireExportAudioTracks. Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+      "system_contract": "Output exactly one complete function requireExportAudioTracks(stream,destination). A false helper result MUST throw new Error; a true result MUST return true. Include the conditional failure branch. Do not output comments, examples, duplicate functions, other helpers, imports or exports."
     },
     {
       "name": "Attach reusable export audio",
@@ -2877,7 +2874,7 @@
       "functions": [
         "cleanupExport"
       ],
-      "task": "Write cleanupExport(stream). Stop only stream.getVideoTracks() when stream exists; never stop reusable audio tracks. Cancel app.raf when not null (handle zero is valid), set app.raf=null. Pause ui.preview, reset playBtn text to Play, clear progressLabel text. Call setBusy(false). Handle a null stream.",
+      "task": "Implement only cleanupExport(stream) using the existing globals. Perform these operations in order: (1) when stream exists, stop each item returned by stream.getVideoTracks(); (2) when app.raf is not null, cancelAnimationFrame using its original number, including zero; (3) assign null to app.raf; (4) pause ui.preview, set ui.playBtn.textContent to Play and ui.progressLabel.textContent to an empty string; (5) call setBusy(false). Operations 2 through 5 also run for a null stream. Finish the complete function within 200 tokens.",
       "relevant_fields": {
         "app": [
           "raf"
@@ -2894,7 +2891,7 @@
       "state_writes": [
         "raf"
       ],
-      "system_contract": "Begin with function cleanupExport(stream). Output only the requested complete function, without globals or copied declarations.",
+      "system_contract": "Start immediately with function cleanupExport(stream). Return exactly that one plain function and nothing else. app and ui already exist; use them directly. app.raf is a nullable animation frame number. setBusy and cancelAnimationFrame are callable functions.",
       "behavior_checks": [
         "video_export_cleanup"
       ]
