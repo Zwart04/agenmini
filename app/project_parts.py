@@ -12,6 +12,7 @@ import re
 import subprocess
 import time
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 from html.parser import HTMLParser
 from . import llm, projects, tools, project_checks, project_patches
@@ -36,6 +37,23 @@ try{
    for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);
   }
   walk(ast);console.log(JSON.stringify({methods:[...bad]}));
+ }else if(input.mode==='undefined_results'){
+  const names=[];
+  function hasOuterReturn(node){
+   if(!node||typeof node!=='object')return false;
+   if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return false;
+   if(node.type==='ReturnStatement')return true;
+   return Object.values(node).some(value=>Array.isArray(value)?value.some(hasOuterReturn):value&&typeof value==='object'&&hasOuterReturn(value));
+  }
+  function inspect(name,fn){
+   if(name&&fn&&!fn.async&&!fn.generator&&fn.body?.type==='BlockStatement'&&!hasOuterReturn(fn.body))names.push(name);
+  }
+  for(const node of ast.body){
+   if(node.type==='FunctionDeclaration')inspect(node.id?.name,node);
+   if(node.type==='VariableDeclaration')for(const declaration of node.declarations)
+    if(declaration.id.type==='Identifier'&&['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init?.type))inspect(declaration.id.name,declaration.init);
+  }
+  console.log(JSON.stringify({names}));
  }else if(input.mode==='contracts'){
   const globals={},functions=[],shadowed=new Set(),members=new Set(),calledMethods=new Set();
   function bindingNames(node){
@@ -468,7 +486,7 @@ def js_contract_context(prior, relevant=None, functions=None):
     if relevant:fields={name:[key for key in keys if key in relevant.get(name,keys)] for name,keys in fields.items()}
     signatures=parsed['existing_functions'] if parsed is not None else re.findall(r'\b(?:async\s+)?function\s+\w+\s*\([^)]*\)',prior)
     if functions is not None:
-        signatures=[signature for signature in signatures if re.search(r'\bfunction\s+(\w+)',signature)[1] in functions]
+        signatures=[signature for signature in signatures if (match:=re.search(r'\bfunction\s*\*?\s+([\w$]+)',signature)) and match[1] in functions]
     return json.dumps({'globals':fields,'existing_functions':signatures},ensure_ascii=False)
 
 
@@ -488,6 +506,22 @@ def js_shared_reference_errors(source, prior):
     return errors
 
 
+@lru_cache(maxsize=64)
+def undefined_result_helpers(source):
+    """Infer only normal callables with no outer return, without executing code."""
+    if not source.strip() or len(source.encode())>65536:return ()
+    try:
+        result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
+            input=json.dumps({'source':source,'mode':'undefined_results'}),text=True,encoding='utf-8',
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
+            **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
+        if result.returncode:return ()
+        names=json.loads(result.stdout).get('names')
+        if isinstance(names,list) and all(isinstance(name,str) for name in names):return tuple(names)
+    except (OSError,subprocess.TimeoutExpired,ValueError):pass
+    return ()
+
+
 def js_prompt_context(prior, relevant=None, functions=None):
     """Describe real outer symbols without resembling declarations to copy."""
     contracts=json.loads(js_contract_context(prior,relevant,functions))
@@ -496,6 +530,9 @@ def js_prompt_context(prior, relevant=None, functions=None):
     sections=[]
     if fields:sections.append('Use these exact property paths on the existing independent global objects. Read or write only as the task requires; keep their declarations:\n'+'\n'.join(fields))
     if signatures:sections.append('Call these existing standalone functions directly, using these signatures. Keep their implementations:\n'+'\n'.join(signatures))
+    names={re.search(r'^([\w$]+)\s*\(',signature)[1] for signature in signatures if re.search(r'^([\w$]+)\s*\(',signature)}
+    undefined=[name for name in undefined_result_helpers(prior) if name in names]
+    if undefined:sections.append('These existing helpers return undefined when they complete (no outer return statement). Call them for their side effects; do not forward their result when the caller must return a Boolean:\n'+', '.join(undefined))
     return '\n'.join(sections)
 
 

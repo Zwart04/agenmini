@@ -3164,16 +3164,28 @@
       "behavior_checks": ["video_recording_stop_boundary"]
     },
     {
+      "name": "Paint actual frame and supplied progress label",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 180,
+      "functions": ["paintRecordingProgress"],
+      "task": "Write paintRecordingProgress(video,label,start,end). Call existing paintFrame() once. Obtain numeric percentage from existing recordingProgress(video.currentTime,start,end). Assign that percentage followed by the STRING percent sign to original label.textContent. After both operations, return Boolean true to signal that painting succeeded and another frame may be scheduled. Do not return the painter's own result. Use the original supplied video and label; preserve video time.",
+      "parameters": {"video": "Original video element with currentTime number.", "label": "Original label element whose textContent is mutable.", "start": "Selected start number.", "end": "Selected end number."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["paintFrame", "recordingProgress"], "state_writes": [],
+      "system_contract": "Begin with function paintRecordingProgress(video,label,start,end). Output only this complete function. Call existing helpers directly with positional arguments. No globals, comments, imports or extra helpers.",
+      "behavior_checks": ["video_recording_paint_progress"],
+      "behavior_dependencies": ["recordingProgress"]
+    },
+    {
       "name": "Paint one original recording step",
       "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
       "tokens": 330,
       "functions": ["paintRecordingStep"],
-      "task": "Write paintRecordingStep(). If app.recorder.state is not the STRING \"recording\", return false. Store the actual Boolean returned by recordingMustStop(ui.preview.currentTime,app.end,ui.preview.ended,app.cancelled) in a local variable. If that variable is true, stopRecordingAtBoundary(app.recorder,ui.preview,app.end) then return false. If it is false, paintFrame(), calculate progress using recordingProgress(ui.preview.currentTime,app.start,app.end), assign that number plus percent sign to ui.progressLabel.textContent, then return true. Do not ignore the predicate result or return false in the painting branch.",
+      "task": "Write paintRecordingStep(). If app.recorder.state is not the STRING \"recording\", return false. Store Boolean from recordingMustStop(ui.preview.currentTime,app.end,ui.preview.ended,app.cancelled). If true, call stopRecordingAtBoundary(app.recorder,ui.preview,app.end) and return false. If false, call paintRecordingProgress(ui.preview,ui.progressLabel,app.start,app.end), then return true. Existing helpers perform stopping, painting and progress updates; only compose their calls using existing app/ui objects.",
       "relevant_fields": {"app": ["recorder", "start", "end", "cancelled"], "ui": ["preview", "progressLabel"]},
-      "relevant_functions": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintFrame"], "state_writes": [],
+      "relevant_functions": ["recordingMustStop", "stopRecordingAtBoundary", "paintRecordingProgress"], "state_writes": [],
       "system_contract": "Start with function paintRecordingStep(). Output only this complete function. Use existing app/ui objects and standalone helpers directly; do not redeclare or replace them. No comments, imports or copied helpers.",
       "behavior_checks": ["video_recording_step"],
-      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress"]
+      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingProgress"]
     },
     {
       "name": "Paint and monitor recording frames",
@@ -3200,7 +3212,7 @@
       "behavior_checks": [
         "video_export_frames"
       ],
-      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingStep"]
+      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingProgress", "paintRecordingStep"]
     },
     {
       "name": "Orchestrate actual WebM export",

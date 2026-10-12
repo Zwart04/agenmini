@@ -525,6 +525,15 @@ EXPORT_CASES = {
         assert(stops===1&&video.currentTime===(time>=5.975?6:time),'boundary stop must stop actual recorder once and only move video to trim end when threshold reached');
       }
     ''',
+    'video_recording_paint_progress': r'''
+      let paints=0;function paintFrame(){paints++;}
+      const video={currentTime:2},label={textContent:''};
+      for(const [time,expected] of [[2,0],[3,25],[4,50],[5.2,80]]){
+        video.currentTime=time;const before=paints,result=paintRecordingProgress(video,label,2,6);
+        assert(result===true&&paints===before+1&&label.textContent===expected+'%','paint/progress helper must paint once, show dynamic progress and return Boolean true; expected='+expected+'% observed='+label.textContent+' result='+String(result)+' paint calls='+String(paints-before));
+        assert(video.currentTime===time,'paint/progress helper must preserve video time');
+      }
+    ''',
     'video_recording_step': r'''
       let paints=0,stops=0;function paintFrame(){paints++;}
       app.start=2;app.end=6;app.cancelled=false;app.recorder={state:'recording',stop(){stops++;this.state='inactive';}};

@@ -1972,6 +1972,42 @@ sebagai metode objek. Pemeriksaan menolak source tersebut. Jumlah fragmen
 yang lolos tetap 139; penjadwalan frame, orkestrasi ekspor, init kontrol dan
 browser belum terbukti berhasil.
 
+V153 memisahkan paintRecordingProgress dengan argumen video/label/start/end,
+sehingga paintRecordingStep cukup mengatur kondisi dan memanggil helper.
+196 tes terarah lolos (28,62 detik), dan 450 tes terkait lolos (119,95 detik).
+Model meloloskan helper paint/progres setelah perbaikan. Run selesai gagal
+setelah 255,4 detik pada step: model meneruskan return helper yang saat itu
+undefined, padahal scheduler memerlukan Boolean true.
+
+V154 menambahkan informasi return undefined dari AST source aktual. Analisis
+tidak mengeksekusi source, mengecualikan async/generator serta return di
+callback bersarang, dan hanya menampilkan helper relevan. Parser yang gagal
+tidak menghasilkan tebakan tipe. Filter signature juga tidak lagi crash
+saat prior source berisi fungsi generator. Tiga tes terarah lolos, dan 452
+tes terkait lolos (145,79 detik). Konteks aktual pada source yang divalidasi
+menampilkan stopRecordingAtBoundary dan paintRecordingProgress sebagai
+helper tanpa return, tanpa menyalin implementation ke prompt.
+
+V154 selesai gagal setelah 186,9 detik: model tetap mengirim patch tanpa
+perubahan dan source berikutnya mendefinisikan ulang helper dengan syntax
+keliru. V155 menyederhanakan kontrak paintRecordingProgress: setelah paint
+dan update label aktual, return Boolean true. Semua pemeriksaan side effect,
+label dinamis dan waktu video tetap berlaku; nilai return saja tidak cukup.
+154 tes terkait pemilihan tipe/fixture/loop lolos (12,68 detik).
+
+Windows installer commit 57c68ed (run 38209628032) awalnya gagal karena
+node --check timeout 15 detik saat tes syntax frontend; 317 tes lain lolos.
+Job gagal dijalankan ulang sekali, tanpa mengubah threshold atau source,
+dan attempt 2 berhasil. Seluruh workflow commit tersebut akhirnya berhasil.
+
+V155 selesai gagal setelah 171,6 detik pada kontrak painter yang baru.
+Respons pertama sudah memperbarui label dan return true tetapi tidak
+memanggil paintFrame; fixture menunjukkan paint calls=0 dan menolaknya.
+Respons terakhir tidak menggambar maupun memperbarui label. Karena kontrak
+helper berubah, source void V153 bukan bukti kelulusan kontrak baru. Prefix
+yang tetap divalidasi berjumlah 139 fragmen; editor lengkap, animasi frame,
+orkestrasi ekspor dan pemeriksaan browser belum selesai.
+
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.

@@ -1,6 +1,7 @@
 """The coding skill assembles model source; it never supplies application code."""
 import json
 import hashlib
+import subprocess
 from pathlib import Path
 import pytest
 from app import project_parts, projects, llm, db, project_checks, project_patches
@@ -1438,6 +1439,31 @@ def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
     assert 'standalone functions directly' in prompt and 'exact property paths' in prompt
     assert 'app.ui' not in prompt
     assert 'const app=' not in prompt and '"globals"' not in prompt
+
+
+def test_undefined_result_hints_use_outer_returns_without_executing_source():
+    source="""
+      throw new Error('Source must not execute');
+      function paint(){const callback=()=>{return true;};callback();}
+      const update=function(){returnValue='done';};
+      const value=()=>42;
+      function decide(){return true;}
+      function guarded(flag){if(flag)return;}
+      async function promise(){}
+      function* iterator(){yield 1;}
+    """
+    assert set(project_parts.undefined_result_helpers(source))=={'paint','update'}
+    prompt=project_parts.js_prompt_context(source,{'app':[],'ui':[]},['paint','decide'])
+    assert 'return undefined when they complete' in prompt
+    assert prompt.split('when the caller must return a Boolean:\n')[1]=='paint'
+    assert 'Source must not execute' not in prompt and 'update' not in prompt
+
+
+def test_undefined_result_hints_omit_uncertain_parser_failures(monkeypatch):
+    project_parts.undefined_result_helpers.cache_clear()
+    def failed(*args,**kwargs):raise subprocess.TimeoutExpired('node',3)
+    monkeypatch.setattr(project_parts.subprocess,'run',failed)
+    assert project_parts.undefined_result_helpers('function unavailable(){}')==()
 
 
 @pytest.mark.asyncio
