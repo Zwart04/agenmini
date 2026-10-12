@@ -2955,17 +2955,51 @@
       "behavior_checks": ["video_recorded_blob"]
     },
     {
+      "name": "Replace original recording URL",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 160,
+      "functions": ["replaceRecordingURL"],
+      "task": "Write replaceRecordingURL(blob,previousURL). If previousURL is present, call native URL.revokeObjectURL with that string once. Return the string from native URL.createObjectURL(blob), using the original supplied Blob. URL methods are ordinary callable methods, not constructors.",
+      "parameters": {"blob": "Original recorded Blob object.", "previousURL": "String or null; pass the original string directly to revokeObjectURL when present."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Output only one complete function replaceRecordingURL(blob,previousURL). Use native URL and supplied arguments directly. No app/ui globals, imports, comments or extra helpers.",
+      "behavior_checks": ["video_recording_url"]
+    },
+    {
+      "name": "Expose original download anchor",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 160,
+      "functions": ["exposeRecordingLink"],
+      "task": "Write exposeRecordingLink(link,url). Update the supplied anchor element: its href must be the supplied URL string, download must be filename clip-mini.webm, and hidden must be false. Modify the original link object directly.",
+      "parameters": {"link": "Existing HTMLAnchorElement to update directly.", "url": "New object URL string to assign as href."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Output only one complete function exposeRecordingLink(link,url). Use supplied parameters without redeclaring or replacing them. No globals, comments, imports or other helpers.",
+      "behavior_checks": ["video_recording_link"]
+    },
+    {
+      "name": "Report original recording size",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 170,
+      "functions": ["reportRecordingReady"],
+      "task": "Write reportRecordingReady(size,audioEnabled). Call existing setStatus once with a success message containing actual numeric size in bytes and label audio when audioEnabled is true or silent when false. Both modes are successes.",
+      "parameters": {"size": "Actual numeric Blob byte count, not a fixed number.", "audioEnabled": "Boolean selecting audio or silent success label."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["setStatus"], "state_writes": [],
+      "system_contract": "Output only one complete function reportRecordingReady(size,audioEnabled). Use supplied arguments and call standalone setStatus once. No globals, comments, imports or extra helpers.",
+      "behavior_checks": ["video_recording_status"]
+    },
+    {
       "name": "Publish actual recorded Blob",
       "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
       "tokens": 300,
       "functions": ["publishRecordedBlob"],
-      "task": "Write publishRecordedBlob(blob,audioEnabled). app.downloadURL is a nullable STRING. If it is present, pass that original string to native URL.revokeObjectURL. Call native URL.createObjectURL(blob) and assign its returned string to app.downloadURL. The existing ui.downloadLink is an anchor element: update its href to app.downloadURL, download to the filename clip-mini.webm, and hidden to false. Finally call setStatus once with actual blob.size and audio or silent selected by audioEnabled. Both modes are success. Preserve the existing app object, ui object and anchor element.",
+      "task": "Write publishRecordedBlob(blob,audioEnabled) by calling three existing helpers. Assign the string returned by replaceRecordingURL(blob,app.downloadURL) to app.downloadURL. Call exposeRecordingLink(ui.downloadLink,app.downloadURL). Then call reportRecordingReady(blob.size,audioEnabled). These helpers already handle URL operations, link properties and status. Use them unchanged and preserve existing outer app/ui objects.",
       "context": "Types: app.downloadURL is string|null, never an object. ui.downloadLink is an existing HTMLAnchorElement. blob.size is number; audioEnabled is boolean. URL is the browser global object with callable createObjectURL/revokeObjectURL, not a field of app.",
       "parameters": {"blob": "Actual nonempty recorded Blob with numeric size.", "audioEnabled": "Boolean selecting the success label audio or silent."},
       "relevant_fields": {"app": ["downloadURL"], "ui": ["downloadLink"]},
-      "relevant_functions": ["setStatus"], "state_writes": ["downloadURL"],
+      "relevant_functions": ["replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady"], "state_writes": ["downloadURL"],
       "system_contract": "Output only one complete function publishRecordedBlob(blob,audioEnabled). app and ui already exist. Use them directly without local declarations. No comments, imports or extra helpers.",
-      "behavior_checks": ["video_publish_recording"]
+      "behavior_checks": ["video_publish_recording"],
+      "behavior_dependencies": ["replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady"]
     },
     {
       "name": "Finalize recorded WebM download",
@@ -2977,7 +3011,8 @@
       "functions": [
         "finishExport"
       ],
-      "task": "Write finishExport(stream,audioEnabled,errorMessage) by composing existing helpers. First call cleanupExport(stream). If errorMessage is nonempty, call discardExportResult(errorMessage,true) then return. If app.cancelled is true, call discardExportResult with Cancelled and false then return. Otherwise obtain blob from createRecordedBlob(). If blob.size is zero, discard with a descriptive empty-recording message and true then return. For nonempty blob, call publishRecordedBlob(blob,audioEnabled). Both audio modes are valid. Keep helper implementations unchanged.",
+      "task": "Write finishExport(stream,audioEnabled,errorMessage) by composing existing helpers. First call cleanupExport(stream), even when stream is null. If errorMessage is nonempty, call discardExportResult(errorMessage,true) and immediately return. If app.cancelled is true, call discardExportResult with the STRING message \"Cancelled\" and false, then return. Otherwise obtain blob from createRecordedBlob(). If blob.size is zero, call discardExportResult with STRING message \"Empty recording\" and true, then return. Finally publishRecordedBlob(blob,audioEnabled). Message text must be quoted strings, not bare identifiers or Boolean values. Keep existing helpers unchanged.",
+      "parameters": {"stream": "Original export stream or null. Always forward it unchanged to cleanupExport, including null; do not return early for a null stream.", "errorMessage": "String. When nonempty, discard with this actual message and return immediately so no later status overwrites the error.", "audioEnabled": "Boolean forwarded unchanged to publisher on success."},
       "relevant_fields": {
         "app": ["cancelled"],
         "ui": []
@@ -2990,7 +3025,7 @@
       ],
       "state_writes": [],
       "system_contract": "Begin with function finishExport(stream,audioEnabled,errorMessage). Output only this complete function. Call existing standalone helpers directly. app is the existing outer object. No comments, imports, globals or copied declarations.",
-      "behavior_dependencies": ["discardExportResult", "createRecordedBlob", "publishRecordedBlob"],
+      "behavior_dependencies": ["discardExportResult", "createRecordedBlob", "replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady", "publishRecordedBlob"],
       "behavior_checks": [
         "video_export_finish"
       ]

@@ -69,6 +69,9 @@ REFERENCES = {
     }""",
     'video_export_discard': "function discardExportResult(message,isError){app.chunks=[];ui.downloadLink.hidden=true;setStatus(message,isError);}",
     'video_recorded_blob': "function createRecordedBlob(){return new Blob(app.chunks,{type:app.recorder.mimeType});}",
+    'video_recording_url': "function replaceRecordingURL(blob,previousURL){if(previousURL)URL.revokeObjectURL(previousURL);return URL.createObjectURL(blob);}",
+    'video_recording_link': "function exposeRecordingLink(link,url){link.href=url;link.download='clip-mini.webm';link.hidden=false;}",
+    'video_recording_status': "function reportRecordingReady(size,audioEnabled){setStatus('Export ready: '+size+' bytes, '+(audioEnabled?'audio':'silent'));}",
     'video_publish_recording': """function publishRecordedBlob(blob,audioEnabled){
       if(app.downloadURL)URL.revokeObjectURL(app.downloadURL);app.downloadURL=URL.createObjectURL(blob);
       ui.downloadLink.href=app.downloadURL;ui.downloadLink.download='clip-mini.webm';ui.downloadLink.hidden=false;
@@ -175,6 +178,12 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_recorded_blob', 'new Blob(app.chunks,', 'new Blob([],'),
     ('video_recorded_blob', 'new Blob(app.chunks,', 'new Blob([app.chunks],'),
     ('video_recorded_blob', 'type:app.recorder.mimeType', "type:'video/webm'"),
+    ('video_recording_url', 'URL.createObjectURL(blob)', "URL.createObjectURL({size:0})"),
+    ('video_recording_url', 'URL.revokeObjectURL(previousURL)', 'URL.revokeObjectURL(null)'),
+    ('video_recording_link', 'link.href=url', "link.href='blob:old'"),
+    ('video_recording_link', 'link.hidden=false', 'link.hidden=true'),
+    ('video_recording_status', "+size+", "+100+"),
+    ('video_recording_status', "'audio':'silent'", "'audio':'audio'"),
     ('video_publish_recording', 'URL.createObjectURL(blob)', "URL.createObjectURL({size:0})"),
     ('video_publish_recording', 'blob.size', '100'),
     ('video_publish_recording', 'ui.downloadLink.hidden=false', 'ui.downloadLink.hidden=true'),
@@ -485,7 +494,7 @@ async def test_frame_cancel_accepts_actual_browser_global_api_spellings(owner):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('broken',[None,'missing_cleanup','empty_publish','lost_error'])
+@pytest.mark.parametrize('broken',[None,'missing_cleanup','wrong_stream','empty_publish','empty_boolean','lost_error','continue_after_error'])
 async def test_export_finish_composes_actual_discard_blob_and_publish_helpers(broken):
     source='\n'.join(REFERENCES[name] for name in ['video_export_discard','video_recorded_blob','video_publish_recording'])+"""
       function finishExport(stream,audioEnabled,errorMessage){
@@ -498,8 +507,11 @@ async def test_export_finish_composes_actual_discard_blob_and_publish_helpers(br
       }
     """
     if broken=='missing_cleanup':source=source.replace('cleanupExport(stream);','')
+    if broken=='wrong_stream':source=source.replace('cleanupExport(stream);','cleanupExport({});')
     if broken=='empty_publish':source=source.replace("if(!blob.size){discardExportResult('Empty recording',true);return;}",'')
+    if broken=='empty_boolean':source=source.replace("discardExportResult('Empty recording',true)",'discardExportResult(false,true)')
     if broken=='lost_error':source=source.replace('discardExportResult(errorMessage,true)',"discardExportResult('Error',true)")
+    if broken=='continue_after_error':source=source.replace('if(errorMessage){discardExportResult(errorMessage,true);return;}','if(errorMessage){discardExportResult(errorMessage,true);}')
     assert bool(await project_checks.inspect_helper(source,'video_export_finish'))==bool(broken)
 
 
@@ -510,3 +522,29 @@ async def test_recorded_blob_accepts_flat_original_chunks_without_requiring_arra
     assert not await project_checks.inspect_helper(source,'video_recorded_blob')
     composite=REFERENCES['video_export_finish'].replace('Blob(app.chunks,','Blob('+parts+',')
     assert not await project_checks.inspect_helper(composite,'video_export_finish')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('omitted',[None,'exposeRecordingLink(ui.downloadLink,app.downloadURL);','reportRecordingReady(blob.size,audioEnabled);'])
+async def test_publish_composes_actual_url_anchor_and_status_helpers(omitted):
+    source='\n'.join(REFERENCES[name] for name in ['video_recording_url','video_recording_link','video_recording_status'])+"""
+      function publishRecordedBlob(blob,audioEnabled){
+        app.downloadURL=replaceRecordingURL(blob,app.downloadURL);
+        exposeRecordingLink(ui.downloadLink,app.downloadURL);
+        reportRecordingReady(blob.size,audioEnabled);
+      }
+    """
+    if omitted:source=source.replace(omitted,'')
+    assert bool(await project_checks.inspect_helper(source,'video_publish_recording'))==bool(omitted)
+    if not omitted:
+        composite=source+REFERENCES['video_export_discard']+REFERENCES['video_recorded_blob']+"""
+          function finishExport(stream,audioEnabled,errorMessage){
+            cleanupExport(stream);
+            if(errorMessage){discardExportResult(errorMessage,true);return;}
+            if(app.cancelled){discardExportResult('Cancelled',false);return;}
+            const blob=createRecordedBlob();
+            if(!blob.size){discardExportResult('Empty recording',true);return;}
+            publishRecordedBlob(blob,audioEnabled);
+          }
+        """
+        assert not await project_checks.inspect_helper(composite,'video_export_finish')

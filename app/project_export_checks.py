@@ -358,6 +358,29 @@ EXPORT_CASES = {
         assert(app.chunks===parts,'createRecordedBlob must preserve original chunk array');
       }
     ''',
+    'video_recording_url': r'''
+      let created=[],revoked=[];
+      const URL={createObjectURL(blob){created.push(blob);return 'blob:new';},revokeObjectURL(value){revoked.push(value);}};
+      const window={URL};globalThis.URL=URL;
+      const blob={size:217};
+      for(const previous of [null,'blob:previous']){
+        created=[];revoked=[];const value=replaceRecordingURL(blob,previous);
+        assert(value==='blob:new'&&created.length===1&&created[0]===blob,'URL helper must return new object URL from original recorded Blob');
+        assert(previous?revoked.length===1&&revoked[0]===previous:revoked.length===0,'URL helper must revoke original previous string once, only when present');
+      }
+    ''',
+    'video_recording_link': r'''
+      const link={href:'blob:old',hidden:true,download:'old.webm'};
+      exposeRecordingLink(link,'blob:current');
+      assert(link.href==='blob:current'&&link.download==='clip-mini.webm'&&link.hidden===false,'link helper must update href, download filename and hidden on original supplied anchor');
+    ''',
+    'video_recording_status': r'''
+      let statuses=[];function setStatus(...args){statuses.push(args);}
+      for(const [size,audio] of [[100,true],[217,false],[314,true]]){
+        statuses=[];reportRecordingReady(size,audio);
+        assert(statuses.length===1&&String(statuses[0][0]).includes(String(size))&&new RegExp(audio?'audio':'silent','i').test(statuses[0][0])&&statuses[0][1]!==true,'recording status must report actual byte count and audio/silent success once; observed='+JSON.stringify(statuses));
+      }
+    ''',
     'video_publish_recording': r'''
       let created=[],revoked=[],statuses=[];
       const URL={createObjectURL(blob){created.push(blob);return 'blob:new-recording';},revokeObjectURL(url){revoked.push(url);}};
@@ -375,8 +398,8 @@ EXPORT_CASES = {
       }
     ''',
     'video_export_finish': r'''
-      let cleaned=0,statuses=[],created=[],revoked=[];
-      function cleanupExport(){cleaned++;app.busy=false;}
+      let cleaned=0,statuses=[],created=[],revoked=[],expectedStream=null;
+      function cleanupExport(stream){assert(stream===expectedStream,'finishExport must forward original stream to cleanup, including null');cleaned++;app.busy=false;}
       function setStatus(message,error){statuses.push([String(message),error]);}
       class Blob{constructor(parts,options){this.parts=parts;this.type=options.type;this.size=parts.reduce((sum,part)=>sum+part.size,0);}}
       const URL={createObjectURL(blob){created.push(blob);return 'blob:new-export';},revokeObjectURL(url){revoked.push(url);}};
@@ -384,7 +407,8 @@ EXPORT_CASES = {
       ui.downloadLink={href:'',download:'',hidden:true};app.recorder={mimeType:'video/webm;codecs=vp8,opus'};
       for(const audio of [false,true]){
         app.cancelled=false;app.chunks=[{size:42},{size:58}];app.downloadURL='blob:old-export';statuses=[];created=[];revoked=[];
-        const parts=app.chunks,anchor=ui.downloadLink;finishExport(null,audio,'');
+        const parts=app.chunks,anchor=ui.downloadLink;expectedStream=audio?{}:null;const before=cleaned;finishExport(expectedStream,audio,'');
+        assert(cleaned===before+1,'finishExport must clean up once, including when stream is null; expected='+String(before+1)+' observed='+cleaned);
         assert(ui.downloadLink===anchor,'finishExport must update the original on-page download anchor');
         assert(created.length===1&&created[0].parts.length===parts.length&&created[0].parts.every((part,index)=>part===parts[index])&&created[0].size===100&&created[0].type===app.recorder.mimeType,'finishExport must create a real Blob from flat original recorded chunks with recorder MIME');
         assert(revoked.length===1&&revoked[0]==='blob:old-export'&&app.downloadURL==='blob:new-export','finishExport must revoke previous download URL before storing new one');
@@ -393,10 +417,12 @@ EXPORT_CASES = {
       }
       for(const [cancelled,error,size] of [[true,'',100],[false,'Encoder permission denied',100],[true,'Encoder failed during cancellation',100],[false,'',0]]){
         app.cancelled=cancelled;app.chunks=[{size}];created=[];statuses=[];ui.downloadLink.hidden=false;
-        finishExport(null,true,error);
+        expectedStream=cancelled?null:{};const before=cleaned;finishExport(expectedStream,true,error);
+        assert(cleaned===before+1,'failed finishExport must clean up original stream once, including null');
         assert(created.length===0&&ui.downloadLink.hidden===true,'cancelled/error/empty export must not expose a new download');
         assert(app.chunks.length===0,'cancelled/error/empty export must discard partial chunks');
-        assert(statuses.some(([message,flag])=>error?message.includes(error)&&flag===true:cancelled?/cancel/i.test(message):flag===true),'finishExport must report actual error, cancellation or empty recording');
+        const last=statuses.at(-1);
+        assert(statuses.length===1&&last&&(error?last[0].includes(error)&&last[1]===true:cancelled?/cancel/i.test(last[0]):last[1]===true&&/empty|recording|zero|byte|kosong|rekaman|no.*(data|video)/i.test(last[0])),'finishExport must report actual error, cancellation or descriptive empty recording once and preserve it as final visible status; expected='+(error|| (cancelled?'Cancelled':'empty recording'))+' observed='+JSON.stringify(statuses));
       }
       assert(cleaned===6,'finishExport must always invoke cleanupExport');
     ''',

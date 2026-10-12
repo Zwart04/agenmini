@@ -1,10 +1,11 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V138 sudah meloloskan 124 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V142 sudah meloloskan 129 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
-helper. Penyelesaian berkas masih gagal; perekam, integrasi kontrol dan ekspor
+helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
+perekam, integrasi kontrol dan ekspor
 browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
@@ -1830,6 +1831,37 @@ terlihat di browser. Jumlah fragmen sumber yang lolos tetap 124; perekam,
 integrasi kontrol dan ekspor browser belum lolos pembuktian.
 137 tes ekspor terarah lolos (18,24 detik). Pemeriksaan identitas anchor ini
 tidak mengubah kode runtime yang dibuat model.
+
+V140 memisahkan replaceRecordingURL, exposeRecordingLink dan reportRecordingReady,
+kemudian menyusunnya pada publisher. 149 tes ekspor lolos (17,97 detik) dan
+403 tes terkait lolos (124,81 detik). Model meloloskan helper URL dan anchor
+pada respons pertama, reporter pada regenerasi, serta publisher pada respons
+pertama. Run selesai gagal setelah 430,5 detik pada callback perekam karena
+model menutupi app dan menulis field error yang tidak tersedia.
+
+Audit sumber finishExport yang sempat lolos fixture lama menemukan return
+hilang setelah galat: pesan asli bisa ditimpa pesan empty/cancelled. Bagian
+itu tidak dihitung sebagai finalisasi yang benar. V141 mewajibkan satu pesan
+akhir yang terlihat, galat asli tetap menjadi prioritas, dan stream asli
+dikirim ke cleanup termasuk null. Tes negatif menolak salah stream dan
+kelanjutan eksekusi setelah galat. 151 tes terarah lolos (18,56 detik).
+V141 selesai gagal setelah 152,7 detik karena Cancelled dipakai sebagai
+identifier, bukan string. V142 memperjelas string pesan dan menolak Boolean
+sebagai laporan rekaman kosong; 152 tes terarah lolos (18,81 detik).
+
+Commit fc88a61 lolos seluruh workflow GitHub. Tests 38202383250 meloloskan
+696 tes dalam container Linux (148,75 detik); Secret scan 38202383237,
+Windows installer 38202383206 dan Original harness runtimes 38202383213
+berhasil. Itu memeriksa commit sebelum perubahan V140–V142.
+
+V142 meloloskan finishExport pada regenerasi model dengan fixture yang sudah
+diperketat. Sumber dibaca ulang: cleanup menerima stream asli termasuk null,
+setiap cabang galat/batal/kosong melapor lalu langsung return, dan publisher
+hanya dipanggil pada rekaman nonempty. Run selesai gagal setelah 273,8 detik
+pada createExportRecorder: respons awal memakai errorMessage dari scope yang
+tidak tersedia dan handler data memperlakukan Blob seperti array; respons
+terakhir terpotong. Source finalisasi bukan perbaikan manual evaluator.
+Belum ada editor lengkap atau ekspor browser yang dibuktikan berhasil.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
