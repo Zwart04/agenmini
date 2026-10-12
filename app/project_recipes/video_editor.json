@@ -3065,16 +3065,39 @@
       "behavior_dependencies": ["finishRecordingOnce"]
     },
     {
+      "name": "Read original recording error message",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 170,
+      "functions": ["recordingErrorMessage"],
+      "task": "Write recordingErrorMessage(event) with ONE return statement. Read event.error.message safely using JavaScript optional chaining, then use logical OR to select the STRING \"Recording failed\" when the message is absent, null or empty. This is a pure getter: no assignments to any object and no mutation. Return actual nonempty message unchanged.",
+      "parameters": {"event": "Readonly event object; error may be absent. If present, error.message is the original string to return."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Start with function recordingErrorMessage(event). Output only this complete plain function containing one return expression with optional chaining and a logical-or string fallback. No assignments, comments, globals, imports or extra functions.",
+      "behavior_checks": ["video_recording_error_message"]
+    },
+    {
+      "name": "Settle recorder error by actual state",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 190,
+      "functions": ["settleRecordingError"],
+      "task": "Write settleRecordingError(recorder,stream,audioEnabled,errorState). If recorder.state is the string inactive, call existing finishRecordingOnce with three positional arguments stream,audioEnabled,errorState. Otherwise call recorder.stop() once and let its stop callback finish. Do not do both actions.",
+      "parameters": {"recorder": "Original MediaRecorder with state string recording, paused or inactive, and callable stop.", "errorState": "Opaque original object to forward unchanged to finishRecordingOnce."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "system_contract": "Start with function settleRecordingError(recorder,stream,audioEnabled,errorState). Output only this complete function. Use original parameters directly. No globals, comments, imports or copied helpers.",
+      "behavior_checks": ["video_settle_recording_error"],
+      "behavior_dependencies": ["finishRecordingOnce"]
+    },
+    {
       "name": "Create callback for actual recorder error",
       "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
       "tokens": 260,
       "functions": ["makeRecordingErrorCallback"],
-      "task": "Write makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState). Return an event callback. Store actual event.error.message in errorState.message, or a descriptive string fallback if unavailable. If recorder.state is not the string inactive, call recorder.stop() and let onstop perform finalization. If already inactive, call existing finishRecordingOnce(stream,audioEnabled,errorState). Never do both stop and direct finalization for one event.",
+      "task": "Write makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState). Return a function receiving event. Inside that callback, assign the STRING returned by recordingErrorMessage(event) to errorState.message. Then call settleRecordingError(recorder,stream,audioEnabled,errorState) with four separate positional arguments. Existing helpers already read the input message and handle recorder state. Only compose them.",
       "parameters": {"recorder": "Actual MediaRecorder; state is string recording, paused or inactive. stop is callable only when not inactive.", "errorState": "Original shared object whose message string must be updated before stopping."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["recordingErrorMessage", "settleRecordingError"], "state_writes": [],
       "system_contract": "Output only one complete function makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState) returning a callback. Use original supplied arguments; no globals, comments, imports or other helpers.",
       "behavior_checks": ["video_recording_error_callback"],
-      "behavior_dependencies": ["finishRecordingOnce"]
+      "behavior_dependencies": ["finishRecordingOnce", "recordingErrorMessage", "settleRecordingError"]
     },
     {
       "name": "Configure browser recorder callbacks",
@@ -3106,7 +3129,7 @@
       "behavior_checks": [
         "video_export_recorder"
       ],
-      "behavior_dependencies": ["makeRecordingChunkCallback", "finishRecordingOnce", "makeRecordingStopCallback", "makeRecordingErrorCallback"]
+      "behavior_dependencies": ["makeRecordingChunkCallback", "finishRecordingOnce", "makeRecordingStopCallback", "recordingErrorMessage", "settleRecordingError", "makeRecordingErrorCallback"]
     },
     {
       "name": "Paint and monitor recording frames",

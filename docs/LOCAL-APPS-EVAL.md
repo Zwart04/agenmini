@@ -1,11 +1,11 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V145 sudah meloloskan 132 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V149 sudah meloloskan 136 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
-perekam, integrasi kontrol dan ekspor
+perekam gabungan lolos pemeriksaan lifecycle; loop frame, integrasi kontrol dan ekspor
 browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
@@ -1898,6 +1898,41 @@ tidak menjalankan stop/finalisasi yang diperlukan; respons terakhir terpotong.
 Sumber callback selesai tetap berasal dari model, tanpa perbaikan runtime
 manual. Perekam gabungan, frame loop, kontrol dan ekspor browser belum
 dibuktikan berhasil.
+
+V146 memisahkan recordingErrorMessage sebagai getter readonly dan
+settleRecordingError sebagai pemilih stop/finalisasi. Callback galat hanya
+menyusun keduanya. 175 tes ekspor lolos (20,05 detik), dan 429 tes terkait
+lolos (140,36 detik). Run gagal setelah 152,6 detik karena getter mengakses
+event.error.message langsung ketika error tidak tersedia.
+
+V147 memperjelas pemeriksaan absent/null dan pesan kosong. Fixture menolak
+akses nested yang melempar dan mewajibkan fallback berupa string nonempty;
+175 tes terarah lolos (22,33 detik). Run gagal setelah 142,0 detik: model
+menangani null/undefined tetapi masih mengembalikan message string kosong.
+V148 memperjelas diagnostik per kasus dan nilai aktual. 175 tes terarah
+lolos (18,96 detik), tetapi run gagal setelah 101,2 detik karena model
+menulis message pada Error masukan yang readonly. V149 memperjelas getter
+dengan satu return, optional chaining dan logical-or fallback. Tidak ada
+implementasi runtime yang disuntikkan evaluator.
+
+Commit 929f633 lolos seluruh workflow GitHub. Tests 38205755361 meloloskan
+727 tes dalam container Linux (116,76 detik); Secret scan 38205755329,
+Windows installer 38205755289 dan Original harness runtimes 38205755343
+berhasil. Itu memeriksa commit sebelum perubahan V146–V149.
+
+V149 meloloskan recordingErrorMessage, settleRecordingError dan callback
+galat pada respons model pertama. Getter hanya membaca pesan atau memberi
+fallback; callback menulis ke errorState.message dan meneruskan empat argumen
+asli ke pemilih tindakan. createExportRecorder lolos setelah perbaikan model.
+Sumber dibaca ulang: membuat MediaRecorder native dengan stream/MIME aktual,
+menyimpan satu errorState lokal bersama, memasang callback yang divalidasi,
+menyimpan instance di app.recorder dan mengembalikannya.
+
+Run selesai gagal setelah 274,9 detik pada watchExportFrames: respons awal
+memakai variabel bare raf/recorder/preview/currentTime dan app.preview yang
+tidak tersedia; respons akhir mengganti app.recorder dan terpotong. Perekam
+yang lolos berasal dari source model, bukan runtime evaluator. Pembuktian
+ekspor video dan UI browser masih belum dilakukan.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes

@@ -446,6 +446,27 @@ EXPORT_CASES = {
       state.message='Encoder error after callback creation';callback();callback();
       assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===state.message,'stop callback must forward original stream, actual audio Boolean and current shared error message');
     ''',
+    'video_recording_error_message': r'''
+      for(const text of ['Actual encoder failure','Different recording failure']){
+        const error=Object.freeze(new Error(text));const event=Object.freeze({error});
+        assert(recordingErrorMessage(event)===text,'message helper must return actual event.error.message unchanged');
+        assert(error.message===text,'message helper must not alter input error');
+      }
+      for(const [event,scenario] of [[{},'event.error absent'],[{error:null},'event.error null'],[{error:{message:''}},'event.error.message empty string']]){
+        let fallback;try{fallback=recordingErrorMessage(event);}catch(error){assert(false,'Absent or null event.error must return a fallback without reading its message; observed throw='+error.message);}
+        assert(typeof fallback==='string'&&fallback.length>0,scenario+' must return a nonempty fallback string; observed type='+typeof fallback+' value='+JSON.stringify(fallback));
+      }
+    ''',
+    'video_settle_recording_error': r'''
+      let finished=[];function finishExport(...args){finished.push(args);}
+      const stream={};
+      for(const initial of ['recording','paused','inactive']){
+        finished=[];let stops=0;const state={message:'Actual failure',finished:false};
+        const recorder={state:initial,stop(){stops++;this.state='inactive';}};
+        settleRecordingError(recorder,stream,false,state);
+        assert(initial==='inactive'?stops===0&&finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===state.message:stops===1&&finished.length===0,'settle must stop active recorder or finalize inactive recorder with original values, not both');
+      }
+    ''',
     'video_recording_error_callback': r'''
       let finished=[];function finishExport(...args){finished.push(args);}
       const stream={};
