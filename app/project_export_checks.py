@@ -1,6 +1,23 @@
 """Recorder API fixtures; evaluator-only, never supplied as application source."""
 
 EXPORT_CASES = {
+    'video_audio_silent_status': r'''
+      let statuses=[];function setStatus(message){statuses.push(String(message));}
+      for(const message of ['Audio permission denied','Different audio problem']){
+        statuses=[];const result=reportSilentAudio(new Error(message));
+        assert(result===false,'silent audio reporter must return Boolean false; observed '+String(result));
+        assert(statuses.length===1&&statuses[0].startsWith('Silent export')&&statuses[0].includes(message),'silent audio reporter must send one explicit Silent export status with actual Error message; observed '+JSON.stringify(statuses));
+      }
+    ''',
+    'video_audio_require_tracks': r'''
+      let calls=[],available=true;const stream={},destination={};
+      function addExportAudioTracks(value,target){calls.push([value,target]);return available;}
+      assert(requireExportAudioTracks(stream,destination)===true,'audio track requirement must return Boolean true after actual attachment succeeds');
+      assert(calls.length===1&&calls[0][0]===stream&&calls[0][1]===destination,'audio track requirement must use original stream and destination once');
+      calls=[];available=false;let failure='';
+      try{requireExportAudioTracks(stream,destination);}catch(error){failure=error.message;}
+      assert(calls.length===1&&calls[0][0]===stream&&calls[0][1]===destination&&failure.length>0,'audio track requirement must throw a descriptive Error when actual attachment returns false');
+    ''',
     'video_audio_track_membership': r'''
       const track={kind:'audio'},other={kind:'audio'};let tracks=[],calls=0;
       const stream={getAudioTracks(){calls++;return tracks;}};
@@ -248,7 +265,8 @@ EXPORT_CASES = {
     ''',
     'video_export_audio': r'''
       let sources=0,destinations=0,resumes=0,connections=[],resumeError=false;
-      const audioTrack={kind:'audio'},speaker={speaker:true},destination={stream:{getAudioTracks(){return [audioTrack];}}};
+      const audioTrack={kind:'audio'},speaker={speaker:true};let availableTracks=[audioTrack];
+      const destination={stream:{getAudioTracks(){return availableTracks;}}};
       class AudioContext{
         constructor(){this.destination=speaker;}
         createMediaElementSource(element){assert(element===ui.preview,'audio source must use existing preview');sources++;return {connect(target){connections.push(target);}};}
@@ -265,11 +283,24 @@ EXPORT_CASES = {
       }
       assert(sources===1&&destinations===1&&connections.length===2&&connections.includes(speaker)&&connections.includes(destination),'audio source and destination must be reused without duplicate connections');
       assert(resumes===2,'audio context must be resumed for each export');
+      availableTracks=[];ui.status.textContent='';const emptyTracks=[];let emptyResult,rejected='';
+      try{emptyResult=await attachExportAudio({getAudioTracks(){return emptyTracks;},addTrack(value){emptyTracks.push(value);}});}catch(error){rejected=error.message;}
+      assert(!rejected,'empty audio destination must return false without rejecting export; observed '+rejected);
+      assert(emptyResult===false&&emptyTracks.length===0,'empty audio destination must return Boolean false without fake tracks; observed result='+String(emptyResult)+' additions='+emptyTracks.length);
+      assert(/silent/i.test(ui.status.textContent),'empty audio destination must report explicit silent export; observed status='+ui.status.textContent);
+      availableTracks=[audioTrack];ui.status.textContent='';
       resumeError=true;const tracks=[];
-      assert(await attachExportAudio({getAudioTracks(){return tracks;},addTrack(t){tracks.push(t);}})===false,'audio resume rejection must return Boolean false instead of rejecting export');
-      assert(tracks.length===0&&/silent/i.test(ui.status.textContent),'audio failure must report explicit silent export and add no audio tracks');
+      let result;rejected='';
+      try{result=await attachExportAudio({getAudioTracks(){return tracks;},addTrack(t){tracks.push(t);}});}catch(error){rejected=error.message;}
+      assert(!rejected,'recoverable audio resume failure must return false without rejecting export; observed '+rejected);
+      assert(result===false,'audio resume failure must return Boolean false; observed '+String(result));
+      assert(tracks.length===0,'audio resume failure must not add tracks; observed additions='+tracks.length);
+      assert(/silent/i.test(ui.status.textContent)&&ui.status.textContent.includes('Audio permission denied'),'audio resume failure must report silent export and actual browser Error message; observed status='+ui.status.textContent);
       window.AudioContext=undefined;app.audioContext=null;app.audioSource=null;app.audioDest=null;ui.status.textContent='';
-      assert(await attachExportAudio({addTrack(){throw new Error('No audio available');}})===false&&/silent/i.test(ui.status.textContent),'missing AudioContext must return false with silent-export status');
+      result=undefined;rejected='';
+      try{result=await attachExportAudio({addTrack(){throw new Error('No audio available');}});}catch(error){rejected=error.message;}
+      assert(!rejected&&result===false,'missing AudioContext must return false without rejecting; observed result='+String(result)+' error='+rejected);
+      assert(/silent/i.test(ui.status.textContent),'missing AudioContext must report silent export; observed status='+ui.status.textContent);
     ''',
     'video_export_cleanup': r'''
       let pauses=0,cancelled=[],busy=[];

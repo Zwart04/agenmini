@@ -2760,6 +2760,66 @@
       ]
     },
     {
+      "name": "Report recoverable silent audio failure",
+      "functions": [
+        "reportSilentAudio"
+      ],
+      "tokens": 180,
+      "task": "Write reportSilentAudio(error). Build ONE combined text by concatenating the literal prefix Silent export: (including a space after the colon) with the actual error.message. Pass that complete string as the only argument to ONE setStatus call. Then return Boolean false. Two calls overwrite the label and are wrong; do not separate prefix and message, omit the word export or throw.",
+      "parameters": {
+        "error": "Actual caught Error object. Its message must appear in the status text."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_audio_silent_status"
+      ],
+      "context": "setStatus replaces the displayed text on each call. Build the complete readable status first, then call it once. Preserve the actual Error message.",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "system_contract": "Start with function reportSilentAudio(error). Output only this complete plain JavaScript function. Combine prefix and actual message into one string before the single setter call. No comments, imports, exports, types or other declarations."
+    },
+    {
+      "name": "Require actual attached audio tracks",
+      "functions": [
+        "requireExportAudioTracks"
+      ],
+      "tokens": 180,
+      "task": "Write requireExportAudioTracks(stream,destination). Call existing addExportAudioTracks(stream,destination) once. If its actual Boolean result is false, throw a descriptive Error about missing audio tracks. Otherwise return Boolean true. Do not duplicate its track loop or change objects.",
+      "parameters": {
+        "stream": "Actual export stream supplied directly.",
+        "destination": "Actual destination supplied directly."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "addExportAudioTracks"
+      ],
+      "include_helper_sources": [
+        "addExportAudioTracks"
+      ],
+      "state_writes": [],
+      "behavior_checks": [
+        "video_audio_require_tracks"
+      ],
+      "context": "Existing attachment helper below returns true with tracks, false when empty.",
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "system_contract": "Start with function requireExportAudioTracks. Output only this complete plain JavaScript function, without comments, imports, exports, types or other declarations."
+    },
+    {
       "name": "Attach reusable export audio",
       "file": "app.js",
       "kind": "js",
@@ -2769,7 +2829,7 @@
       "functions": [
         "attachExportAudio"
       ],
-      "task": "Write async attachExportAudio(stream). Inside try, obtain context from getExportAudioContext(), then destination from connectExportAudio(context,ui.preview). Await context.resume(). Use addExportAudioTracks(stream,destination); if it returns false throw a descriptive Error about no audio tracks. Return true on success. Catch actual Error, report Silent export plus its message through existing setStatus, and return false. These helpers already implement context caching, connections and track handling; only compose them.",
+      "task": "Write async attachExportAudio(stream). Inside try, obtain context from getExportAudioContext(), obtain destination from connectExportAudio(context,ui.preview), await context.resume(), call requireExportAudioTracks(stream,destination), then return true. Catch the actual Error and return reportSilentAudio(error). These helpers already handle connections, track validation and status. Only compose them; never throw from catch or report status yourself.",
       "relevant_fields": {
         "app": [],
         "ui": [
@@ -2779,8 +2839,8 @@
       "relevant_functions": [
         "getExportAudioContext",
         "connectExportAudio",
-        "addExportAudioTracks",
-        "setStatus"
+        "requireExportAudioTracks",
+        "reportSilentAudio"
       ],
       "state_writes": [],
       "system_contract": "Begin with async function attachExportAudio(stream). Output only the requested complete function, without globals or copied declarations.",
@@ -2795,14 +2855,17 @@
         "connectExportAudio",
         "addExportAudioTracks",
         "addSingleExportAudioTrack",
-        "hasExportAudioTrack"
+        "hasExportAudioTrack",
+        "requireExportAudioTracks",
+        "reportSilentAudio"
       ],
       "include_helper_sources": [
         "getExportAudioContext",
         "connectExportAudio",
-        "addExportAudioTracks"
+        "requireExportAudioTracks",
+        "reportSilentAudio"
       ],
-      "context": "Existing helpers below are validated model-written implementations. Call them unchanged; never redeclare app, ui or setStatus."
+      "context": "All existing helpers are validated model-written implementations. Use them unchanged, with supplied arguments. Recoverable audio failure must produce false so video export can continue silently."
     },
     {
       "name": "Clean export playback and video tracks",

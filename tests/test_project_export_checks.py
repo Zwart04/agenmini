@@ -8,6 +8,8 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_audio_silent_status': "function reportSilentAudio(error){setStatus('Silent export: '+error.message);return false;}",
+    'video_audio_require_tracks': "function requireExportAudioTracks(stream,destination){if(!addExportAudioTracks(stream,destination))throw new Error('No audio tracks');return true;}",
     'video_audio_track_membership': 'function hasExportAudioTrack(stream,track){const tracks=stream.getAudioTracks();return tracks.includes(track);}',
     'video_audio_single_track': 'function addSingleExportAudioTrack(stream,track){if(!stream.getAudioTracks().includes(track))stream.addTrack(track);}',
     'video_audio_source': 'function createExportAudioSource(context,video){return context.createMediaElementSource(video);}',
@@ -107,6 +109,10 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_audio_silent_status', "'Silent export: '+error.message", 'error.message'),
+    ('video_audio_silent_status', 'return false', 'throw error'),
+    ('video_audio_require_tracks', 'if(!addExportAudioTracks(stream,destination))', 'if(false)'),
+    ('video_audio_require_tracks', 'addExportAudioTracks(stream,destination)', 'addExportAudioTracks({},destination)'),
     ('video_audio_track_membership', 'return tracks.includes(track)', 'return tracks.length>0'),
     ('video_audio_track_membership', 'tracks.includes(track)', 'tracks.some(value=>value.kind===track.kind)'),
     ('video_audio_single_track', 'if(!stream.getAudioTracks().includes(track))', 'if(true)'),
@@ -184,7 +190,16 @@ async def test_audio_workers_preserve_full_context_reuse_and_silent_failure_case
     assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('await context.resume();',''),'video_export_audio')
     recipe=json.loads((Path(project_parts.__file__).parent/'project_recipes/video_editor.json').read_text(encoding='utf-8'))
     audio=next(part for part in recipe['parts'] if part.get('functions')==['attachExportAudio'])
-    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks','createExportAudioSource','createExportAudioDestination','connectExportAudioTargets','addSingleExportAudioTrack','hasExportAudioTrack'}
+    assert set(audio['behavior_dependencies'])=={'getExportAudioContext','connectExportAudio','addExportAudioTracks','createExportAudioSource','createExportAudioDestination','connectExportAudioTargets','addSingleExportAudioTrack','hasExportAudioTrack','requireExportAudioTracks','reportSilentAudio'}
+
+
+@pytest.mark.asyncio
+async def test_audio_fallback_workers_compose_with_complete_export_lifecycle():
+    workers='\n'.join(REFERENCES[name] for name in ('video_audio_context','video_audio_connections','video_audio_tracks','video_audio_silent_status','video_audio_require_tracks'))
+    wrapper='async function attachExportAudio(stream){try{const context=getExportAudioContext();const destination=connectExportAudio(context,ui.preview);await context.resume();requireExportAudioTracks(stream,destination);return true;}catch(error){return reportSilentAudio(error);}}'
+    assert not await project_checks.inspect_helper(workers+'\n'+wrapper,'video_export_audio')
+    assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('return reportSilentAudio(error);','throw error;'),'video_export_audio')
+    assert await project_checks.inspect_helper(workers+'\n'+wrapper.replace('requireExportAudioTracks(stream,destination);',''),'video_export_audio')
 
 
 @pytest.mark.asyncio
@@ -249,6 +264,22 @@ async def test_audio_context_diagnostics_isolate_constructor_support_from_cache_
     assert any('store actual instance in app.audioContext and reuse it' in error for error in errors)
     assert not any('must accept available window.webkitAudioContext' in error for error in errors)
     assert all(error.startswith('Helper behavior failed:') for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_audio_fallback_diagnostic_separates_recoverable_resume_failure_from_rethrow():
+    source=REFERENCES['video_export_audio'].replace("setStatus('Silent export: '+error.message);return false;","setStatus('Silent export: '+error.message);throw error;")
+    errors=await project_checks.inspect_helper(source,'video_export_audio')
+    assert any('recoverable audio resume failure must return false without rejecting export' in error and 'Audio permission denied' in error for error in errors)
+    assert all(error.startswith('Helper behavior failed:') for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_audio_fallback_diagnostic_requires_actual_false_and_silent_status_for_empty_tracks():
+    source=REFERENCES['video_export_audio'].replace("if(!tracks.length)throw new Error('No audio track');",'')
+    errors=await project_checks.inspect_helper(source,'video_export_audio')
+    assert any('empty audio destination must return Boolean false' in error and 'result=true' in error for error in errors)
+    assert any('empty audio destination must report explicit silent export' in error for error in errors)
 
 
 @pytest.mark.asyncio

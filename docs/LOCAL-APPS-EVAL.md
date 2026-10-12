@@ -1,5 +1,12 @@
 # Uji aplikasi dengan model lokal kecil
 
+Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
+Uji Qwen3.5 0.8B Q8_0 V126 sudah meloloskan 116 fragmen sumber model, termasuk
+impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
+Fallback audio masih gagal; perekam, integrasi kontrol dan ekspor
+browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
+regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
+
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
 4 thread, konteks 8192 dan satu slot per model. Data uji terpisah;
 hasil kode berasal dari model, tidak diganti dengan template evaluator.
@@ -1694,6 +1701,31 @@ lolos pada regenerasi ketiga dengan loop atas array aktual dan pemanggilan
 helper tersebut. Source model dan hash disimpan pada parts/113–115.json.
 Wrapper audio gabungan serta perekam WebM masih dalam proses; ekspor browser
 belum dibuktikan.
+
+V126 selesai gagal setelah 432,6 detik pada wrapper audio. Respons awal
+menangkap galat tetapi mengirim Boolean sebagai pesan status; regenerasi
+melempar ulang galat izin. V127 memisahkan diagnostic return false, rejection,
+pesan Silent dan Error asli pada tiap kasus. Destination kosong juga harus
+menghasilkan false tanpa track palsu dan melaporkan silent; seluruh kasus
+context/koneksi yang digunakan ulang tetap diperiksa. 97 tes ekspor terarah
+lolos (25,04 detik). Kandidat asli wrapper bagian 116 diperiksa ulang dengan
+bobot, recipe dan parameter inferensi Qwen yang sama.
+
+342 tes regresi terkait lolos (118,91 detik). V127 selesai gagal setelah
+133,6 detik: model sudah mempertahankan pesan Error asli, tetapi label Silent
+belum ada dan false dari destination kosong masih diabaikan. V128 memisahkan
+reporter silent yang mengembalikan false dari guard track yang melempar Error
+ketika attachment gagal. Wrapper hanya menyusun helper dan menangkap galat.
+Kasus destination kosong, izin ditolak, constructor hilang, cache/koneksi
+dan identitas track tetap diperiksa sebagai satu lifecycle gabungan.
+
+104 tes ekspor terarah lolos (13,88 detik) dan 349 tes regresi terkait lolos
+(119,55 detik). V128 selesai gagal setelah 127,2 detik pada reporter: respons
+awal menyatukan Silent langsung dengan Error; regenerasi mengirim label dan
+Error dalam dua panggilan yang saling menimpa. V129 memperjelas satu string
+gabungan dan satu panggilan setter, tetap memakai pesan Error asli serta
+return false. Tidak ada string runtime atau source reference yang disuntikkan
+ke hasil model.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
