@@ -86,11 +86,18 @@ REFERENCES = {
       ui.downloadLink.href=app.downloadURL;ui.downloadLink.download='clip-mini.webm';ui.downloadLink.hidden=false;
       setStatus('Export ready: '+blob.size+' bytes, '+(audioEnabled?'audio':'silent'));
     }""",
+    'video_recording_chunk_callback': "function makeRecordingChunkCallback(chunks){return event=>{if(event.data&&event.data.size>0)chunks.push(event.data);};}",
+    'video_recording_finish_once': "function finishRecordingOnce(stream,audioEnabled,errorState){if(errorState.finished)return;errorState.finished=true;finishExport(stream,audioEnabled,errorState.message);}",
+    'video_recording_stop_callback': "function makeRecordingStopCallback(stream,audioEnabled,errorState){return ()=>finishRecordingOnce(stream,audioEnabled,errorState);}",
+    'video_recording_error_callback': """function makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState){
+      return event=>{errorState.message=event.error?.message||'Recording failed';if(recorder.state!=='inactive')recorder.stop();else finishRecordingOnce(stream,audioEnabled,errorState);};
+    }""",
     'video_export_recorder': """function createExportRecorder(stream,mime,audioEnabled){
-      const recorder=new MediaRecorder(stream,{mimeType:mime});app.recorder=recorder;let failure='';
+      const recorder=new MediaRecorder(stream,{mimeType:mime});app.recorder=recorder;let failure='',done=false;
+      const finish=()=>{if(done)return;done=true;finishExport(stream,audioEnabled,failure);};
       recorder.ondataavailable=event=>{if(event.data&&event.data.size)app.chunks.push(event.data);};
-      recorder.onstop=()=>finishExport(stream,audioEnabled,failure);
-      recorder.onerror=event=>{failure=event.error?.message||'Recording failed';if(recorder.state!=='inactive')recorder.stop();else finishExport(stream,audioEnabled,failure);};
+      recorder.onstop=finish;
+      recorder.onerror=event=>{failure=event.error?.message||'Recording failed';if(recorder.state!=='inactive')recorder.stop();else finish();};
       return recorder;
     }""",
     'video_export_frames': """function watchExportFrames(){
@@ -120,6 +127,7 @@ REFERENCES['video_export_wait']=REFERENCES['video_export_seek'].replace(
 async def test_export_fixtures_accept_working_api_lifecycle(check):
     source=REFERENCES[check]
     if check=='video_seek_arm':source='\n'.join(REFERENCES[name] for name in ('video_seek_register','video_seek_timer','video_seek_assign'))+'\n'+source
+    if check in ('video_recording_stop_callback','video_recording_error_callback'):source=REFERENCES['video_recording_finish_once']+source
     assert not await project_checks.inspect_helper(source, check)
 
 
@@ -194,13 +202,23 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_export_finish', 'new Blob(app.chunks,', 'new Blob([],'),
     ('video_export_finish', "ui.downloadLink.href=app.downloadURL", 'ui.downloadLink.href=app.objectURL'),
     ('video_export_finish', 'ui.downloadLink.hidden=true;', ''),
+    ('video_recording_chunk_callback', 'event.data.size>0', 'event.data.length>0'),
+    ('video_recording_chunk_callback', 'chunks.push(event.data)', 'chunks.push({data:event.data})'),
+    ('video_recording_finish_once', 'errorState.finished=true;', ''),
+    ('video_recording_stop_callback', 'finishRecordingOnce(stream,audioEnabled,errorState)', "finishRecordingOnce(stream,audioEnabled,{message:'',finished:false})"),
+    ('video_recording_stop_callback', 'return ()=>finishRecordingOnce', 'return finishRecordingOnce'),
+    ('video_recording_error_callback', "recorder.state!=='inactive'", 'true'),
+    ('video_recording_error_callback', 'event.error?.message', 'event.error.message'),
+    ('video_recording_error_callback', 'if(recorder.state', 'finishExport(stream,audioEnabled,errorState.message);if(recorder.state'),
     ('video_export_recorder', 'event.data&&event.data.size', 'event.data'),
     ('video_export_frames', 'app.end-.025', 'app.end+1'),
     ('video_export_orchestration', 'recorder.start();await ui.preview.play();', 'await ui.preview.play();recorder.start();'),
 ])
 async def test_export_fixtures_reject_broken_behavior(check, old, new):
     assert old in REFERENCES[check]
-    assert await project_checks.inspect_helper(REFERENCES[check].replace(old,new), check)
+    source=REFERENCES[check].replace(old,new)
+    if check in ('video_recording_stop_callback','video_recording_error_callback'):source=REFERENCES['video_recording_finish_once']+source
+    assert await project_checks.inspect_helper(source, check)
 
 
 @pytest.mark.asyncio
@@ -548,3 +566,21 @@ async def test_publish_composes_actual_url_anchor_and_status_helpers(omitted):
           }
         """
         assert not await project_checks.inspect_helper(composite,'video_export_finish')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('broken',[None,'snapshot_error','invoke_chunk_early','double_finish'])
+async def test_recorder_factories_compose_with_deferred_stop_and_real_error_scopes(broken):
+    source='\n'.join(REFERENCES[name] for name in ['video_recording_chunk_callback','video_recording_finish_once','video_recording_stop_callback','video_recording_error_callback'])+"""
+      function createExportRecorder(stream,mime,audioEnabled){
+        const recorder=new MediaRecorder(stream,{mimeType:mime});const errorState={message:'',finished:false};
+        recorder.ondataavailable=makeRecordingChunkCallback(app.chunks);
+        recorder.onstop=makeRecordingStopCallback(stream,audioEnabled,errorState);
+        recorder.onerror=makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState);
+        app.recorder=recorder;return recorder;
+      }
+    """
+    if broken=='snapshot_error':source=source.replace('()=>finishRecordingOnce(stream,audioEnabled,errorState)',"()=>finishRecordingOnce(stream,audioEnabled,{message:'',finished:false})")
+    if broken=='invoke_chunk_early':source=source.replace('makeRecordingChunkCallback(app.chunks);','makeRecordingChunkCallback(app.chunks)();')
+    if broken=='double_finish':source=source.replace('if(recorder.state', 'finishExport(stream,audioEnabled,errorState.message);if(recorder.state')
+    assert bool(await project_checks.inspect_helper(source,'video_export_recorder'))==bool(broken)

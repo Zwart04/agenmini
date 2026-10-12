@@ -426,17 +426,66 @@ EXPORT_CASES = {
       }
       assert(cleaned===6,'finishExport must always invoke cleanupExport');
     ''',
+    'video_recording_chunk_callback': r'''
+      const prior={size:7},chunk={size:20},chunks=[prior];
+      const callback=makeRecordingChunkCallback(chunks);
+      assert(typeof callback==='function','chunk factory must return an actual event callback');
+      callback({data:null});callback({data:{size:0}});callback({data:chunk});
+      assert(chunks.length===2&&chunks[0]===prior&&chunks[1]===chunk,'chunk callback must append only the original nonempty event.data to supplied array, preserving previous chunks');
+    ''',
+    'video_recording_finish_once': r'''
+      let finished=[];function finishExport(...args){finished.push(args);}
+      const stream={},state={message:'Actual failure',finished:false};
+      finishRecordingOnce(stream,false,state);finishRecordingOnce(stream,false,state);
+      assert(state.finished===true&&finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===state.message,'finishRecordingOnce must mark shared state and forward original values exactly once');
+    ''',
+    'video_recording_stop_callback': r'''
+      let finished=[];function finishExport(...args){finished.push(args);}
+      const stream={},state={message:'',finished:false};const callback=makeRecordingStopCallback(stream,false,state);
+      assert(typeof callback==='function','stop factory must return an actual callback');
+      state.message='Encoder error after callback creation';callback();callback();
+      assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===state.message,'stop callback must forward original stream, actual audio Boolean and current shared error message');
+    ''',
+    'video_recording_error_callback': r'''
+      let finished=[];function finishExport(...args){finished.push(args);}
+      const stream={};
+      for(const initial of ['recording','paused','inactive']){
+        finished=[];const state={message:'',finished:false};let stops=0;
+        const recorder={state:initial,stop(){stops++;this.state='inactive';}};
+        const callback=makeRecordingErrorCallback(recorder,stream,true,state);
+        assert(typeof callback==='function','error factory must return an actual event callback');
+        callback({error:new Error('Actual encoder failure')});
+        assert(state.message==='Actual encoder failure','error callback must retain original event.error.message in shared state');
+        assert(initial==='inactive'?stops===0&&finished.length===1&&finished[0][0]===stream&&finished[0][1]===true&&finished[0][2]===state.message:stops===1&&finished.length===0,'active error must stop and let onstop finish; inactive error must finish directly once without stop');
+      }
+      finished=[];const missing={message:'',finished:false};
+      makeRecordingErrorCallback({state:'inactive',stop(){throw new Error('Unexpected stop');}},stream,false,missing)({});
+      assert(typeof missing.message==='string'&&missing.message.length>0&&finished.length===1&&finished[0][2]===missing.message,'missing event.error must produce a descriptive fallback and finalize once');
+    ''',
     'video_export_recorder': r'''
       let finished=[];function finishExport(...args){finished.push(args);}
-      class MediaRecorder{constructor(stream,options){this.stream=stream;this.mimeType=options.mimeType;this.state='recording';this.stops=0;}stop(){this.stops++;this.state='inactive';this.onstop();}}
-      const stream={};app.chunks=[];
+      let queued=[];
+      class MediaRecorder{constructor(stream,options){this.stream=stream;this.mimeType=options.mimeType;this.state='inactive';this.stops=0;this.starts=0;}start(){this.starts++;this.state='recording';}stop(){if(this.state==='inactive')return;this.stops++;this.state='inactive';queued.push(()=>this.onstop());}}
+      const window={MediaRecorder};globalThis.MediaRecorder=MediaRecorder;
+      const stream={},prior={size:7};app.chunks=[prior];const originalChunks=app.chunks;
       const recorder=createExportRecorder(stream,'video/webm',true);
       assert(recorder===app.recorder&&recorder.stream===stream&&recorder.mimeType==='video/webm','createExportRecorder must store and return the real configured recorder');
+      assert(recorder.starts===0&&recorder.state==='inactive','recorder helper must not start recording');
       recorder.ondataavailable({data:{size:0}});const chunk={size:20};recorder.ondataavailable({data:chunk});
-      assert(app.chunks.length===1&&app.chunks[0]===chunk,'recorder must retain nonempty chunks without replacing them');
-      recorder.onstop();assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===true&&!finished[0][2],'recorder stop must call finishExport with stream and actual audio flag');
-      finished=[];recorder.onerror({error:new Error('Encoder exploded')});
-      assert(recorder.stops===1&&finished.length===1&&finished[0][2]==='Encoder exploded','recorder error must stop recording and preserve actual error for finalization');
+      assert(app.chunks===originalChunks&&app.chunks.length===2&&app.chunks[0]===prior&&app.chunks[1]===chunk,'recorder must append original nonempty chunks without replacing previous data or array');
+      recorder.onstop();recorder.onstop();assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===true&&!finished[0][2],'recorder stop must call finishExport once with stream and actual audio flag');
+      for(const initial of ['recording','paused','inactive']){
+        finished=[];queued=[];app.chunks=[];
+        const failed=createExportRecorder(stream,'video/webm',false);failed.state=initial;
+        failed.onerror({error:new Error('Encoder exploded')});
+        assert(initial==='inactive'?failed.stops===0&&finished.length===1:failed.stops===1&&finished.length===0&&queued.length===1,'recorder must finish inactive error directly or wait for queued onstop after active error');
+        for(const callback of queued)callback();
+        failed.onstop();
+        assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]==='Encoder exploded','recorder error must finalize exactly once with actual stream, audio flag and error');
+      }
+      finished=[];app.chunks=[];const fallback=createExportRecorder(stream,'video/webm',true);
+      fallback.onerror({});fallback.onstop();
+      assert(finished.length===1&&typeof finished[0][2]==='string'&&finished[0][2].length>0,'recorder error without error payload must report fallback once even with following stop');
     ''',
     'video_export_frames': r'''
       let paints=0,queued=[],stops=0;

@@ -3031,6 +3031,52 @@
       ]
     },
     {
+      "name": "Create callback for original recording chunks",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 190,
+      "functions": ["makeRecordingChunkCallback"],
+      "task": "Write makeRecordingChunkCallback(chunks). Return an event callback. When event.data exists and its numeric size is greater than zero, push that original event.data object into the supplied chunks array. Otherwise do nothing. Preserve previous array items and the original array.",
+      "parameters": {"chunks": "Existing Array<Blob> to append to. Callback event.data is Blob or null; Blob has size, not length."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "system_contract": "Output only one complete function makeRecordingChunkCallback(chunks) returning a callback. Use supplied array directly. No globals, imports, comments or extra helpers.",
+      "behavior_checks": ["video_recording_chunk_callback"]
+    },
+    {
+      "name": "Finalize original recording once",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 190,
+      "functions": ["finishRecordingOnce"],
+      "task": "Write finishRecordingOnce(stream,audioEnabled,errorState). If errorState.finished is true, return immediately. Otherwise set that property to true before calling existing finishExport(stream,audioEnabled,errorState.message). This prevents duplicate finalization from error and stop events.",
+      "parameters": {"errorState": "Original shared mutable object with message string and finished Boolean; update its finished property directly."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishExport"], "state_writes": [],
+      "system_contract": "Output only one complete function finishRecordingOnce(stream,audioEnabled,errorState). Use the original shared object and existing helper directly. No globals, comments, imports or other helpers.",
+      "behavior_checks": ["video_recording_finish_once"]
+    },
+    {
+      "name": "Create callback for recording completion",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 170,
+      "functions": ["makeRecordingStopCallback"],
+      "task": "Write makeRecordingStopCallback(stream,audioEnabled,errorState). Return an anonymous function value. Inside that returned function, call ordinary JavaScript helper finishRecordingOnce with THREE POSITIONAL arguments: stream first, audioEnabled second, errorState third. Do not bundle them in an object or invoke the helper early. The existing helper performs all state handling.",
+      "parameters": {"errorState": "Opaque original object to forward unchanged to finishRecordingOnce. Do not inspect it or replace it."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "system_contract": "Start immediately with function makeRecordingStopCallback(stream,audioEnabled,errorState). Output only this complete plain JavaScript declaration. Its return value must be a function, not a helper call result. No globals, comments, imports, explanations or copied helpers.",
+      "behavior_checks": ["video_recording_stop_callback"],
+      "behavior_dependencies": ["finishRecordingOnce"]
+    },
+    {
+      "name": "Create callback for actual recorder error",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 260,
+      "functions": ["makeRecordingErrorCallback"],
+      "task": "Write makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState). Return an event callback. Store actual event.error.message in errorState.message, or a descriptive string fallback if unavailable. If recorder.state is not the string inactive, call recorder.stop() and let onstop perform finalization. If already inactive, call existing finishRecordingOnce(stream,audioEnabled,errorState). Never do both stop and direct finalization for one event.",
+      "parameters": {"recorder": "Actual MediaRecorder; state is string recording, paused or inactive. stop is callable only when not inactive.", "errorState": "Original shared object whose message string must be updated before stopping."},
+      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "system_contract": "Output only one complete function makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState) returning a callback. Use original supplied arguments; no globals, comments, imports or other helpers.",
+      "behavior_checks": ["video_recording_error_callback"],
+      "behavior_dependencies": ["finishRecordingOnce"]
+    },
+    {
       "name": "Configure browser recorder callbacks",
       "file": "app.js",
       "kind": "js",
@@ -3040,7 +3086,7 @@
       "functions": [
         "createExportRecorder"
       ],
-      "task": "Write createExportRecorder(stream,mime,audioEnabled). Instantiate new MediaRecorder(stream,{mimeType:mime}), store app.recorder and return it. ondataavailable appends only nonempty event.data to app.chunks. Capture error text in a local variable. onstop calls finishExport(stream,audioEnabled,error text). onerror stores actual event.error.message (or descriptive fallback) and stops recorder if active, letting onstop finalize exactly once; if already inactive finalize directly. Do not start recording in this helper.",
+      "task": "Write createExportRecorder(stream,mime,audioEnabled). Construct a native MediaRecorder with supplied stream and mimeType option mime. Create one local errorState object with message empty string and finished false. Assign recorder.ondataavailable from makeRecordingChunkCallback(app.chunks), recorder.onstop from makeRecordingStopCallback(stream,audioEnabled,errorState), and recorder.onerror from makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState). Store this recorder in existing app.recorder and return it. Existing factories return callbacks: assign their returned functions, do not invoke those callbacks. Recording starts later in the caller.",
       "relevant_fields": {
         "app": [
           "recorder",
@@ -3049,7 +3095,9 @@
         "ui": []
       },
       "relevant_functions": [
-        "finishExport"
+        "makeRecordingChunkCallback",
+        "makeRecordingStopCallback",
+        "makeRecordingErrorCallback"
       ],
       "state_writes": [
         "recorder"
@@ -3057,7 +3105,8 @@
       "system_contract": "Begin with function createExportRecorder(stream,mime,audioEnabled). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [
         "video_export_recorder"
-      ]
+      ],
+      "behavior_dependencies": ["makeRecordingChunkCallback", "finishRecordingOnce", "makeRecordingStopCallback", "makeRecordingErrorCallback"]
     },
     {
       "name": "Paint and monitor recording frames",

@@ -1,7 +1,7 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V142 sudah meloloskan 129 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V145 sudah meloloskan 132 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
@@ -1862,6 +1862,42 @@ pada createExportRecorder: respons awal memakai errorMessage dari scope yang
 tidak tersedia dan handler data memperlakukan Blob seperti array; respons
 terakhir terpotong. Source finalisasi bukan perbaikan manual evaluator.
 Belum ada editor lengkap atau ekspor browser yang dibuktikan berhasil.
+
+V143 memisahkan callback data, finishRecordingOnce, callback stop dan callback
+galat. Fixture perekam dimulai inactive, mempertahankan array chunk asli,
+menguji recording/paused/inactive, dan mengantrekan onstop setelah stop.
+Kejadian galat yang diikuti onstop serta onstop berulang tidak boleh memicu
+finalisasi kedua. Semantik constructor, perubahan state dan urutan kejadian
+dicocokkan dengan [MediaStream Recording W3C](https://www.w3.org/TR/mediastream-recording/):
+stop pada recorder inactive tidak mengantrekan kejadian stop baru. Fixture
+tersebut bukan bukti pengujian browser.
+
+167 tes terarah lolos (19,59 detik) dan 421 tes terkait lolos (121,12 detik).
+Model meloloskan callback chunk dan finishRecordingOnce pada respons pertama;
+flag selesai ditulis sebelum memanggil finalisasi, dan chunk asli tetap
+dipertahankan. V143 selesai gagal setelah 208,1 detik pada callback stop
+karena model menyalin logika helper dan menghasilkan source terpotong.
+
+V144 memperjelas argumen opaque dan return fungsi; kasus error payload hilang
+juga diperiksa agar ada pesan fallback dan finalisasi tetap sekali. 168 tes
+terarah lolos (19,08 detik). Run selesai gagal setelah 141,8 detik pada
+callback stop: deklarasi JavaScript tidak sah dan argumen digabung menjadi
+satu objek. V145 memperjelas deklarasi function dan tiga argumen posisional.
+Tidak ada runtime aplikasi yang ditulis oleh evaluator.
+
+Commit f576466 lolos seluruh workflow GitHub. Tests 38203890772 meloloskan
+711 tes dalam container Linux (86,06 detik); Secret scan 38203890759,
+Windows installer 38203890692 dan Original harness runtimes 38203890748
+berhasil. Itu memeriksa commit sebelum perubahan V143–V145.
+
+V145 meloloskan makeRecordingStopCallback pada respons model pertama:
+mengembalikan fungsi yang memanggil finishRecordingOnce dengan tiga argumen
+posisional asli. Run selesai gagal setelah 165,0 detik pada callback galat.
+Model menulis pesan ke event.error.message, bukan errorState.message, dan
+tidak menjalankan stop/finalisasi yang diperlukan; respons terakhir terpotong.
+Sumber callback selesai tetap berasal dari model, tanpa perbaikan runtime
+manual. Perekam gabungan, frame loop, kontrol dan ekspor browser belum
+dibuktikan berhasil.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
