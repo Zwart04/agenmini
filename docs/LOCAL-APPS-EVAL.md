@@ -1,7 +1,7 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V135 sudah meloloskan 122 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V138 sudah meloloskan 124 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Penyelesaian berkas masih gagal; perekam, integrasi kontrol dan ekspor
@@ -1792,6 +1792,44 @@ stream sebagai string. Respons terakhir mendeklarasikan ulang helper dan
 variabel Blob URL. Tidak ada ZIP editor lengkap atau hasil ekspor browser
 yang dinyatakan berhasil. Bagian 119–121 menyimpan helper video, pembatalan
 RAF asli yang dipulihkan, serta cleanup gabungan dengan hash sumber model.
+
+V136 memisahkan discardExportResult, createRecordedBlob dan publishRecordedBlob
+dari orkestrasi finishExport. Fixture gabungan tetap menjalankan helper aktual;
+ekspor yang gagal kini diuji dari keadaan unduhan sebelumnya terlihat, termasuk
+galat bersamaan dengan pembatalan. 132 tes ekspor lolos (16,06 detik), dan 386
+tes terkait lolos (126,09 detik). Model meloloskan discardExportResult pada
+respons pertama. Run selesai gagal setelah 149,2 detik karena Blob dibuat
+dari array bersarang, bukan daftar chunk rekaman.
+
+V137 memisahkan diagnostik instance, susunan chunk dan MIME. Salinan array
+datar yang mempertahankan chunk asli dan urutannya juga sah; identitas objek
+array bukan persyaratan browser. Array kosong, bersarang atau MIME keliru
+tetap ditolak. 136 tes ekspor lolos (16,86 detik) dan 390 tes terkait lolos
+(117,11 detik). V137 selesai gagal setelah 117,1 detik: model belum meratakan
+argumen Blob; respons terakhir mengimpor helper dari file yang tidak dibuat.
+V138 memperjelas bahwa app.chunks sudah bertipe Array<Blob> dan menghendaki
+satu return statement. Tidak ada implementasi runtime dari evaluator.
+
+Commit 233a6f2 lolos seluruh workflow GitHub. Tests 38201196238 meloloskan
+675 tes dalam container Linux (139,15 detik); Secret scan 38201196227,
+Windows installer 38201196261 dan Original harness runtimes 38201196255
+berhasil. Ini memeriksa commit sebelum perubahan V136–V138.
+
+V138 meloloskan createRecordedBlob pada respons model pertama: memakai array
+chunk asli sebagai argumen Blob dan MIME perekam aktual. Run selesai gagal
+setelah 181,4 detik pada publishRecordedBlob; model memperlakukan URL string
+sebagai objek dengan href, kemudian menutupi ui dan menciptakan app.URL.
+V139 memperjelas tipe string|null, anchor yang sudah tersedia, dan URL browser
+global. Source model tidak diedit manual; hasil browser belum dibuktikan.
+
+V139 selesai gagal setelah 130,8 detik pada publisher. Model mendeklarasikan
+ulang parameter audioEnabled dan state app/ui, bukan memperbarui state asli.
+Fixture publisher dan finish juga mewajibkan identitas anchor halaman tetap
+sama: mengganti elemen dengan objek biasa tidak menghasilkan unduhan yang
+terlihat di browser. Jumlah fragmen sumber yang lolos tetap 124; perekam,
+integrasi kontrol dan ekspor browser belum lolos pembuktian.
+137 tes ekspor terarah lolos (18,24 detik). Pemeriksaan identitas anchor ini
+tidak mengubah kode runtime yang dibuat model.
 
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes

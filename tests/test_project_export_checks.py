@@ -67,6 +67,13 @@ REFERENCES = {
       if(app.raf!==null)cancelAnimationFrame(app.raf);app.raf=null;
       ui.preview.pause();ui.playBtn.textContent='Play';ui.progressLabel.textContent='';setBusy(false);
     }""",
+    'video_export_discard': "function discardExportResult(message,isError){app.chunks=[];ui.downloadLink.hidden=true;setStatus(message,isError);}",
+    'video_recorded_blob': "function createRecordedBlob(){return new Blob(app.chunks,{type:app.recorder.mimeType});}",
+    'video_publish_recording': """function publishRecordedBlob(blob,audioEnabled){
+      if(app.downloadURL)URL.revokeObjectURL(app.downloadURL);app.downloadURL=URL.createObjectURL(blob);
+      ui.downloadLink.href=app.downloadURL;ui.downloadLink.download='clip-mini.webm';ui.downloadLink.hidden=false;
+      setStatus('Export ready: '+blob.size+' bytes, '+(audioEnabled?'audio':'silent'));
+    }""",
     'video_export_finish': """function finishExport(stream,audioEnabled,errorMessage){
       cleanupExport(stream);
       if(errorMessage||app.cancelled){app.chunks=[];ui.downloadLink.hidden=true;setStatus(errorMessage||'Cancelled',!!errorMessage);return;}
@@ -163,10 +170,21 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
     ('video_stop_export_tracks', 'if(stream)', 'if(true)'),
     ('video_cancel_export_frame', 'handle!==null', 'handle'),
     ('video_cancel_export_frame', 'cancelAnimationFrame(handle)', 'cancelAnimationFrame(27)'),
+    ('video_export_discard', 'app.chunks=[];', ''),
+    ('video_export_discard', 'setStatus(message,isError)', "setStatus('Error',true)"),
+    ('video_recorded_blob', 'new Blob(app.chunks,', 'new Blob([],'),
+    ('video_recorded_blob', 'new Blob(app.chunks,', 'new Blob([app.chunks],'),
+    ('video_recorded_blob', 'type:app.recorder.mimeType', "type:'video/webm'"),
+    ('video_publish_recording', 'URL.createObjectURL(blob)', "URL.createObjectURL({size:0})"),
+    ('video_publish_recording', 'blob.size', '100'),
+    ('video_publish_recording', 'ui.downloadLink.hidden=false', 'ui.downloadLink.hidden=true'),
+    ('video_publish_recording', 'ui.downloadLink.href=app.downloadURL;', 'ui.downloadLink={};ui.downloadLink.href=app.downloadURL;'),
+    ('video_publish_recording', 'URL.revokeObjectURL(app.downloadURL)', 'URL.revokeObjectURL(null)'),
     ('video_export_cleanup', 'stream.getVideoTracks()', 'stream.getTracks()'),
     ('video_export_cleanup', 'app.raf!==null', 'app.raf'),
     ('video_export_finish', 'new Blob(app.chunks,', 'new Blob([],'),
     ('video_export_finish', "ui.downloadLink.href=app.downloadURL", 'ui.downloadLink.href=app.objectURL'),
+    ('video_export_finish', 'ui.downloadLink.hidden=true;', ''),
     ('video_export_recorder', 'event.data&&event.data.size', 'event.data'),
     ('video_export_frames', 'app.end-.025', 'app.end+1'),
     ('video_export_orchestration', 'recorder.start();await ui.preview.play();', 'await ui.preview.play();recorder.start();'),
@@ -464,3 +482,31 @@ async def test_frame_cancel_accepts_actual_browser_global_api_spellings(owner):
     assert not await project_checks.inspect_helper(composite,'video_export_cleanup')
     broken=source.replace(owner+'cancelAnimationFrame(handle)',owner+'cancelAnimationFrame(311)')
     assert await project_checks.inspect_helper(broken,'video_cancel_export_frame')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('broken',[None,'missing_cleanup','empty_publish','lost_error'])
+async def test_export_finish_composes_actual_discard_blob_and_publish_helpers(broken):
+    source='\n'.join(REFERENCES[name] for name in ['video_export_discard','video_recorded_blob','video_publish_recording'])+"""
+      function finishExport(stream,audioEnabled,errorMessage){
+        cleanupExport(stream);
+        if(errorMessage){discardExportResult(errorMessage,true);return;}
+        if(app.cancelled){discardExportResult('Cancelled',false);return;}
+        const blob=createRecordedBlob();
+        if(!blob.size){discardExportResult('Empty recording',true);return;}
+        publishRecordedBlob(blob,audioEnabled);
+      }
+    """
+    if broken=='missing_cleanup':source=source.replace('cleanupExport(stream);','')
+    if broken=='empty_publish':source=source.replace("if(!blob.size){discardExportResult('Empty recording',true);return;}",'')
+    if broken=='lost_error':source=source.replace('discardExportResult(errorMessage,true)',"discardExportResult('Error',true)")
+    assert bool(await project_checks.inspect_helper(source,'video_export_finish'))==bool(broken)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('parts',['app.chunks','[...app.chunks]','app.chunks.slice()'])
+async def test_recorded_blob_accepts_flat_original_chunks_without_requiring_array_identity(parts):
+    source=REFERENCES['video_recorded_blob'].replace('Blob(app.chunks,','Blob('+parts+',')
+    assert not await project_checks.inspect_helper(source,'video_recorded_blob')
+    composite=REFERENCES['video_export_finish'].replace('Blob(app.chunks,','Blob('+parts+',')
+    assert not await project_checks.inspect_helper(composite,'video_export_finish')
