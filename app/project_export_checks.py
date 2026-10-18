@@ -562,6 +562,45 @@ EXPORT_CASES = {
       }
       queued=[];const drawn=paints,before=stops;watchExportFrames();assert(queued.length===0&&paints===drawn&&stops===before,'inactive recorder must not paint, stop or schedule');
     ''',
+    'video_export_prepare': r'''
+      const calls=[],stream={};let rejectSeek=false;
+      ui.downloadLink={hidden:false};app.cancelled=true;app.chunks=[1];
+      function setBusy(value){calls.push('busy:'+value);app.busy=value;}
+      function prepareCanvas(){calls.push('canvas');app.canvas={captureStream(fps){assert(fps===24,'capture must use 24 fps');calls.push('capture');return stream;}};}
+      async function seekExportStart(){calls.push('seek');if(rejectSeek)throw new Error('Seek refused');}
+      function paintFrame(){calls.push('paint');}
+      const result=await prepareRecordingStream();
+      assert(result===stream,'preparation must return the original canvas stream');
+      assert(app.cancelled===false&&Array.isArray(app.chunks)&&app.chunks.length===0&&ui.downloadLink.hidden===true,'preparation must clear cancellation/chunks and hide previous download');
+      assert(JSON.stringify(calls)===JSON.stringify(['busy:true','canvas','seek','paint','capture']),'preparation must mark busy, prepare canvas, await seek, paint and capture in order; actual='+JSON.stringify(calls));
+      calls.length=0;rejectSeek=true;let failure;
+      try{await prepareRecordingStream();}catch(error){failure=error.message;}
+      assert(failure==='Seek refused'&&!calls.includes('capture'),'failed seek must propagate without capturing');
+    ''',
+    'video_export_start': r'''
+      const calls=[],stream={};let audioFlag=true,rejectPlay=false;
+      async function attachExportAudio(value){assert(value===stream,'start must attach original stream');calls.push('audio');return audioFlag;}
+      function createExportRecorder(value,mime,audio){assert(value===stream&&mime==='video/webm'&&audio===audioFlag,'recorder must receive original stream, MIME and actual audio flag');calls.push('recorder');return {start(){calls.push('start');}};}
+      ui.preview={async play(){calls.push('play');if(rejectPlay)throw new Error('Playback refused');}};
+      function watchExportFrames(){calls.push('frames');}
+      for(const audio of [true,false]){
+        audioFlag=audio;calls.length=0;await startRecordingStream(stream,'video/webm');
+        assert(JSON.stringify(calls)===JSON.stringify(['audio','recorder','start','play','frames']),'start must await audio, create/start recorder, await play, then watch frames; actual='+JSON.stringify(calls));
+      }
+      rejectPlay=true;calls.length=0;let failure;
+      try{await startRecordingStream(stream,'video/webm');}catch(error){failure=error.message;}
+      assert(failure==='Playback refused'&&!calls.includes('frames'),'playback failure must propagate before frame scheduling');
+    ''',
+    'video_export_abort': r'''
+      const stream={},error=new Error('Actual export failure');let finished=[],stops=0;
+      function finishExport(value,audio,message){finished.push([value,audio,message]);}
+      for(const state of [null,'inactive','recording','paused']){
+        finished=[];stops=0;app.recorder=state?{state,onstop(){throw new Error('onstop must be disabled first');},stop(){stops++;if(this.onstop)this.onstop();}}:null;
+        failRecordingStream(stream,error);
+        assert(stops===(state&&state!=='inactive'?1:0),'failure must stop only an active recorder');
+        assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===error.message,'failure must finalize original stream once with actual error');
+      }
+    ''',
     'video_export_orchestration': r'''
       let log=[],valid=true,playError=false,stream={getVideoTracks(){return [];}};
       function validateTrim(){log.push('validate');return valid;}
@@ -592,7 +631,7 @@ EXPORT_CASES = {
     ''',
 }
 
-ASYNC_EXPORT_CHECKS = {'video_export_seek', 'video_export_audio', 'video_export_orchestration'}
+ASYNC_EXPORT_CHECKS = {'video_export_seek', 'video_export_audio', 'video_export_orchestration', 'video_export_prepare', 'video_export_start'}
 
 # The parameter-only worker and app-level caller face the same seek lifecycle
 # cases. No behavior is removed when the model writes these as separate parts.

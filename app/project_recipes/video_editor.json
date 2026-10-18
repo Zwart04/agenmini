@@ -3168,10 +3168,11 @@
       "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
       "tokens": 180,
       "functions": ["paintRecordingProgress"],
-      "task": "Write paintRecordingProgress(video,label,start,end). Call existing paintFrame() once. Obtain numeric percentage from existing recordingProgress(video.currentTime,start,end). Assign that percentage followed by the STRING percent sign to original label.textContent. After both operations, return Boolean true to signal that painting succeeded and another frame may be scheduled. Do not return the painter's own result. Use the original supplied video and label; preserve video time.",
+      "task": "Write paintRecordingProgress(video,label,start,end). Perform these four steps in order: 1. Invoke the existing paintFrame function with no arguments to draw the video image. This call is required even though its return value is unused. 2. Compute percentage by calling recordingProgress with video.currentTime, start and end. 3. Set the supplied label.textContent to that percentage followed by a percent sign. 4. Return true. Do not change video.currentTime.",
+      "context": "Two existing functions are available to call: paintFrame draws the video image onto the canvas; recordingProgress returns a numeric percentage. Neither needs a new implementation. This helper must perform both the drawing operation and the label update.",
       "parameters": {"video": "Original video element with currentTime number.", "label": "Original label element whose textContent is mutable.", "start": "Selected start number.", "end": "Selected end number."},
       "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["paintFrame", "recordingProgress"], "state_writes": [],
-      "system_contract": "Begin with function paintRecordingProgress(video,label,start,end). Output only this complete function. Call existing helpers directly with positional arguments. No globals, comments, imports or extra helpers.",
+      "system_contract": "Output only the complete function paintRecordingProgress(video,label,start,end). Calling existing paintFrame and recordingProgress is permitted and required. Declare no additional functions or global variables.",
       "behavior_checks": ["video_recording_paint_progress"],
       "behavior_dependencies": ["recordingProgress"]
     },
@@ -3215,6 +3216,41 @@
       "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingProgress", "paintRecordingStep"]
     },
     {
+      "name": "Prepare original canvas recording stream",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 330, "functions": ["prepareRecordingStream"],
+      "task": "Write async function prepareRecordingStream(). Reset app.cancelled to false and app.chunks to an empty array. Call setBusy(true) and hide ui.downloadLink. Call prepareCanvas(), await seekExportStart(), then call paintFrame(). Finally return the MediaStream from app.canvas.captureStream with argument 24. Let errors propagate. Use these existing functions in that exact sequence; do not implement them again.",
+      "relevant_fields": {"app":["cancelled","chunks","canvas"],"ui":["downloadLink"]},
+      "relevant_functions": ["setBusy","prepareCanvas","seekExportStart","paintFrame"],
+      "state_writes": ["cancelled","chunks"],
+      "system_contract": "Output one complete async function prepareRecordingStream. No comments or additional declarations.",
+      "behavior_checks": ["video_export_prepare"]
+    },
+    {
+      "name": "Start actual recorder before video playback",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 300, "functions": ["startRecordingStream"],
+      "task": "Write async function startRecordingStream(stream,mime). First await attachExportAudio(stream), saving its Boolean result. Pass stream, mime and that Boolean to createExportRecorder and save the returned recorder. Call recorder.start(), then await ui.preview.play(), then call watchExportFrames(). Allow any error to propagate to the caller. Never call getStream or getAudioStream; the stream already exists as an argument.",
+      "parameters": {"stream":"Original captured MediaStream.","mime":"Selected MIME string."},
+      "relevant_fields": {"app":[],"ui":["preview"]},
+      "relevant_functions": ["attachExportAudio","createExportRecorder","watchExportFrames"],
+      "state_writes": [],
+      "system_contract": "Output one complete async function startRecordingStream(stream,mime). Reuse existing helpers; do not redefine them.",
+      "behavior_checks": ["video_export_start"]
+    },
+    {
+      "name": "Finalize export failure without duplicate callbacks",
+      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "tokens": 260, "functions": ["failRecordingStream"],
+      "task": "Write function failRecordingStream(stream,error). If app.recorder exists and its state is not inactive, set its onstop property to null BEFORE calling its stop method. Then always call existing finishExport with original stream, false, and error.message. Do not call any other helper. The recorder can be null or inactive, but finalization must still occur once.",
+      "parameters": {"stream":"Original captured stream, possibly null.","error":"Original Error object with message string."},
+      "relevant_fields": {"app":["recorder"],"ui":[]},
+      "relevant_functions": ["finishExport"],
+      "state_writes": [],
+      "system_contract": "Output one complete function failRecordingStream(stream,error). Preserve the app.recorder reference; only its onstop property may change.",
+      "behavior_checks": ["video_export_abort"]
+    },
+    {
       "name": "Orchestrate actual WebM export",
       "file": "app.js",
       "kind": "js",
@@ -3224,41 +3260,27 @@
       "functions": [
         "exportVideo"
       ],
-      "task": "Write async exportVideo(). Return immediately if !app.loaded or app.busy; then return if !validateTrim(). Use a local stream variable initially null. Inside try: check MediaRecorder and HTMLCanvasElement.prototype.captureStream support, select MIME with chooseWebMMime(), reset cancelled=false and chunks=[], call setBusy(true), hide downloadLink. prepareCanvas(); await seekExportStart(); paintFrame(); capture app.canvas stream at 24fps; await attachExportAudio(stream) to obtain Boolean. createExportRecorder(stream,mime,audioEnabled), start recorder BEFORE awaiting ui.preview.play(), then watchExportFrames(). Catch: if an active recorder exists, remove its onstop callback before stopping to avoid double finalization; call finishExport(stream,false,error.message). All called helpers already exist. Do not duplicate their implementations.",
+      "task": "Write async function exportVideo(). Return if app.loaded is false or app.busy is true. Then return if validateTrim() is false. Declare a mutable local stream initially null. In try: throw an Error if MediaRecorder or HTMLCanvasElement.prototype.captureStream is unavailable; get mime from chooseWebMMime(); assign stream from awaiting prepareRecordingStream(); await startRecordingStream(stream,mime). In catch, call failRecordingStream(stream,error). These existing helpers perform all other work; do not duplicate their implementation.",
       "relevant_fields": {
         "app": [
           "loaded",
-          "busy",
-          "cancelled",
-          "chunks",
-          "canvas",
-          "recorder"
+          "busy"
         ],
-        "ui": [
-          "preview",
-          "downloadLink"
-        ]
+        "ui": []
       },
       "relevant_functions": [
         "validateTrim",
         "chooseWebMMime",
-        "setBusy",
-        "prepareCanvas",
-        "seekExportStart",
-        "paintFrame",
-        "attachExportAudio",
-        "createExportRecorder",
-        "watchExportFrames",
-        "finishExport"
+        "prepareRecordingStream",
+        "startRecordingStream",
+        "failRecordingStream"
       ],
-      "state_writes": [
-        "cancelled",
-        "chunks"
-      ],
+      "state_writes": [],
       "system_contract": "Begin with async function exportVideo(). Output only the requested complete function, without globals or copied declarations.",
       "behavior_checks": [
         "video_export_orchestration"
-      ]
+      ],
+      "behavior_dependencies": ["prepareRecordingStream", "startRecordingStream", "failRecordingStream"]
     },
     {
       "name": "Menghubungkan kontrol",

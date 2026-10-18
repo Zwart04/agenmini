@@ -8,6 +8,9 @@ from app import project_checks, project_parts
 
 
 REFERENCES = {
+    'video_export_prepare': "async function prepareRecordingStream(){app.cancelled=false;app.chunks=[];setBusy(true);ui.downloadLink.hidden=true;prepareCanvas();await seekExportStart();paintFrame();return app.canvas.captureStream(24);}",
+    'video_export_start': "async function startRecordingStream(stream,mime){const audio=await attachExportAudio(stream);const recorder=createExportRecorder(stream,mime,audio);recorder.start();await ui.preview.play();watchExportFrames();}",
+    'video_export_abort': "function failRecordingStream(stream,error){if(app.recorder&&app.recorder.state!=='inactive'){app.recorder.onstop=null;app.recorder.stop();}finishExport(stream,false,error.message);}",
     'video_audio_silent_status': "function reportSilentAudio(error){setStatus('Silent export: '+error.message);return false;}",
     'video_audio_require_tracks': "function requireExportAudioTracks(stream,destination){if(!addExportAudioTracks(stream,destination))throw new Error('No audio tracks');return true;}",
     'video_audio_track_membership': 'function hasExportAudioTrack(stream,track){const tracks=stream.getAudioTracks();return tracks.includes(track);}',
@@ -134,6 +137,18 @@ REFERENCES['video_export_wait']=REFERENCES['video_export_seek'].replace(
 
 
 @pytest.mark.asyncio
+async def test_composed_export_preserves_full_recording_lifecycle():
+    source='\n'.join(REFERENCES[name] for name in ['video_export_prepare','video_export_start','video_export_abort'])
+    source+='''\nasync function exportVideo(){
+      if(!app.loaded||app.busy||!validateTrim())return;let stream=null;
+      try{const mime=chooseWebMMime();stream=await prepareRecordingStream();await startRecordingStream(stream,mime);}
+      catch(error){failRecordingStream(stream,error);}
+    }'''
+    assert not await project_checks.inspect_helper(source,'video_export_orchestration')
+    assert await project_checks.inspect_helper(source.replace('await startRecordingStream(stream,mime);',''),'video_export_orchestration')
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('check', list(REFERENCES))
 async def test_export_fixtures_accept_working_api_lifecycle(check):
     source=REFERENCES[check]
@@ -146,6 +161,13 @@ async def test_export_fixtures_accept_working_api_lifecycle(check):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('check,old,new', [
+    ('video_export_prepare', 'return app.canvas.captureStream(24)', 'return {}'),
+    ('video_export_prepare', 'paintFrame();', ''),
+    ('video_export_prepare', 'app.cancelled=false;', ''),
+    ('video_export_start', 'await ui.preview.play();watchExportFrames();', 'watchExportFrames();await ui.preview.play();'),
+    ('video_export_start', 'stream,mime,audio', 'stream,mime,true'),
+    ('video_export_abort', 'app.recorder.onstop=null;', ''),
+    ('video_export_abort', 'error.message', '"made-up failure"'),
     ('video_audio_silent_status', "'Silent export: '+error.message", 'error.message'),
     ('video_audio_silent_status', 'return false', 'throw error'),
     ('video_audio_require_tracks', 'if(!addExportAudioTracks(stream,destination))', 'if(false)'),

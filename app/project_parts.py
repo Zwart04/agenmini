@@ -97,7 +97,13 @@ try{
  const declarations=ast.body.map(node=>['ExportNamedDeclaration','ExportDefaultDeclaration'].includes(node.type)?node.declaration:node).filter(Boolean);
  const choices=declarations.filter(n=>n.type==='FunctionDeclaration'&&n.id?.name===input.name||n.type==='VariableDeclaration'&&n.declarations.length===1&&n.declarations[0].id.name===input.name&&['ArrowFunctionExpression','FunctionExpression'].includes(n.declarations[0].init?.type));
  const spans=choices.map(n=>input.source.slice(n.start,n.end));
- if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
+ const plainRepeated=ast.sourceType==='script'&&choices.length>1&&
+  choices.every(node=>node.type==='FunctionDeclaration'&&!node.async&&!node.generator)&&
+  ast.body.every(node=>choices.includes(node)||node.type==='EmptyStatement');
+ // Classic-script declaration instantiation uses the last declaration. Limit
+ // this to bare repeated declarations so no initialization is discarded.
+ if(new Set(spans).size>1&&plainRepeated){console.log(JSON.stringify({source:spans.at(-1)}));}
+ else if(new Set(spans).size>1){console.log(JSON.stringify({ambiguous:true}));}
  else {
   let selected=spans[0]??input.source;
   if(input.preserveLiterals&&choices.length===1){

@@ -1249,8 +1249,10 @@ def test_parsed_helper_selection_does_not_execute_source_and_preserves_unicode_s
     source=prefix+'function unrelated(){return 0;}\n'+target+'\nconsole.log("unsolicited example");'
     assert project_parts.select_model_helper(source,item)==target
     assert not marker.exists()
+    last=target.replace('return `${value}:${text}`','return "changed"')
+    assert project_parts.select_model_helper(target+'\n'+last,item)==last
     with pytest.raises(ValueError,match='Multiple different'):
-        project_parts.select_model_helper(target+'\n'+target.replace('return `${value}:${text}`','return "changed"'),item)
+        project_parts.select_model_helper(prefix+target+'\n'+last,item)
     broken='function target(value){return'
     assert project_parts.select_model_helper(broken,item)==broken
 
@@ -1262,6 +1264,34 @@ async def test_selected_model_helper_still_fails_actual_behavior_check():
     selected=project_parts.select_model_helper(source,item)
     assert selected=='function formatTime(value){return "00:00";}'
     assert await project_checks.inspect_helper(selected,'time_format')
+
+
+@pytest.mark.asyncio
+async def test_repeated_declarations_follow_script_order_not_best_test_result():
+    item={'kind':'js','functions':['formatTime'],'behavior_checks':['time_format']}
+    first='function formatTime(value){return "good first candidate";}'
+    last='function formatTime(value){return "00:00";}'
+    source=first+'\n;\n'+last
+    selected=project_parts.select_model_helper(source,item)
+    assert selected==last
+    result=subprocess.run(['node','-e',
+        'const vm=require("node:vm"),fs=require("node:fs");const s=fs.readFileSync(0,"utf8");console.log(vm.runInNewContext(s+";formatTime(15)"));'],
+        input=source,text=True,capture_output=True,timeout=5)
+    assert result.returncode==0 and result.stdout.strip()=='00:00'
+    assert await project_checks.inspect_helper(selected,'time_format')
+
+
+@pytest.mark.parametrize('extra',[
+    'var formatTime = () => "override";',
+    'formatTime = () => "override";',
+    'if(true){function formatTime(){return "block";}}',
+    '"use strict";',
+])
+def test_different_declarations_with_initializers_or_scope_changes_remain_ambiguous(extra):
+    item={'kind':'js','functions':['formatTime'],'behavior_checks':['time_format']}
+    source='function formatTime(){return "first";}\n'+extra+'\nfunction formatTime(){return "last";}'
+    with pytest.raises(ValueError,match='Multiple different'):
+        project_parts.select_model_helper(source,item)
 
 
 @pytest.mark.parametrize('prefix,target',[

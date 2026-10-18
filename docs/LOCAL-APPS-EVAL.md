@@ -2011,3 +2011,54 @@ orkestrasi ekspor dan pemeriksaan browser belum selesai.
 Seluruh workflow commit be7ef00 sudah berhasil: Tests 37751856389, Secret scan
 37751856441, Windows installer 37751856423, Original harness runtimes
 37751856416. Pemeriksaan CI tersebut tidak membuktikan ekspor video nyata.
+
+### Lanjutan 17 Oktober 2026
+
+Seluruh workflow be9ad6c berhasil: Tests 38212205242, Original harness
+runtimes 38212205516, Windows installer 38212205231, Secret scan
+38212205350. Tes lokal `test_project_export_checks.py` dan
+`test_project_parts.py` meloloskan 437 tes dalam 302,17 detik.
+
+V156 memperjelas instruksi side effect painter, tanpa menyisipkan kode ke
+hasil model. Model Qwen3.5 0.8B Q8_0 meloloskan paintRecordingProgress dan
+paintRecordingStep pada respons pertama; label progres dinamis, jumlah
+paint, nilai Boolean dan kondisi berhenti diverifikasi. Run selesai gagal
+pada watchExportFrames setelah 479,9 detik: deklarasi ganda yang berbeda,
+kemudian dua respons dengan syntax keliru ditolak. Prefix saat ini 141
+fragmen yang lolos; editor belum lengkap dan belum diverifikasi di browser.
+
+V157 mempertahankan kode model yang lolos dan memperjelas deklarasi fungsi
+outer serta callback lokal penjadwal. Semua kode aplikasi tetap berasal dari
+respons model lokal; spesifikasi tugas dan fixture berasal dari harness.
+Ini belum membuktikan kemampuan merancang aplikasi lain tanpa recipe.
+
+V157 selesai dengan status gagal setelah 250,5 detik. Penjadwal tidak
+menjalankan frame pertama atau menjadwalkan ulang; respons akhir menulis
+window.frame tanpa memulai loop. Galat window pada fixture bukan bukti
+bahwa implementasi itu benar di browser.
+
+### Lanjutan 18 Oktober 2026
+
+Selektor kini mempertahankan deklarasi terakhir untuk source classic-script
+yang seluruh isinya hanya deklarasi normal berulang dengan nama yang diminta
+dan empty statements. Ini mengikuti [GlobalDeclarationInstantiation](https://tc39.es/ecma262/multipage/ecmascript-language-scripts-and-modules.html#sec-globaldeclarationinstantiation).
+Source dengan initializer, assignment, directive, block scope atau campuran
+deklarasi tetap ditolak sebagai ambigu. Seleksi tidak mengeksekusi source
+dan tidak memilih kandidat berdasarkan hasil tes. Respons mentah tetap
+disimpan, lalu span asli yang terpilih menjalani semua validasi biasa.
+24 tes seleksi dan replay lulus (8,39 detik).
+
+V158 mereplay respons asli V156 untuk penjadwal. Deklarasi terakhir lolos
+pengujian frame, progres, cancel, trim end dan RAF handle termasuk nol.
+Run berakhir gagal pada exportVideo setelah 315,7 detik: source berulang,
+metode recorder fiktif dan kalimat instruksi di dalam JavaScript ditolak.
+142 fragmen lolos. Draf visual dilihat di browser pada 1280x720 dan 390x844:
+panel reflow tanpa overflow horizontal, tetapi kontrol sentuh masih kecil.
+Tidak ada interaksi impor maupun ekspor browser yang dinyatakan berhasil.
+
+V159 memisahkan persiapan stream, mulai rekaman dan finalisasi kegagalan.
+Fixture tetap memeriksa alur gabungan, identitas stream, urutan recorder
+start sebelum playback, silent audio dan propagasi error. 208 tes ekspor
+lulus (26,74 detik). Semua kode runtime baru tetap harus ditulis model;
+reference implementations hanya berada di tes dan tidak masuk prompt.
+Seluruh 254 tes source parts dan evaluator juga lulus (92,73 detik).

@@ -80,6 +80,33 @@ def test_failed_resume_prefers_completed_behavior_checks_to_later_structural_fai
     assert failed_source_candidates(previous,report,recipe,{})[0]['source']=='function compute(){return ui.video;}'
 
 
+def test_recheck_previously_ambiguous_raw_declarations_preserves_last_original_span(tmp_path):
+    import hashlib
+    from scripts.evaluate_apps import failed_source_candidates
+    from app import project_parts
+    item={'name':'Compute','kind':'js','file':'app.js','functions':['compute'],'task':'Compute result','behavior_checks':['test']}
+    recipe=tmp_path/'recipe.json';recipe.write_text(json.dumps({'parts':[item]}))
+    report={'generator_source_sha256':{'app/project_recipes/video_editor.json':hashlib.sha256(recipe.read_bytes()).hexdigest()}}
+    previous=tmp_path/'old';(previous/'attempts').mkdir(parents=True);(previous/'checks').mkdir()
+    last='function compute(){return 2;}'
+    raw='function compute(){return 1;}\n'+last
+    attempt={'index':0,'attempt':0,'part':'Compute','response_kind':'source','source':'','raw_source':raw,
+        'stats':{'finish_reason':'stop'},'patch_error':'Source response rejected: Multiple different requested helper implementations; write a single compute.'}
+    path=previous/'attempts/00-0.json';path.write_text(json.dumps(attempt))
+    check=previous/'checks/00-0.json'
+    check.write_text(json.dumps({'source_sha256':hashlib.sha256(b'').hexdigest(),'errors':[attempt['patch_error']]}))
+    saved=failed_source_candidates(previous,report,recipe,{})[0]
+    assert saved['source']==last and saved['raw_source']==raw
+    assert saved['evidence']['checkpoint_status'].startswith('failed')
+    assert project_parts.reusable_part(saved,{**item,'generation_contract_revision':2})['content']==raw
+    for changed in [dict(attempt,stats={'finish_reason':'length'}),dict(attempt,patch_error='Other failure'),
+                    dict(attempt,raw_source='compute=()=>3;\n'+raw),dict(attempt,source=last)]:
+        path.write_text(json.dumps(changed))
+        assert failed_source_candidates(previous,report,recipe,{})=={}
+    path.write_text(json.dumps(attempt));check.write_text(json.dumps({'source_sha256':'tampered','errors':[]}))
+    assert failed_source_candidates(previous,report,recipe,{})=={}
+
+
 @pytest.mark.parametrize('fmt',['raw','json_source'])
 @pytest.mark.parametrize('kind',['node','panel'])
 def test_failed_html_node_resume_requires_exact_original_span_and_stays_failed(tmp_path,fmt,kind):

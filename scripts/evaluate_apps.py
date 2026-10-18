@@ -30,14 +30,19 @@ def failed_source_candidates(previous, report, recipe_path, accepted, *, all_can
             item=recipe['parts'][index]
             eligible=item.get('kind')=='js' or item.get('kind') in ('node','panel') and bool(item.get('root_class'))
             if not eligible or item['name']!=value.get('part') or value.get('response_kind')!='source':continue
-            if value.get('repair_chain') or value.get('patch_error') or value.get('stats',{}).get('finish_reason')!='stop':continue
+            selection_rejected=(item.get('kind')=='js' and value.get('source')=='' and
+                str(value.get('patch_error','')).startswith('Source response rejected: Multiple different requested helper implementations;'))
+            if value.get('repair_chain') or value.get('patch_error') and not selection_rejected or value.get('stats',{}).get('finish_reason')!='stop':continue
             source=value['source'];raw=value['raw_source'];fmt=value.get('source_format','raw')
-            if not isinstance(source,str) or not source.strip() or len(source.encode())>65536:continue
+            if not isinstance(source,str) or not source.strip() and not selection_rejected or len(source.encode())>65536:continue
             decoded=project_parts.decode_source(raw,item['file'],fmt)
             selected=project_parts.extract_node(decoded,item['root_class']) if item.get('kind') in ('node','panel') else project_parts.select_model_helper(decoded,item)
-            if selected!=source:continue
+            if selection_rejected:
+                if not selected.strip() or selected==decoded:continue
+            elif selected!=source:continue
             check_path=previous/'checks'/path.name
             priority=4;failure_count=99
+            if selection_rejected and not check_path.exists():continue
             if check_path.exists():
                 check=json.loads(check_path.read_text(encoding='utf-8'))
                 if check.get('source_sha256')!=hashlib.sha256(source.encode()).hexdigest():continue
@@ -45,6 +50,7 @@ def failed_source_candidates(previous, report, recipe_path, accepted, *, all_can
                 if not isinstance(errors,list) or not all(isinstance(error,str) for error in errors):continue
                 priority=0 if project_parts.missing_function_keyword_repairable(source,item,errors) else 1 if errors and all(error.startswith('Helper behavior failed:') for error in errors) else 2 if errors and all(error.startswith('Helper execution failed:') for error in errors) else 3
                 failure_count=len({project_parts.helper_failure_identity(error) for error in errors})
+            if selection_rejected:source=selected
             rank=(priority,failure_count,-int(value.get('attempt',0)))
             if not all_candidates and index in ranks and ranks[index]<=rank:continue
             item={**item,'generation_contract_revision':2}
