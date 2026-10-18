@@ -404,9 +404,13 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     choices=[source]+[line.strip() for line in source.splitlines() if line.strip() and source.count(line.strip())==1]
     css_lines=css_declaration_lines(source,errors) if indexed else {}
     targets=list(css_lines) if css_lines else failing_lines(source,errors) if indexed else []
-    header_only=targets==[1] and any("SyntaxError: Unexpected token '{'" in e for e in errors) and any(e.startswith('Define complete named function ') for e in errors)
+    missing_keyword=targets==[1] and any("SyntaxError: Unexpected token '{'" in e for e in errors) and any(e.startswith('Define complete named function ') for e in errors)
+    missing_async=bool(indexed and len(targets)==1 and
+        re.fullmatch(r'\s*function\s+[A-Za-z_$][\w$]*\s*\([^\n]*\)\s*\{\s*',source.splitlines()[targets[0]-1]) and
+        any('SyntaxError: await is only valid in async functions' in e for e in errors))
+    header_only=missing_keyword or missing_async
     argument_scope=bool(indexed and targets and len(targets)<len(source.splitlines()) and any(re.search(r'\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\s+[A-Za-z_$][\w$]*\s+expected',e) for e in errors))
-    prompt_source=source.splitlines()[0] if header_only else '\n'.join(source.splitlines()[number-1] for number in targets) if argument_scope or css_lines else source
+    prompt_source=source.splitlines()[targets[0]-1] if header_only else '\n'.join(source.splitlines()[number-1] for number in targets) if argument_scope or css_lines else source
     if callback_choices:
         schema['properties']['edits']['items']['enum']=callback_choices
         schema['properties']['edits']['maxItems']=min(4,len(callback_choices))
@@ -427,6 +431,9 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
             # Every find choice is an actual unique span in the original source.
             schema['properties']['edits']['maxItems']=min(4,len(choices))
         schema['properties']['edits']['items']['properties']['find']['enum']=list(dict.fromkeys(choices))
+    if header_only:
+        schema['properties']['edits']['minItems']=1
+        schema['properties']['edits']['maxItems']=1
     wire_schema=json.loads(json.dumps(schema))
     # Use the backend's escaped JSON string grammar. A broad replace pattern
     # may swallow JSON quotes; enforce line boundaries after decoding instead.
@@ -434,7 +441,7 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
     fmt={'type':'json_schema','json_schema':{'name':'source_patch','strict':True,'schema':wire_schema}} if llm.active_backend()=='local' else 'json'
     reasoning_allowance=512 if llm.active_backend()=='local' and llm.coding_reasoning.get() else 0
     diagnosis=None
-    if diagnose and not attribute_choices and not css_choices and not css_spans and not css_lines and not callback_choices and not removal_choices:
+    if diagnose and not header_only and not attribute_choices and not css_choices and not css_spans and not css_lines and not callback_choices and not removal_choices:
         diagnosis=await llm.chat([
             {'role':'system','content':'Explain the smallest correction required by the actual validation errors. Read the task and current source. Describe what must change and why, in at most four short sentences. Do not repeat the source or claim it passes. Do not write a patch or code.'},
             {'role':'user','content':json.dumps({'errors':examples,'total_error_count':len(errors),'task':task,'source':source,**check_context},ensure_ascii=False)}
@@ -459,11 +466,9 @@ async def request(source, *, task, errors, contracts, max_tokens=900, diagnose=F
             system='A validated standalone helper was incorrectly called as an object method. Select exact edits from callback_reference_choices to use its existing function identifier directly. Both find and replace are untouched spans from your source. Return JSON with edits only. Keep every argument, callback body, timer and all other source unchanged. Do not implement or rename the helper.'
     if header_only:
         system='Correct only the JavaScript function declaration header. Return JSON with edits containing exactly one original line number and its corrected single-line replacement. Keep the existing function name, parameters and opening brace. Do not output the function body, closing brace, comments or literal backslash-n sequences.'
-        schema['properties']['edits']['minItems']=1
-        schema['properties']['edits']['maxItems']=1
     result=await llm.chat([
         {'role':'system','content':system or ('Remove ALL listed forbidden attribute spans from the current source. Return one JSON object with edits, an array of find/replace strings. Copy each find exactly from find_choices and set replace to the empty string. Keep the element, its ID, every other attribute and surrounding source. No replacement markup or other changes. Other errors will be checked again afterwards.' if attribute_choices else 'You repair existing source using numbered lines. The task describes the desired final part, not the patch output format. Return one JSON object with edits, an array of objects containing line (original integer line number) and replace (one corrected line, no newline). Edit only listed failing lines. If a line opens a block, keep it open; do not include its body or closing brace in that replacement. Do not just copy old text or include line numbers in code. Leave correct lines untouched. Write replacements yourself. No markdown or commentary.' if indexed else 'You repair an existing source part using exact text edits. Return one JSON object with edits, an array of objects containing find and replace strings. Copy find text exactly from the supplied source, matching once. Write the corrected replacement yourself. Change only failing lines; preserve correct code. No markdown or commentary.')},
-        {'role':'user','content':json.dumps({'source':prompt_source,'errors':['The declaration is missing its JavaScript function keyword.'] if header_only else examples,'total_error_count':len(errors),'contracts':{'scope':'declaration header only; the rest of the source is retained'} if header_only else contracts,'task':'Correct declaration syntax on the supplied header only.' if header_only else task,**check_context,
+        {'role':'user','content':json.dumps({'source':prompt_source,'errors':['The function body uses await, but its declaration is not asynchronous.'] if missing_async else ['The declaration is missing its JavaScript function keyword.'] if header_only else examples,'total_error_count':len(errors),'contracts':{'scope':'declaration header only; the rest of the source is retained'} if header_only else contracts,'task':'Correct declaration syntax on the supplied header only.' if header_only else task,**check_context,
             **({'source_scope':'Only affected statements and their local inputs are shown; original line numbers remain authoritative. All omitted source is retained unchanged.'} if argument_scope else {}),
             **({'retained_css_properties':css_lines,'source_scope':'Only existing failing declarations are shown. All selectors, media blocks and correct declarations are retained unchanged.'} if css_lines else {}),
             **({'callback_reference_choices':callback_choices} if callback_choices else {'span_removal_choices':css_spans} if css_spans else {'removal_choices':removal_choices} if removal_choices else {'numbered_lines':[{'line':number,'text':line} for number,line in enumerate(source.splitlines(),1) if number in targets]} if indexed else {'find_choices':list(dict.fromkeys(choices))}),**({'repair_plan':complete_plan} if complete_plan else {})},ensure_ascii=False)}

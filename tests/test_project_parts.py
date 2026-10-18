@@ -1471,6 +1471,16 @@ def test_prompt_symbols_distinguish_outer_state_from_standalone_helpers():
     assert 'const app=' not in prompt and '"globals"' not in prompt
 
 
+def test_prompt_preserves_async_contracts_without_copying_implementations():
+    source="async function load(file){return file;} const seek=async(time)=>time; function paint(){} async function unused(){}"
+    prompt=project_parts.js_prompt_context(source,{'app':[],'ui':[]},['load','seek','paint'])
+    async_hints=prompt.split('These existing functions are asynchronous.')[1].split('These existing helpers')[0]
+    assert 'load(file)' in async_hints and 'seek(time)' in async_hints
+    assert 'paint' not in async_hints and 'unused' not in prompt
+    assert 'return file' not in prompt and 'async function' not in prompt
+    assert 'asynchronous' not in project_parts.js_prompt_context(source,{'app':[],'ui':[]},['paint'])
+
+
 def test_undefined_result_hints_use_outer_returns_without_executing_source():
     source="""
       throw new Error('Source must not execute');
@@ -1660,6 +1670,9 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
         if len(calls)==1:return {'content':bad,'stats':{'finish_reason':'stop'}}
         request=json.loads(messages[1]['content'])
         assert request['numbered_lines']==[{'line':1,'text':'function helper(){'}]
+        assert request['source']=='function helper(){'
+        assert 'asynchronous' in request['errors'][0]
+        assert 'Promise.resolve' not in messages[1]['content']
         return {'content':json.dumps({'edits':[{'line':1,'replace':'async function helper(){'}]}),'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
@@ -1670,6 +1683,30 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
     assert len(calls)==2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('inline',[False,True])
+async def test_async_header_scope_preserves_original_line_and_inline_body_context(monkeypatch,inline):
+    source='// retained comment\nfunction load(){'+(' await work(); }' if inline else '\n await work();\n}')
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        request=json.loads(messages[1]['content'])
+        assert request['numbered_lines'][0]['line']==2
+        if inline:
+            assert request['source']==source
+        else:
+            assert request['source']=='function load(){'
+            assert 'work()' not in messages[1]['content']
+            schema=options['fmt']['json_schema']['schema']
+            assert schema['properties']['edits']['maxItems']==1
+        return {'content':json.dumps({'edits':[{'line':2,'replace':'async '+source.splitlines()[1]}]}),'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'active_backend',lambda:'local')
+    monkeypatch.setattr(llm,'chat',model)
+    result=await project_patches.request(source,task='Original task',errors=['SyntaxError: await is only valid in async functions'],contracts='',indexed=True,diagnose=not inline)
+    assert len(calls)==1 and not result.get('patch_validation_error')
+    assert project_patches.apply(source,result['content'])==source.replace('function load','async function load')
 
 
 @pytest.mark.asyncio

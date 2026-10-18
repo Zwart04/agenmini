@@ -536,6 +536,8 @@ def js_prompt_context(prior, relevant=None, functions=None):
     sections=[]
     if fields:sections.append('Use these exact property paths on the existing independent global objects. Read or write only as the task requires; keep their declarations:\n'+'\n'.join(fields))
     if signatures:sections.append('Call these existing standalone functions directly, using these signatures. Keep their implementations:\n'+'\n'.join(signatures))
+    asynchronous=[re.sub(r'^async\s+function\s+','',signature) for signature in contracts['existing_functions'] if signature.startswith('async function ')]
+    if asynchronous:sections.append('These existing functions are asynchronous. Await their completion before using their result or continuing dependent work:\n'+'\n'.join(asynchronous))
     names={re.search(r'^([\w$]+)\s*\(',signature)[1] for signature in signatures if re.search(r'^([\w$]+)\s*\(',signature)}
     undefined=[name for name in undefined_result_helpers(prior) if name in names]
     if undefined:sections.append('These existing helpers return undefined when they complete (no outer return statement). Call them for their side effects; do not forward their result when the caller must return a Boolean:\n'+', '.join(undefined))

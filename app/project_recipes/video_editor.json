@@ -3219,7 +3219,7 @@
       "name": "Prepare original canvas recording stream",
       "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
       "tokens": 330, "functions": ["prepareRecordingStream"],
-      "task": "Write async function prepareRecordingStream(). Reset app.cancelled to false and app.chunks to an empty array. Call setBusy(true) and hide ui.downloadLink. Call prepareCanvas(), await seekExportStart(), then call paintFrame(). Finally return the MediaStream from app.canvas.captureStream with argument 24. Let errors propagate. Use these existing functions in that exact sequence; do not implement them again.",
+      "task": "Write only async function prepareRecordingStream(), with no parameters. Perform these steps in order: (1) assign false to app.cancelled and an empty array to app.chunks; (2) call setBusy with true; (3) assign true to ui.downloadLink.hidden; (4) call prepareCanvas; (5) await seekExportStart; (6) call paintFrame; (7) return app.canvas.captureStream with argument 24. All four named standalone helpers already exist. Use them directly. Do not create any other helper, object, variable, or error handler.",
       "relevant_fields": {"app":["cancelled","chunks","canvas"],"ui":["downloadLink"]},
       "relevant_functions": ["setBusy","prepareCanvas","seekExportStart","paintFrame"],
       "state_writes": ["cancelled","chunks"],

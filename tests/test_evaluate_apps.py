@@ -80,6 +80,23 @@ def test_failed_resume_prefers_completed_behavior_checks_to_later_structural_fai
     assert failed_source_candidates(previous,report,recipe,{})[0]['source']=='function compute(){return ui.video;}'
 
 
+def test_failed_resume_keeps_missing_async_source_for_model_header_repair(tmp_path):
+    import hashlib
+    from scripts.evaluate_apps import failed_source_candidates
+    item={'name':'Load','kind':'js','file':'app.js','functions':['load'],'task':'Await work'}
+    recipe=tmp_path/'recipe.json';recipe.write_text(json.dumps({'parts':[item]}))
+    report={'generator_source_sha256':{'app/project_recipes/video_editor.json':hashlib.sha256(recipe.read_bytes()).hexdigest()}}
+    previous=tmp_path/'old';(previous/'attempts').mkdir(parents=True);(previous/'checks').mkdir()
+    original='function load(){\n await work();\n}'
+    for attempt,source,error in [(0,original,'SyntaxError: await is only valid in async functions'),(2,'async function load(){return missing;}','Helper execution failed: missing is not defined')]:
+        name=f'00-{attempt}.json'
+        (previous/'attempts'/name).write_text(json.dumps({'index':0,'attempt':attempt,'part':'Load','response_kind':'source','source':source,'raw_source':source,'stats':{'finish_reason':'stop'}}))
+        (previous/'checks'/name).write_text(json.dumps({'source_sha256':hashlib.sha256(source.encode()).hexdigest(),'errors':[error]}))
+    saved=failed_source_candidates(previous,report,recipe,{})[0]
+    assert saved['source']==original and saved['raw_source']==original
+    assert saved['evidence']['checkpoint_status'].startswith('failed')
+
+
 def test_recheck_previously_ambiguous_raw_declarations_preserves_last_original_span(tmp_path):
     import hashlib
     from scripts.evaluate_apps import failed_source_candidates

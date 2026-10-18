@@ -1,12 +1,13 @@
 # Uji aplikasi dengan model lokal kecil
 
-Status terakhir, 12 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V151 sudah meloloskan 139 fragmen sumber model, termasuk
+Status terakhir, 18 Oktober 2026: **editor video belum siap dipakai**.
+Uji Qwen3.5 0.8B Q8_0 V159 sudah meloloskan 142 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
-perekam gabungan lolos pemeriksaan lifecycle; loop frame, integrasi kontrol dan ekspor
-browser belum dibuktikan. Perbaikannya terus diuji dengan model nyata. Jumlah tes
+perekam gabungan dan penjadwalan frame lolos pemeriksaan helper. Persiapan stream
+masih gagal karena model memanggil fungsi yang tidak tersedia. Integrasi kontrol
+dan ekspor browser belum dibuktikan. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
@@ -2062,3 +2063,28 @@ start sebelum playback, silent audio dan propagasi error. 208 tes ekspor
 lulus (26,74 detik). Semua kode runtime baru tetap harus ditulis model;
 reference implementations hanya berada di tes dan tidak masuk prompt.
 Seluruh 254 tes source parts dan evaluator juga lulus (92,73 detik).
+
+
+### 18 Oktober 2026 — konteks async dan perbaikan deklarasi
+
+V160 menghasilkan isi persiapan stream yang sesuai urutan, tetapi deklarasinya
+kehilangan `async`. Upaya patch justru mengembalikan beberapa baris untuk satu
+alamat baris; validator menolaknya. Regenerasi berikutnya gagal mengakses canvas.
+Hasil putaran tetap **gagal**, bukan aplikasi yang boleh dirilis.
+
+Konteks helper sekarang mempertahankan informasi fungsi asinkron, termasuk
+arrow function asinkron. Saat Node menemukan `await` di fungsi biasa dan hanya
+satu header terpisah yang bisa ditargetkan, permintaan patch hanya menampilkan
+header asli dan kesalahannya. Model tetap menulis sendiri penggantinya. Isi
+fungsi, nama, parameter dan asal kode tidak diganti oleh evaluator; pemeriksaan
+sintaks dan perilaku tetap dijalankan setelah patch. Fungsi satu baris tetap
+mendapat konteks isinya karena memotongnya akan menyembunyikan kode yang diedit.
+
+Resume memilih sumber gagal yang dapat diperbaiki pada header sebelum regenerasi
+lain yang sudah mengarang fungsi/properti. Statusnya tetap gagal sampai seluruh
+pemeriksaan lulus. Tidak ada perubahan bobot atau penggabungan hasil model lain.
+Uji lintas backend menggunakan stub hanya untuk membuktikan jalur prompt dan
+provenance pada lokal, online dan router, bukan mutu inferensi API nyata.
+
+GitHub Actions untuk `baece15`: Tests (container Linux), Original harness runtimes,
+Windows installer dan Secret scan semuanya berhasil. VPS tidak diakses.

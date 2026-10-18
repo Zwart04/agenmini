@@ -48,7 +48,7 @@ def failed_source_candidates(previous, report, recipe_path, accepted, *, all_can
                 if check.get('source_sha256')!=hashlib.sha256(source.encode()).hexdigest():continue
                 errors=check.get('errors',[])
                 if not isinstance(errors,list) or not all(isinstance(error,str) for error in errors):continue
-                priority=0 if project_parts.missing_function_keyword_repairable(source,item,errors) else 1 if errors and all(error.startswith('Helper behavior failed:') for error in errors) else 2 if errors and all(error.startswith('Helper execution failed:') for error in errors) else 3
+                priority=0 if project_parts.missing_function_keyword_repairable(source,item,errors) or project_parts.missing_async_repairable(source,item,errors) else 1 if errors and all(error.startswith('Helper behavior failed:') for error in errors) else 2 if errors and all(error.startswith('Helper execution failed:') for error in errors) else 3
                 failure_count=len({project_parts.helper_failure_identity(error) for error in errors})
             if selection_rejected:source=selected
             rank=(priority,failure_count,-int(value.get('attempt',0)))
