@@ -1,13 +1,14 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 18 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V163 sudah meloloskan 144 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V164 sudah meloloskan 145 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
 perekam gabungan, penjadwalan frame, persiapan stream dan awal perekaman lolos
-pemeriksaan helper. Penanganan kegagalan sebelum perekam dibuat masih gagal.
-Integrasi kontrol dan ekspor browser belum dibuktikan. Jumlah tes
+pemeriksaan helper. Penanganan kegagalan sebelum perekam dibuat juga lulus.
+Penggabungan alur ekspor masih gagal: guard terbalik, patch merusak sintaks,
+lalu regenerasi terpotong. Integrasi kontrol dan ekspor browser belum dibuktikan. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
@@ -2113,3 +2114,27 @@ menjelaskan keterbatasan thinking loop pada ukuran ini. Sampling coding yang
 sudah dipakai mengikuti rekomendasi mode tersebut; keberhasilan beberapa helper
 bukan bukti bahwa seluruh editor atau tugas baru akan selalu berhasil.
 Empat workflow GitHub untuk `c4eee0f` juga lulus. Tidak ada rilis editor siap pakai.
+
+
+### Hasil akhir putaran V164, 18 Oktober 2026
+
+Qwen3.5 0.8B Q8_0 menulis penanganan kegagalan ekspor yang lulus pada respons
+pertama, termasuk recorder null, inactive, recording dan paused. Ada 145 bagian
+sumber yang diterima. Alur ekspor utama belum lulus: respons pertama membalik
+guard loaded dan melewatkan validasi trim; patch berikutnya merusak sintaks dan
+dikembalikan ke sumber sebelumnya; regenerasi terakhir terpotong setelah komentar
+panjang. Putaran selesai dalam 768,9 detik dengan status failed dan tanpa ZIP hasil.
+
+Ini merupakan kegagalan benchmark aplikasi, meskipun helper individual dan tes
+harness lulus. Belum ada bukti browser untuk impor/edit/ekspor aplikasi lengkap,
+sehingga tidak ada klaim editor layak atau kemampuan setara model besar. Semua
+implementasi yang diterima berasal dari respons model dan patch model; desain,
+kontrak serta pembagian tugas ditentukan recipe. Percobaan ini belum membuktikan
+generalisasi terhadap aplikasi lain atau prompt yang tidak memakai recipe tersebut.
+
+Bukti lokal ada di `.local-tools/hasil-uji-web/video-qwen08q8-parts-thinking256-v164/`:
+`results.json`, `attempts/`, `checks/`, `parts/` dan `drafts/`. Draft bukan aplikasi
+siap pakai. Log/model/data tetap privat dan tidak ikut GitHub maupun installer.
+Keempat workflow GitHub untuk kode `27fb099` berhasil: Tests (Linux container),
+Original harness runtimes, Windows installer dan Secret scan. Pemindaian diff
+sebelum push juga tidak menemukan rahasia. Ini bukan audit keamanan menyeluruh.
