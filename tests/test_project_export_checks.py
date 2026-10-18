@@ -645,6 +645,18 @@ async def test_recorder_factories_compose_with_deferred_stop_and_real_error_scop
 
 
 @pytest.mark.asyncio
+async def test_export_abort_diagnostics_identify_actual_state_and_call_count():
+    source=REFERENCES['video_export_abort']
+    early=source.replace('{if(app.recorder','{if(!app.recorder)return;if(app.recorder',1)
+    errors=await project_checks.inspect_helper(early,'video_export_abort')
+    assert any('recorder state=null' in error and 'finishExport calls expected=1, actual=0' in error for error in errors)
+    errors=await project_checks.inspect_helper(source.replace('app.recorder.stop();',''),'video_export_abort')
+    assert any('recorder state="recording"' in error and 'stop calls expected=1, actual=0' in error for error in errors)
+    assert any('recorder state="paused"' in error for error in errors)
+    assert not any('recorder state=null' in error for error in errors)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('broken',[None,'wrong_handle','invoke_callback','schedule_stopped'])
 async def test_frame_loop_composes_actual_stop_progress_and_step_helpers(broken):
     source='\n'.join(REFERENCES[name] for name in ['video_recording_end_test','video_recording_progress','video_recording_stop_boundary','video_recording_paint_progress'])+"""

@@ -1495,7 +1495,8 @@ def test_undefined_result_hints_use_outer_returns_without_executing_source():
     assert set(project_parts.undefined_result_helpers(source))=={'paint','update'}
     prompt=project_parts.js_prompt_context(source,{'app':[],'ui':[]},['paint','decide'])
     assert 'return undefined when they complete' in prompt
-    assert prompt.split('when the caller must return a Boolean:\n')[1]=='paint'
+    assert prompt.split('Call them for their side effects only:\n')[1]=='paint'
+    assert 'Boolean' not in prompt
     assert 'Source must not execute' not in prompt and 'update' not in prompt
 
 
@@ -1657,7 +1658,8 @@ async def test_scrub_checks_numeric_strings_zero_clamping_and_busy_guards():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
-async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypatch,tmp_path,backend):
+@pytest.mark.parametrize('rejected',[None,'noop','multiline'])
+async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypatch,tmp_path,backend,rejected):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     item={'name':'Await helper','file':'app.js','kind':'js','task':'Write async helper','functions':['helper'],'raw_source':True,'include_html':False}
     (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
@@ -1671,8 +1673,11 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
         request=json.loads(messages[1]['content'])
         assert request['numbered_lines']==[{'line':1,'text':'function helper(){'}]
         assert request['source']=='function helper(){'
-        assert 'asynchronous' in request['errors'][0]
+        assert 'async keyword before function' in request['errors'][0]
         assert 'Promise.resolve' not in messages[1]['content']
+        if len(calls)==2 and rejected:
+            replacement='function helper(){' if rejected=='noop' else fixed
+            return {'content':json.dumps({'edits':[{'line':1,'replace':replacement}]}),'stats':{'finish_reason':'stop'}}
         return {'content':json.dumps({'edits':[{'line':1,'replace':'async function helper(){'}]}),'stats':{'finish_reason':'stop'}}
     monkeypatch.setattr(llm,'chat',model)
     class Validated(Exception):pass
@@ -1682,7 +1687,7 @@ async def test_missing_async_is_repaired_by_model_patch_with_provenance(monkeypa
             assert project_patches.replay(bad,value['repair_chain'],'app.js')==fixed
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
-    assert len(calls)==2
+    assert len(calls)==(3 if rejected else 2)
 
 
 @pytest.mark.asyncio

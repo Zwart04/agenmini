@@ -329,7 +329,7 @@ def part_system(kind):
         'shellchunk':'One HTML fragment only for this task. No styles or other panels.',
         'panel':'One balanced HTML panel fragment. No document, styles or scripts.',
         'css':'Complete CSS rules only: exact selector, opening brace, property/value declarations with colons and semicolons, then closing brace. A selector alone is not a rule. Match the actual HTML. No markup or JavaScript.',
-        'js':'Complete plain browser JavaScript functions exactly as requested, for a classic script. Reuse previous state and call existing helpers. No TypeScript annotations, imports, exports, global redeclarations or copied previous functions.',
+        'js':'Complete plain browser JavaScript functions exactly as requested, for a classic script. Reuse previous state and call existing helpers. No TypeScript annotations, imports, exports, global redeclarations or copied previous functions. Write the implementation only; do not narrate your reasoning in comments.',
         'md':'Short honest Markdown instructions.'
     }[kind]
     return 'You write one source part. Output raw source only, without explanations or fences. '+instruction
@@ -540,7 +540,7 @@ def js_prompt_context(prior, relevant=None, functions=None):
     if asynchronous:sections.append('These existing functions are asynchronous. Await their completion before using their result or continuing dependent work:\n'+'\n'.join(asynchronous))
     names={re.search(r'^([\w$]+)\s*\(',signature)[1] for signature in signatures if re.search(r'^([\w$]+)\s*\(',signature)}
     undefined=[name for name in undefined_result_helpers(prior) if name in names]
-    if undefined:sections.append('These existing helpers return undefined when they complete (no outer return statement). Call them for their side effects; do not forward their result when the caller must return a Boolean:\n'+', '.join(undefined))
+    if undefined:sections.append('These existing helpers return undefined when they complete. Call them for their side effects only:\n'+', '.join(undefined))
     return '\n'.join(sections)
 
 
@@ -881,6 +881,11 @@ async def generate(brief,ctx,on_event=None):
                 # An unchanged patch is evidence that this edit path stalled.
                 # Spend the remaining bounded attempt on fresh model source.
                 source_patchable=(not syntax_bad or duplicate_declaration_repairable(source,item,errors) or async_header or function_header) and (not missing_structure or async_header or function_header) and not patch_error and bool(source)
+                # A rejected edit leaves the original source intact. If the
+                # compiler still isolates a missing declaration keyword, keep
+                # the final bounded retry on that header rather than discard
+                # its body and ask the model to recreate unrelated logic.
+                if patch_base is not None and patch_error and (async_header or function_header):source_patchable=True
                 # A changed string is not useful repair progress when exactly
                 # the same behavioral/execution failures remain. Use the last
                 # bounded attempt for fresh model source rather than another

@@ -1,13 +1,13 @@
 # Uji aplikasi dengan model lokal kecil
 
 Status terakhir, 18 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V159 sudah meloloskan 142 fragmen sumber model, termasuk
+Uji Qwen3.5 0.8B Q8_0 V163 sudah meloloskan 144 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
-perekam gabungan dan penjadwalan frame lolos pemeriksaan helper. Persiapan stream
-masih gagal karena model memanggil fungsi yang tidak tersedia. Integrasi kontrol
-dan ekspor browser belum dibuktikan. Jumlah tes
+perekam gabungan, penjadwalan frame, persiapan stream dan awal perekaman lolos
+pemeriksaan helper. Penanganan kegagalan sebelum perekam dibuat masih gagal.
+Integrasi kontrol dan ekspor browser belum dibuktikan. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
@@ -2088,3 +2088,28 @@ provenance pada lokal, online dan router, bukan mutu inferensi API nyata.
 
 GitHub Actions untuk `baece15`: Tests (container Linux), Original harness runtimes,
 Windows installer dan Secret scan semuanya berhasil. VPS tidak diakses.
+
+
+### 18 Oktober 2026 — hasil model nyata setelah perbaikan header
+
+- V161: model menulis patch `async` untuk persiapan stream. Pemeriksaan urutan
+  busy/canvas/seek/paint/capture dan propagasi kegagalan seek lulus.
+- V162: model menulis urutan awal perekaman dengan argumen audio sebenarnya,
+  tetapi lupa deklarasi async. Patch pertama tidak mengubah sumber. Regenerasi
+  penuh justru menghilangkan await dan menambah perilaku yang salah.
+- V163: retry tetap diarahkan ke header, dalam batas tiga percobaan. Model
+  memperbaikinya sendiri; awal perekaman lulus untuk audio true/false dan
+  penolakan playback. Penanganan error berikutnya gagal: keluar dini ketika
+  recorder null, tidak menghentikan recorder aktif, lalu mengarang app.finishExport.
+
+Tidak ada implementasi evaluator yang disisipkan ke hasil. Sumber awal, patch
+model, hash dan rantai replay disimpan pada direktori benchmark privat masing-masing.
+Patch no-op/multibaris tetap ditolak. Dua belas tes terarah meliputi retensi sumber
+lintas backend; 209 tes ekspor lulus setelah pesan diagnostik diperjelas dengan
+kondisi recorder serta jumlah panggilan yang benar-benar diamati.
+
+Dokumentasi [Qwen3.5 0.8B](https://huggingface.co/Qwen/Qwen3.5-0.8B#best-practices)
+menjelaskan keterbatasan thinking loop pada ukuran ini. Sampling coding yang
+sudah dipakai mengikuti rekomendasi mode tersebut; keberhasilan beberapa helper
+bukan bukti bahwa seluruh editor atau tugas baru akan selalu berhasil.
+Empat workflow GitHub untuk `c4eee0f` juga lulus. Tidak ada rilis editor siap pakai.

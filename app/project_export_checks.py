@@ -597,8 +597,8 @@ EXPORT_CASES = {
       for(const state of [null,'inactive','recording','paused']){
         finished=[];stops=0;app.recorder=state?{state,onstop(){throw new Error('onstop must be disabled first');},stop(){stops++;if(this.onstop)this.onstop();}}:null;
         failRecordingStream(stream,error);
-        assert(stops===(state&&state!=='inactive'?1:0),'failure must stop only an active recorder');
-        assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===error.message,'failure must finalize original stream once with actual error');
+        assert(stops===(state&&state!=='inactive'?1:0),'failure must stop only an active recorder, recorder state='+JSON.stringify(state)+', stop calls expected='+(state&&state!=='inactive'?1:0)+', actual='+stops);
+        assert(finished.length===1&&finished[0][0]===stream&&finished[0][1]===false&&finished[0][2]===error.message,'failure must finalize original stream once with actual error, recorder state='+JSON.stringify(state)+', finishExport calls expected=1, actual='+finished.length+', arguments='+JSON.stringify(finished));
       }
     ''',
     'video_export_orchestration': r'''
