@@ -15,7 +15,7 @@ import zipfile
 from functools import lru_cache
 from pathlib import Path
 from html.parser import HTMLParser
-from . import llm, projects, tools, project_checks, project_patches
+from . import llm, projects, tools, project_checks, project_patches, project_grammar
 
 part_cache = contextvars.ContextVar('model_source_part_cache', default={})
 ACORN_PATH=Path(__file__).parent/'vendor'/'acorn.cjs'
@@ -234,23 +234,31 @@ def select_model_helper(source,item):
     return span
 
 
+@lru_cache(maxsize=64)
+def _parsed_contract_json(source):
+    # Cache successful immutable results only. A stalled Node process must not
+    # poison later checks, and callers must never share a mutable parse result.
+    result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
+        input=json.dumps({'source':source,'mode':'contracts'}),text=True,encoding='utf-8',
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
+        **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
+    if result.returncode:raise ValueError('JavaScript contract parse failed')
+    value=json.loads(result.stdout)
+    if set(value)!={'globals','existing_functions','shadowed_state','shared_members','called_methods'}:
+        raise ValueError('Invalid JavaScript contract response')
+    return json.dumps(value)
+
+
 def parsed_js_contracts(source, include_members=False):
     """Read top-level property names through syntax, never execute declarations."""
     if not source.strip():return {'globals':{},'existing_functions':[],'shadowed_state':[],**({'shared_members':[],'called_methods':[]} if include_members else {})}
     if len(source.encode())>65536:return None
     try:
-        result=subprocess.run(['node','--max-old-space-size=96','-e',HELPER_SELECTOR,str(ACORN_PATH)],
-            input=json.dumps({'source':source,'mode':'contracts'}),text=True,encoding='utf-8',
-            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=3,
-            **({'creationflags':0x08000000} if __import__('os').name=='nt' else {}))
-        if result.returncode:return None
-        value=json.loads(result.stdout)
-        if set(value)=={'globals','existing_functions','shadowed_state','shared_members','called_methods'}:
-            if not include_members:
-                value.pop('shared_members');value.pop('called_methods')
-            return value
-    except (OSError,subprocess.TimeoutExpired,ValueError):pass
-    return None
+        value=json.loads(_parsed_contract_json(source))
+        if not include_members:
+            value.pop('shared_members');value.pop('called_methods')
+        return value
+    except (OSError,subprocess.TimeoutExpired,ValueError):return None
 
 
 def callable_names(source):
@@ -759,7 +767,11 @@ async def generate(brief,ctx,on_event=None):
                         generation_system=system.replace('Output raw source only, without explanations or fences.','Return one JSON object with source containing your complete source part as a string. No other keys, fences or explanations.')
                         generation_system+=' The source string must contain only the requested code part. Its structure, syntax and behavior will be checked after decoding.'
                         options['fmt']={'type':'json_schema','json_schema':{'name':kind+'_source' if kind in ('css','js') else 'html_source','strict':True,'schema':source_response_schema()}} if llm.active_backend()=='local' else 'json'
-                    response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
+                    grammar=project_grammar.function_boundary(item) if not schema and llm.active_backend()=='local' and not llm.coding_reasoning.get() else None
+                    grammar_token=llm.local_source_grammar.set(grammar)
+                    try:
+                        response=await llm.chat([{'role':'system','content':generation_system},{'role':'user','content':request}],max_tokens=item.get('tokens',1100)+(512 if llm.coding_reasoning.get() else 0),temperature=.3,**options)
+                    finally:llm.local_source_grammar.reset(grammar_token)
                     response['source_format']='json_source' if schema else 'raw'
             raw=response.get('content','');stats=response.get('stats',{})
             if response.get('patched_source') is not None:

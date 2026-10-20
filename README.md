@@ -30,6 +30,10 @@ Harness bawaan berlaku untuk model lokal, API online, dan router. Model kecil me
 
 Harness bawaan berlaku untuk model lokal, API online dan gateway/router. Model kecil dipakai sebagai acuan uji, bukan batas dukungan. Kode hasil tugas berasal dari model yang dipilih; pemeriksaan dapat menolak hasil dan meminta model memperbaikinya. Bukti uji nyata dipisahkan dari tes respons stub, dan hasil yang gagal tidak dilabeli sukses. [Benchmark aplikasi dan batasnya](docs/LOCAL-APPS-EVAL.md)
 
+Percakapan panjang memakai catatan konteks otomatis yang dapat dibuka di chat.
+Pesan asli tetap tersimpan; pemulihan konteks dan pengulangan alat dibatasi agar
+galat tidak berputar tanpa kemajuan. [Cara kerja dan batas auto-compact](docs/CONTEXT-COMPACTION.md)
+
 Ini adaptasi inti tertentu, bukan port penuh Cordis atau CLI DeepSeek. **DeepSeek eksternal asli tetap tersedia** dan dipasang hanya saat dipilih. Kosong, Agen Mini bawaan dan runtime eksternal tetap dibedakan. [Detail adaptasi](docs/DEEPSEEK-CORE.md) · [Runtime asli dan batas integrasi](docs/HARNESSES.md)
 
 Skill dan ingatan dapat dilihat, diedit dan dikosongkan. Self-improve menyimpan prosedur yang dibuktikan dan ditinjau; tidak melatih bobot model. Model kecil masih dapat salah. Harness tidak menjadikannya setara model frontier.

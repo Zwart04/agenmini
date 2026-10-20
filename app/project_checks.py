@@ -17,7 +17,8 @@ const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
 process.stdin.on('end',()=>{
   try {
-    const {source,check,caseFixture,asyncChecks}=JSON.parse(input);
+    const {source,check,caseFixture,asyncChecks,timeoutMs}=JSON.parse(input);
+    const vmTimeout=timeoutMs===2000?2000:500;
     const context=vm.createContext(Object.create(null),{codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'});
     const fixtures=`"use strict";
       const app={loaded:false,busy:false};
@@ -114,21 +115,21 @@ process.stdin.on('end',()=>{
     if(!Object.hasOwn(cases,check)&&!['video_playback','video_start'].includes(check))throw new Error('Unknown behavioral check');
     let result;
     if(['video_playback','video_start'].includes(check)){
-      vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+(check==='video_start'?startCases:playbackCases)+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Playback threw: '+error.message});});",context,{timeout:500});
-      result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
+      vm.runInContext(fixtures+'\n'+playbackFixtures+'\n'+source+'\n(async()=>{'+(check==='video_start'?startCases:playbackCases)+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Playback threw: '+error.message});});",context,{timeout:vmTimeout});
+      result=vm.runInContext('globalThis.__helperResult',context,{timeout:vmTimeout});
       if(typeof result!=='string')throw new Error('Playback did not settle with an immediately resolved or rejected play promise');
     }else if(asyncChecks.includes(check)){
-      vm.runInContext(fixtures+'\n(async()=>{'+source+'\n'+cases[check]+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Async helper threw: '+error.message});});",context,{timeout:500});
-      result=vm.runInContext('globalThis.__helperResult',context,{timeout:500});
+      vm.runInContext(fixtures+'\n(async()=>{'+source+'\n'+cases[check]+"\nglobalThis.__helperResult=JSON.stringify([...new Set(failures)].slice(0,12));})().catch(error=>{globalThis.__helperResult=JSON.stringify({execution_error:'Async helper threw: '+error.message});});",context,{timeout:vmTimeout});
+      result=vm.runInContext('globalThis.__helperResult',context,{timeout:vmTimeout});
       if(typeof result!=='string')throw new Error('Async helper did not settle with bounded fixture events');
     }else{
-      result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim','trim_report'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:500});
+      result=vm.runInContext(fixtures+'\n'+(['video_seek','video_play_started','video_play_failed','video_pause','trim_apply','trim_reject','video_trim','trim_report'].includes(check)?playbackFixtures:'')+'\n'+source+'\n'+cases[check]+"\nJSON.stringify([...new Set(failures)].slice(0,12));",context,{timeout:vmTimeout});
     }
     const failures=JSON.parse(result);
     if(!Array.isArray(failures))throw new Error(failures.execution_error||'Helper checks did not complete');
     if(failures.length){console.error(JSON.stringify({helper_failures:failures}));process.exitCode=1;return;}
     console.log('behavioral helper check passed');
-  }catch(error){console.error(error.message);process.exitCode=1;}
+  }catch(error){console.error(error.code==='ERR_SCRIPT_EXECUTION_TIMEOUT'?JSON.stringify({helper_timeout:true,message:error.message}):error.message);process.exitCode=1;}
 });
 '''
 
@@ -148,6 +149,17 @@ async def inspect_helper(source, check):
     encoded=base64.b64encode(RUNNER.encode()).decode()
     loader="eval(Buffer.from('"+encoded+"','base64').toString('utf8'))"
     result=await tools._run_sandboxed(['node','-e',loader],timeout=5,stdin=payload,project=True)
+    detail=result.split('\n',1)[1] if result.startswith('[kode keluar 1]\n') else ''
+    try:timed_out=json.loads(detail).get('helper_timeout') is True
+    except (ValueError,AttributeError):timed_out=False
+    if timed_out:
+        # One fresh, still bounded attempt distinguishes transient CPU stalls
+        # from code that cannot complete. Never send a timeout straight to the
+        # model as evidence that a previously validated implementation is wrong.
+        retry_payload=json.loads(payload)
+        retry_payload['timeoutMs']=2000
+        result=await tools._run_sandboxed(['node','-e',loader],timeout=8,
+            stdin=json.dumps(retry_payload).encode(),project=True)
     if result.startswith('[kode keluar 0]'):return []
     # Keep individual failing cases addressable. A repair must not solve one
     # case by breaking a previously passing case; exceptions remain failures.

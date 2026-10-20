@@ -141,7 +141,7 @@ async def test_composed_export_preserves_full_recording_lifecycle():
     source='\n'.join(REFERENCES[name] for name in ['video_export_prepare','video_export_start','video_export_abort'])
     source+='''\nasync function exportVideo(){
       if(!app.loaded||app.busy||!validateTrim())return;let stream=null;
-      try{const mime=chooseWebMMime();stream=await prepareRecordingStream();await startRecordingStream(stream,mime);}
+      try{if(typeof MediaRecorder==='undefined'||!HTMLCanvasElement.prototype.captureStream)throw new Error('Recording unsupported');const mime=chooseWebMMime();stream=await prepareRecordingStream();await startRecordingStream(stream,mime);}
       catch(error){failRecordingStream(stream,error);}
     }'''
     assert not await project_checks.inspect_helper(source,'video_export_orchestration')
@@ -674,3 +674,14 @@ async def test_frame_loop_composes_actual_stop_progress_and_step_helpers(broken)
     if broken=='invoke_callback':source=source.replace('requestAnimationFrame(frame)','requestAnimationFrame(frame())')
     if broken=='schedule_stopped':source=source.replace('if(paintRecordingStep())','paintRecordingStep();')
     assert bool(await project_checks.inspect_helper(source,'video_export_frames'))==bool(broken)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mutation',[
+    lambda source:source.replace('watchExportFrames();','watchExportFrames();finishExport(stream,false,"premature");'),
+    lambda source:source.replace('watchExportFrames();','watchExportFrames();app.recorder.stop();'),
+    lambda source:source.replace('watchExportFrames();','watchExportFrames();app.canvas.captureStream(24);'),
+    lambda source:source.replace('stream=app.canvas.captureStream(24);','const stream=app.canvas.captureStream(24);'),
+])
+async def test_orchestration_rejects_premature_completion_and_lost_stream(mutation):
+    assert await project_checks.inspect_helper(mutation(REFERENCES['video_export_orchestration']),'video_export_orchestration')

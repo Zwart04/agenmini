@@ -136,3 +136,32 @@ async def test_unconfirmed_reflection_does_not_promote_skill(monkeypatch):
     monkeypatch.setattr(llm, "chat", fake)
     result = await memory.reflect({"id": "test", "memory_scope": "shared"}, [{"role": "user", "content": "Cari lalu simpan"}], ["web_search", "write_file"])
     assert result["skill"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend,fmt,expected',[('local',None,True),('local','json',False),('online',None,False),('router',None,False)])
+async def test_source_grammar_stays_local_and_never_overrides_json(monkeypatch,backend,fmt,expected):
+    from app import runtime_status, router
+    bodies=[]
+    async def ready():return {'ready':True}
+    async def handler(request):
+        bodies.append(await request.json())
+        return web.json_response({'choices':[{'message':{'content':'{"value":1}'}}],'usage':{'completion_tokens':4}})
+    server=web.Application();server.router.add_post('/v1/chat/completions',handler)
+    runner=web.AppRunner(server);await runner.setup();site=web.TCPSite(runner,'127.0.0.1',0);await site.start()
+    base='http://127.0.0.1:'+str(site._server.sockets[0].getsockname()[1])
+    monkeypatch.setenv('LOCAL_API_BASE',base+'/v1')
+    monkeypatch.setattr(router,'base',lambda:base)
+    monkeypatch.setattr(runtime_status,'state',ready)
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    original=db.setting
+    monkeypatch.setattr(db,'setting',lambda key:{'online_base':base+'/v1','online_key':'test-only-key','online_model':'test-model','local_model_id':'test-model','tool_mode':'text'}.get(key,original(key)))
+    token=llm.local_source_grammar.set('root ::= "example"')
+    try:
+        await llm._chat_online([{'role':'user','content':'Test output format'}],None,.3,fmt,local=backend!='online',model_override='test-model')
+        assert bodies and all(('grammar' in body)==expected for body in bodies)
+        if expected:assert bodies[0]['grammar']=='root ::= "example"'
+        if fmt:assert bodies[0]['response_format']['type']=='json_object'
+    finally:
+        llm.local_source_grammar.reset(token)
+        await runner.cleanup()

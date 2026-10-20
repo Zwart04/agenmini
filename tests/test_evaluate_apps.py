@@ -156,3 +156,32 @@ def test_failed_html_node_resume_requires_exact_original_span_and_stays_failed(t
         assert failed_source_candidates(previous,report,recipe,{})=={}
     path.write_text(json.dumps(attempt));check.write_text(json.dumps({'source_sha256':'changed','errors':[]}))
     assert failed_source_candidates(previous,report,recipe,{})=={}
+
+
+def test_evaluator_inference_change_is_explicit_and_keeps_identity_guards():
+    from scripts.evaluate_apps import inference_settings,validate_resume_inference
+    previous={'gguf_sha256':'same','thinking_budget':256}
+    current={**previous,'thinking_budget':0,'sampling_profile':'qwen35-nonthinking'}
+    with pytest.raises(ValueError,match='allow-inference-change'):validate_resume_inference(previous,current)
+    assert validate_resume_inference(previous,current,True)
+    assert not validate_resume_inference(previous,inference_settings(previous))
+    for key in ['gguf_sha256','chat_template_sha256','tokenizer_pre']:
+        with pytest.raises(ValueError,match='identical'):validate_resume_inference(previous,{**current,key:'changed'},True)
+
+
+def test_evaluator_keeps_original_settings_for_reused_source_and_mixed_patches():
+    from scripts.evaluate_apps import source_inference_origins
+    old={'thinking_budget':256};current={'thinking_budget':0}
+    accepted={0:{'evidence':{'sha256':'original','inference_origins':[old]}}}
+    assert source_inference_origins({'evidence':{'sha256':'original'}},accepted,current,old)==[old]
+    assert source_inference_origins({'evidence':{'sha256':'new'}},accepted,current,old)==[current]
+    changed={'evidence':{'sha256':'patched'},'repair_chain':[{'base_sha256':'original'}]}
+    assert source_inference_origins(changed,accepted,current,old)==[old,current]
+
+
+def test_evaluator_hash_streams_model_file(tmp_path):
+    import hashlib
+    from scripts.evaluate_apps import sha256_file
+    path=tmp_path/'weights';data=b'local-model'*(200000)
+    path.write_bytes(data)
+    assert sha256_file(path)==hashlib.sha256(data).hexdigest()

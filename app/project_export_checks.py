@@ -602,17 +602,17 @@ EXPORT_CASES = {
       }
     ''',
     'video_export_orchestration': r'''
-      let log=[],valid=true,playError=false,stream={getVideoTracks(){return [];}};
+      let log=[],valid=true,playError=false,mimeError=false,seekError=false,expectedCleanupStream=null,stream={getVideoTracks(){return [];}};
       function validateTrim(){log.push('validate');return valid;}
-      function chooseWebMMime(){log.push('mime');return 'video/webm';}
+      function chooseWebMMime(){log.push('mime');if(mimeError)throw new Error('Codec refused');return 'video/webm';}
       function setBusy(value){log.push('busy:'+value);app.busy=value;}
-      function prepareCanvas(){log.push('canvas');app.canvas={captureStream(fps){assert(fps===24,'capture stream must use 24 fps');log.push('capture');return stream;}};}
-      async function seekExportStart(){log.push('seek');}
+      function prepareCanvas(){log.push('canvas');app.canvas={captureStream(fps){assert(fps===24,'capture stream must use 24 fps');log.push('capture');expectedCleanupStream=stream;return stream;}};}
+      async function seekExportStart(){log.push('seek');if(seekError)throw new Error('Seek refused');}
       function paintFrame(){log.push('paint');}
       async function attachExportAudio(value){assert(value===stream,'audio must attach to captured stream');log.push('audio');return true;}
       function createExportRecorder(value,mime,audio){assert(value===stream&&mime==='video/webm'&&audio===true,'export must pass capture stream, selected MIME and actual audio flag');log.push('recorder');return app.recorder={state:'inactive',onstop(){},start(){log.push('start');this.state='recording';},stop(){log.push('stop');this.state='inactive';if(this.onstop)this.onstop();}};}
       function watchExportFrames(){log.push('frames');}
-      function finishExport(value,audio,error){log.push('finish:'+error);app.busy=false;}
+      function finishExport(value,audio,error){assert(value===expectedCleanupStream,'failure cleanup must receive the captured stream, or null when capture never happened');assert(audio===false,'failed export must finalize as failure');log.push('finish:'+error);app.busy=false;}
       function setStatus(message,error){log.push('status:'+message);}
       class MediaRecorder{};class HTMLCanvasElement{};HTMLCanvasElement.prototype.captureStream=function(){};
       ui.preview={play(){log.push('play');return playError?Promise.reject(new Error('Playback refused')):Promise.resolve();}};
@@ -625,9 +625,25 @@ EXPORT_CASES = {
       assert(app.cancelled===false&&app.chunks.length===0&&ui.downloadLink.hidden===true,'new export must reset cancellation/chunks and hide old download');
       const order=['mime','busy:true','canvas','seek','paint','capture','audio','recorder','start','play','frames'];
       assert(order.every((name,index)=>log.includes(name)&&(index===0||log.indexOf(name)>log.indexOf(order[index-1]))),'export must prepare/seek/paint/capture/audio/record/start before playback and frame loop; actual='+JSON.stringify(log));
+      assert(app.busy===true&&app.recorder.state==='recording','successful export must stay busy and recording until asynchronous completion');
+      assert(!log.some(value=>value==='stop'||value.startsWith('finish:')),'successful export must not stop or finalize immediately; actual='+JSON.stringify(log));
+      assert(log.filter(value=>value==='capture').length===1,'successful export must capture exactly one stream');
       app.busy=false;playError=true;log=[];await exportVideo();
       assert(log.includes('stop')&&log.some(value=>value==='finish:Playback refused')&&app.busy===false,'play rejection must stop recorder and finalize with actual error');
       assert(!log.includes('frames'),'failed play must not start frame loop');
+      playError=false;
+      const supportedRecorder=MediaRecorder,supportedCapture=HTMLCanvasElement.prototype.captureStream;
+      for(const failure of ['codec','seek','recorder unsupported','capture unsupported']){
+        app.busy=false;app.recorder=null;expectedCleanupStream=null;log=[];
+        mimeError=failure==='codec';seekError=failure==='seek';
+        MediaRecorder=failure==='recorder unsupported'?undefined:supportedRecorder;
+        HTMLCanvasElement.prototype.captureStream=failure==='capture unsupported'?undefined:supportedCapture;
+        await exportVideo();
+        assert(log.filter(value=>value.startsWith('finish:')).length===1&&app.busy===false,'early export failure must finalize exactly once and release busy state: '+failure+'; actual='+JSON.stringify(log));
+        assert(!log.includes('start')&&!log.includes('frames'),'early export failure must not start recording: '+failure);
+        if(failure==='codec'||failure==='seek')assert(log.includes('finish:'+(failure==='codec'?'Codec refused':'Seek refused')),'export must preserve the actual early failure message: '+failure);
+      }
+
     ''',
 }
 

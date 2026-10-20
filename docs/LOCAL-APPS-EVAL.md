@@ -1,14 +1,15 @@
 # Uji aplikasi dengan model lokal kecil
 
-Status terakhir, 18 Oktober 2026: **editor video belum siap dipakai**.
-Uji Qwen3.5 0.8B Q8_0 V164 sudah meloloskan 145 fragmen sumber model, termasuk
+Status terakhir, 20 Oktober 2026: **editor video belum siap dipakai**.
+Uji Qwen3.5 0.8B Q8_0 V171 mempertahankan 145 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku
 helper. Finalisasi unduhan juga lolos pemeriksaan helper yang diperketat;
 perekam gabungan, penjadwalan frame, persiapan stream dan awal perekaman lolos
 pemeriksaan helper. Penanganan kegagalan sebelum perekam dibuat juga lulus.
-Penggabungan alur ekspor masih gagal: guard terbalik, patch merusak sintaks,
-lalu regenerasi terpotong. Integrasi kontrol dan ekspor browser belum dibuktikan. Jumlah tes
+Penggabungan alur ekspor masih gagal: deklarasi state berulang dan keluaran
+terpotong. Percobaan helper terpisah juga menemukan kegagalan propagasi galat
+serta argumen stream yang salah. Integrasi kontrol dan ekspor browser belum dibuktikan. Jumlah tes
 regresi yang lolos tidak menggantikan bukti aplikasi berjalan di browser.
 
 Pengujian pada Windows, 7 Oktober 2026, memakai llama.cpp CPU b11443,
@@ -2138,3 +2139,38 @@ siap pakai. Log/model/data tetap privat dan tidak ikut GitHub maupun installer.
 Keempat workflow GitHub untuk kode `27fb099` berhasil: Tests (Linux container),
 Original harness runtimes, Windows installer dan Secret scan. Pemindaian diff
 sebelum push juga tidak menemukan rahasia. Ini bukan audit keamanan menyeluruh.
+
+### 20 Oktober 2026 — pemeriksaan ekspor dan konteks
+
+Putaran V165–V171 belum menghasilkan editor lengkap. Satu kandidat V168 sempat
+melewati pemeriksaan helper yang terlalu longgar. Pemeriksaan sekarang menolak
+perekam yang dihentikan langsung setelah `start`, stream tangkapan ganda,
+finalisasi dini, dan cleanup yang menerima stream keliru. Keberhasilan
+`startRecordingStream` harus meninggalkan perekam berjalan sampai callback
+penyelesaian. Galat codec, seek dan API browser yang tidak tersedia juga diuji.
+Kandidat lama itu tidak dihitung sebagai implementasi ekspor yang berhasil.
+
+Validasi helper sekarang membedakan VM yang kehabisan waktu dari kegagalan
+perilaku: timeout boleh mengulang sumber yang sama sekali, dengan batas dua
+detik; kegagalan perilaku tidak diubah menjadi sukses. Hasil parsing kontrak
+yang berhasil disimpan dalam cache terbatas; kegagalan tidak disimpan.
+
+Evaluator menghitung hash GGUF secara streaming, memeriksa identitas bobot
+dan serialisasi saat resume, serta mencatat asal pengaturan inferensi tiap
+bagian. Perubahan sampling pada bobot yang sama memerlukan flag eksplisit.
+Grammar lokal untuk fungsi tunggal hanya membatasi bentuk keluaran; tidak
+menyediakan isi fungsi dan tidak menggantikan parser atau tes perilaku.
+
+Perbandingan helper dengan Qwen3.5 0.8B, LFM2.5 1.2B, DeepSeek Coder 1.3B,
+Qwen2.5 Coder 0.5B, dan FuseChat Llama 1B tetap menemukan kesalahan integrasi.
+Ini pengujian helper terpisah dengan dependensi yang sudah ditulis Qwen,
+bukan lima aplikasi lengkap atau bukti satu aplikasi berasal dari satu model.
+Percobaan patch yang keliru memasukkan Markdown fence ditandai tidak valid
+dan tidak digunakan sebagai hasil benchmark.
+
+248 tes terarah untuk evaluator, backend, grammar dan pemeriksaan ekspor lulus
+di Windows. Angka ini menguji alat evaluasi dengan fixture; **bukan 248 tugas
+coding yang berhasil dikerjakan model**. Auto-compact baru juga diuji terpisah:
+85 tes terarah lulus; 3 tes khusus perilaku Linux tidak dijalankan pada pemeriksaan
+terarah Windows. Untuk commit `5022097`, GitHub Actions Tests (container Linux),
+Windows installer dan Secret scan berhasil.

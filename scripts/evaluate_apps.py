@@ -93,6 +93,46 @@ async def rechecked_failed_source_candidates(previous, report, recipe_path, acce
                 break
     return selected
 
+def sha256_file(path):
+    digest=hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''):digest.update(block)
+    return digest.hexdigest()
+
+
+def inference_settings(report):
+    return {key:report.get(key,default) for key,default in (
+        ('gguf_sha256',None),('chat_template_sha256',None),('tokenizer_pre',None),
+        ('sampling_profile','default'),('thinking_budget',0))}
+
+
+def validate_resume_inference(previous,current,allow_change=False):
+    old=inference_settings(previous);new=inference_settings(current)
+    if any(old[key]!=new[key] for key in ('gguf_sha256','chat_template_sha256','tokenizer_pre')):
+        raise ValueError('Resume requires identical weights, chat serialization and pre-tokenizer.')
+    changed=old!=new
+    if changed and not allow_change:
+        raise ValueError('Changed inference settings require --allow-inference-change and recorded provenance.')
+    return changed
+
+
+def source_inference_origins(value,accepted,current,previous):
+    # An unchanged retained part keeps its original settings. A new model patch
+    # records both its base and new inference, without relabeling the old code.
+    digest=value['evidence']['sha256']
+    for saved in accepted.values():
+        if saved['evidence']['sha256']==digest:
+            return saved['evidence'].get('inference_origins',[previous])
+    origins=[]
+    chain=value.get('repair_chain',[])
+    if chain:
+        for saved in accepted.values():
+            if saved['evidence']['sha256']==chain[0]['base_sha256']:
+                origins.extend(saved['evidence'].get('inference_origins',[previous]))
+    if current not in origins:origins.append(current)
+    return origins
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--server-exe',type=Path,required=True);p.add_argument('--gguf',type=Path,required=True)
@@ -103,6 +143,7 @@ def main():
     p.add_argument('--thinking-budget',type=int,default=0,help='Opt-in bounded Qwen reasoning tokens per part (0 disables).')
     p.add_argument('--source-parts',action='store_true',help='Experimental model-written source chunks; not a production default.')
     p.add_argument('--resume-parts',type=Path,help='Previous private run: reuse only matching task/source hashes and the same GGUF.')
+    p.add_argument('--allow-inference-change',action='store_true',help='Explicitly resume identical model weights with changed sampling/thinking; retain per-part inference provenance.')
     p.add_argument('--resume-failed-parts',action='store_true',help='Also recheck exact complete failed JS or HTML node/panel responses from an identical recipe; never treat them as passed.')
     p.add_argument('--sampling-profile',choices=['default','qwen35-nonthinking','lfm25','greedy'],default='default')
     p.add_argument('--chat-template-file',type=Path,help='Explicit model-author chat serialization when GGUF metadata lacks it; not application source.')
@@ -111,6 +152,7 @@ def main():
     if not 0<=args.thinking_budget<=512:p.error('--thinking-budget must be 0..512')
     if args.prompt_file and args.case=='all':p.error('--prompt-file requires one --case')
     if args.resume_failed_parts and not args.resume_parts:p.error('--resume-failed-parts requires --resume-parts')
+    if args.allow_inference_change and not args.resume_parts:p.error('--allow-inference-change requires --resume-parts')
     if args.output_dir:
         run=args.output_dir.resolve();run.mkdir(parents=True,exist_ok=False)
     else:run=Path(tempfile.mkdtemp(prefix='agenmini-apps-eval-'))
@@ -121,10 +163,11 @@ def main():
     os.environ.update(DATA_DIR=str(run/'data'),WEB_PASSWORD=secrets.token_urlsafe(24))
     repo_root=Path(__file__).resolve().parents[1]
     generator_sources={str(path.relative_to(repo_root)).replace('\\','/'):hashlib.sha256(path.read_bytes()).hexdigest()
-                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_checks.py',repo_root/'app/project_dom_checks.py',repo_root/'app/project_canvas_checks.py',repo_root/'app/project_export_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
+                       for path in [repo_root/'scripts/evaluate_apps.py',repo_root/'app/llm.py',repo_root/'app/projects.py',repo_root/'app/project_parts.py',repo_root/'app/project_grammar.py',repo_root/'app/project_checks.py',repo_root/'app/project_dom_checks.py',repo_root/'app/project_canvas_checks.py',repo_root/'app/project_export_checks.py',repo_root/'app/project_patches.py',repo_root/'app/project_recipes/video_editor.json',repo_root/'app/vendor/acorn.cjs',repo_root/'app/vendor/ACORN-PROVENANCE.json']}
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     os.environ['LOCAL_API_BASE']=f'http://127.0.0.1:{port}/v1'
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+    current_inference={'gguf_sha256':sha256_file(model),'chat_template_sha256':sha256_file(args.chat_template_file) if args.chat_template_file else None,'tokenizer_pre':args.tokenizer_pre,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget}
     log=(run/'llama.log').open('w')
     reasoning_args=['--reasoning-format','deepseek','--reasoning-budget',str(args.thinking_budget)] if args.thinking_budget else []
     template_args=['--chat-template-file',str(args.chat_template_file.resolve())] if args.chat_template_file else []
@@ -136,12 +179,12 @@ def main():
     async def evaluate():
         from app import main,db,config,agent,llm,project_parts
         if args.sampling_profile!='default':llm.local_sampling.set(llm.sampling_profile(args.sampling_profile))
+        accepted={};old={};resume_report=None
         if args.resume_parts:
             old=json.loads((args.resume_parts/'results.json').read_text(encoding='utf-8'))
-            if old['gguf_sha256']!=hashlib.sha256(model.read_bytes()).hexdigest():raise ValueError('Resume requires the exact same model weights.')
-            actual_template=hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None
-            if (old.get('chat_template_sha256'),old.get('tokenizer_pre'),old.get('sampling_profile','default'),old.get('thinking_budget',0)) != (actual_template,args.tokenizer_pre,args.sampling_profile,args.thinking_budget):
-                raise ValueError('Resume requires matching chat serialization, pre-tokenizer and inference settings.')
+            changed=validate_resume_inference(old,current_inference,args.allow_inference_change)
+            if changed and args.resume_failed_parts:raise ValueError('Inference comparisons reuse accepted parts only; omit --resume-failed-parts.')
+            resume_report={'directory':args.resume_parts.name,'sha256':sha256_file(args.resume_parts/'results.json'),'inference_changed':changed}
             accepted={int(p.stem):json.loads(p.read_text(encoding='utf-8')) for p in (args.resume_parts/'parts').glob('*.json')}
             failed=await rechecked_failed_source_candidates(args.resume_parts,old,repo_root/'app/project_recipes/video_editor.json',accepted) if args.resume_failed_parts else {}
             project_parts.part_cache.set({**failed,**accepted})
@@ -166,6 +209,7 @@ def main():
                 attemptdir=run/'attempts';attemptdir.mkdir(exist_ok=True)
                 (attemptdir/(str(value['index']).zfill(2)+'-'+str(value['attempt'])+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
             if kind=='source_part':
+                value['evidence']['inference_origins']=source_inference_origins(value,accepted,current_inference,inference_settings(old))
                 partdir=run/'parts';partdir.mkdir(exist_ok=True)
                 (partdir/(str(value['index']).zfill(2)+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
             if kind=='source_check':
@@ -184,11 +228,11 @@ def main():
                 row={'case':name,'channel':channel,'prompt':prompt,'seconds':round(time.monotonic()-started,2),'result':result,
                      'behavior_verified':False,'checks':'Independently test actual import, editing, playback, conversion/export/download and responsive layout in a browser.'}
                 rows.append(row)
-                report={'model':args.model_label or model.name,'gguf_sha256':hashlib.sha256(model.read_bytes()).hexdigest(),
+                report={'model':args.model_label or model.name,'gguf_sha256':current_inference['gguf_sha256'],
                     'core':'deepseek-adapted','nonce':nonce,'work_dir':str(config.WORK_DIR),'rows':rows,'sampling_profile':args.sampling_profile,'thinking_budget':args.thinking_budget,'resume_failed_parts':args.resume_failed_parts,
                     'chat_template_sha256':hashlib.sha256(args.chat_template_file.read_bytes()).hexdigest() if args.chat_template_file else None,
                     'tokenizer_pre':args.tokenizer_pre,
-                    'generator_source_sha256':generator_sources,
+                    'generator_source_sha256':generator_sources,'resume_report':resume_report,
                     'limitations':'Real CPU inference. tg uses the shared agent path, not Telegram network. Syntax/ZIP checks do not establish behavior.'}
                 (run/'results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
                 print_case_result(name,result)

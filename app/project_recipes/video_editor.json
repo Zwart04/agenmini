@@ -3260,7 +3260,7 @@
       "functions": [
         "exportVideo"
       ],
-      "task": "Write async function exportVideo(). Return if app.loaded is false or app.busy is true. Then return if validateTrim() is false. Declare a mutable local stream initially null. In try: throw an Error if MediaRecorder or HTMLCanvasElement.prototype.captureStream is unavailable; get mime from chooseWebMMime(); assign stream from awaiting prepareRecordingStream(); await startRecordingStream(stream,mime). In catch, call failRecordingStream(stream,error). These existing helpers perform all other work; do not duplicate their implementation.",
+      "task": "Write async function exportVideo(). It STARTS recording; recorder callbacks finish it later. Return immediately when not loaded or busy, then return if validateTrim() is false. Declare a mutable stream variable initialized to null OUTSIDE try. Inside try: reject unavailable MediaRecorder or HTMLCanvasElement.prototype.captureStream with an Error; obtain mime from chooseWebMMime(); assign the result of awaiting prepareRecordingStream() to that same outer stream variable; await startRecordingStream(stream,mime). Catch any error by calling failRecordingStream(stream,error). End the function. A successful start MUST leave recording running. Do not call finishExport, stop, captureStream, or setBusy here; the existing helpers and callbacks own those operations.",
       "relevant_fields": {
         "app": [
           "loaded",
@@ -3280,20 +3280,64 @@
       "behavior_checks": [
         "video_export_orchestration"
       ],
-      "behavior_dependencies": ["prepareRecordingStream", "startRecordingStream", "failRecordingStream"]
+      "behavior_dependencies": [
+        "prepareRecordingStream",
+        "startRecordingStream",
+        "failRecordingStream"
+      ],
+      "context": "Browser JavaScript. Existing globals app and ui are already declared. prepareRecordingStream() returns a Promise of the captured MediaStream. startRecordingStream(stream,mime) starts recording and returns before recording finishes. failRecordingStream(stream,error) cleans up a failed start. Keep the captured stream accessible to catch."
     },
     {
       "name": "Menghubungkan kontrol",
+      "invoke_once": true,
       "file": "app.js",
       "kind": "js",
-      "tokens": 1200,
+      "tokens": 1900,
       "functions": [
         "initEditor"
       ],
       "task": "Define complete initEditor() then call it once. Add actual event handlers: fileInput.change calls loadVideo(first file), playBtn.click togglePlay, seekInput.input seekVideo(value), start/endInput.change validateTrim, titleInput.input updateText, exportBtn.click exportVideo, cancelBtn.click sets cancelled true. preview.timeupdate updates seekInput/playBtn and updateTimeline; when !busy and playing reaches app.end pause and show Play; preview.pause/ended updates label. timeline.click calculates seek seconds from clicked .track-lane bounding rectangle only (clamp0..duration) and calls seekVideo. Keyboard Space toggles playback unless target INPUT/TEXTAREA/contentEditable, preventDefault; Escape cancels busy. Set initial setBusy(false), updateText and status Import a video to start. Add beforeunload revoking app URLs if present and cancelling RAF. Do not redefine any helper/state/functions. All DOM controls must really call defined earlier functions.",
       "required_patterns": [
         "\\}\\s*initEditor\\(\\s*\\)\\s*;?\\s*$"
-      ]
+      ],
+      "raw_source": true,
+      "include_html": false,
+      "relevant_fields": {
+        "app": [
+          "loaded",
+          "busy",
+          "duration",
+          "end",
+          "cancelled",
+          "objectURL",
+          "downloadURL",
+          "raf"
+        ],
+        "ui": [
+          "fileInput",
+          "playBtn",
+          "seekInput",
+          "startInput",
+          "endInput",
+          "titleInput",
+          "exportBtn",
+          "cancelBtn",
+          "preview",
+          "timeline"
+        ]
+      },
+      "relevant_functions": [
+        "loadVideo",
+        "togglePlay",
+        "seekVideo",
+        "validateTrim",
+        "updateText",
+        "exportVideo",
+        "updateTimeline",
+        "setBusy",
+        "setStatus"
+      ],
+      "system_contract": "Write only function initEditor() and then its single invocation initEditor();. This is browser DOM code, not Electron or Node. All app/ui objects and named helper functions already exist in this script. No imports, require, modules, classes or replacement helpers."
     },
     {
       "name": "Panduan hasil",
