@@ -2174,3 +2174,10 @@ coding yang berhasil dikerjakan model**. Auto-compact baru juga diuji terpisah:
 85 tes terarah lulus; 3 tes khusus perilaku Linux tidak dijalankan pada pemeriksaan
 terarah Windows. Untuk commit `5022097`, GitHub Actions Tests (container Linux),
 Windows installer dan Secret scan berhasil.
+
+Percobaan V187 kemudian mengambil 12 sampel Qwen 0.8B dari prompt yang sama
+dengan seed berbeda dan sampling non-thinking yang lebih beragam. Semua gagal
+pemeriksaan sintaks, kontrak, atau perilaku ekspor. Tidak ada kandidat yang
+diterima. Perubahan prompt, penambahan reasoning, patch kecil, pemisahan helper,
+dan model pembanding 1B belum membuktikan hasil editor yang layak. Menaikkan
+jumlah percobaan bukan pengganti keberhasilan pengujian.

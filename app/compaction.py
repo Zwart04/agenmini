@@ -47,14 +47,17 @@ def checkpoint(messages, previous="", limit=3200):
     results = []
     for message in messages:
         if message.get("role") == "tool":
-            results.append(message.get("tool_name", "alat") + ": " + excerpt(message.get("content"), 320))
+            results.append(str(message.get("tool_name") or "alat") + ": " + excerpt(message.get("content"), 320))
         meta = message.get("meta") or {}
         if isinstance(meta, str):
             try:
                 meta = json.loads(meta)
             except ValueError:
                 meta = {}
-        for trace in meta.get("trace", []):
+        traces = meta.get("trace", []) if isinstance(meta, dict) else []
+        for trace in traces if isinstance(traces, list) else []:
+            if not isinstance(trace, dict):
+                continue
             results.append(str(trace.get("alat", "alat")) + ": " + excerpt(trace.get("hasil"), 320))
     objective = excerpt(users[0].get("content", ""), 650) if users else ""
     heading = "Tujuan / permintaan awal (kutipan):\n"

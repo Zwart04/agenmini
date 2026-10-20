@@ -12,6 +12,15 @@ def test_user_can_quote_checkpoint_marker_without_losing_request():
     assert text in note
 
 
+@pytest.mark.parametrize("meta", ["null", "[]", "{invalid", '{"trace":null}',
+    '{"trace":["old malformed row",{"alat":"read_file","hasil":"actual evidence"}]}'])
+def test_legacy_metadata_cannot_break_compaction(meta):
+    note = compaction.checkpoint([{"role": "user", "content": "Keep editing.", "meta": meta}])
+    assert "Keep editing." in note
+    if "actual evidence" in meta:
+        assert "actual evidence" in note
+
+
 def test_long_tool_history_preserves_pairs_and_latest_request():
     messages = [{"role": "system", "content": "Never send email."},
                 {"role": "user", "content": "Build editor; no paid services."}]
