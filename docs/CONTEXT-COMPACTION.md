@@ -16,7 +16,7 @@ anggaran konteks. Mode kosong (`none`) tidak memakai pemadatan ini.
    dan coba paling banyak dua kali lagi. Galat autentikasi dan respons yang
    sudah mengirim teks tidak diulang lewat jalur ini.
 5. Hentikan panggilan alat identik yang ketiga. Penulisan yang berhasil dapat
-   membuka kembali pemeriksaan berkas yang sama; mutasi gagal tidak menghapus
+   membuka kembali pembacaan berkas dan perintah tes yang sama; mutasi gagal tidak menghapus
    pembatas pengulangan.
 
 Catatan lintas giliran menyimpan batas ID pesan dan kutipan tujuan, permintaan

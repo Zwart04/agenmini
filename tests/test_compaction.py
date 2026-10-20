@@ -130,7 +130,7 @@ def test_overflow_classification(message, expected):
 
 
 def test_repeated_checkpoint_preserves_original_objective():
-    note = compaction.checkpoint([{"role": "user", "content": "Build video editor. NEVER touch production."}])
+    note = compaction.checkpoint([{"role": "user", "content": "Build video editor.\n\nNEVER touch production."}])
     for n in range(20):
         note = compaction.checkpoint([{"role": "user", "content": f"Repair test {n}"}], note)
     assert "NEVER touch production" in note
@@ -293,6 +293,49 @@ async def test_repeated_malformed_tool_calls_stop_without_execution(compact_agen
     assert len(calls) == 3
     assert not result["meta"]["tools"]
     assert any("diulang tiga kali" in failure for failure in result["meta"]["tool_failures"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mutation_succeeded", [True, False])
+async def test_same_test_command_can_run_after_successful_code_edits(compact_agent, monkeypatch, mutation_succeeded):
+    from app import agent, llm, tools, db
+    bot = {**compact_agent, "tools": ["run_project_command", "write_file"]}
+    db.set_setting("full_access", "1")
+    executions, edits = [], []
+    actions = iter([
+        {"name": "run_project_command", "arguments": {"folder": "sample", "command": "python test.py"}},
+        {"name": "write_file", "arguments": {"path": "sample/app.py", "content": "first revision"}},
+        {"name": "run_project_command", "arguments": {"folder": "sample", "command": "python test.py"}},
+        {"name": "write_file", "arguments": {"path": "sample/app.py", "content": "second revision"}},
+        {"name": "run_project_command", "arguments": {"folder": "sample", "command": "python test.py"}},
+    ])
+
+    async def model(messages, **kwargs):
+        action = next(actions, None)
+        return {"content": "" if action else "Pemeriksaan sudah selesai.",
+                "tool_calls": [action] if action else [], "stats": {}}
+
+    async def command(ctx, folder, command, **kwargs):
+        executions.append(len(edits))
+        return "[kode keluar 0]\n3 tests passed" if mutation_succeeded and len(edits) == 2 else "[kode keluar 1]\nAssertion failed"
+
+    async def write(ctx, path, content):
+        edits.append(content)
+        return "Tersimpan." if mutation_succeeded else "Error: write refused"
+
+    monkeypatch.setattr(llm, "chat", model)
+    monkeypatch.setattr(tools.REGISTRY["run_project_command"], "fn", command)
+    monkeypatch.setattr(tools.REGISTRY["write_file"], "fn", write)
+    result = await agent.Turn(bot, "web", "test-after-edit").run("Jalankan pengujian lalu perbaiki kode berdasarkan galat.")
+    assert len(edits) == 2
+    if mutation_succeeded:
+        assert executions == [0, 1, 2]
+        assert result["meta"]["status"] == "done"
+        assert not result["meta"]["tool_failures"]
+    else:
+        assert executions == [0, 1]
+        assert result["meta"]["status"] == "partial"
+        assert any("diulang tiga kali" in failure for failure in result["meta"]["tool_failures"])
 
 
 @pytest.mark.parametrize("result", ["[kode keluar 1]\nfailed", "Tidak disimpan: error", "Error: invalid"])

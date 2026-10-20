@@ -831,7 +831,8 @@ class Turn:
                         # A successful mutation may make a previous read useful again.
                         if not tool_result_failed(result):
                             for previous in tuple(call_attempts):
-                                if previous != key and previous.startswith(('read_file','list_files','inspect_project','inspect_website','preview_project')):
+                                if previous != key and previous.startswith(('read_file','list_files','inspect_project','inspect_website','preview_project',
+                                                                            'run_project_command','run_python','run_shell')):
                                     call_attempts.pop(previous, None)
                     if key not in seen_calls: seen_calls[key] = result
                     scope=tool_failure_scope(name,args)
