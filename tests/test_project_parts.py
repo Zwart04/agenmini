@@ -2405,3 +2405,38 @@ async def test_generation_passes_only_prior_validated_model_helpers_to_caller(mo
             raise Validated()
     with pytest.raises(Validated):await project_parts.generate('application',object(),event)
     assert len(calls)==2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('backend',['local','online','router'])
+async def test_runtime_exception_accepts_multiline_model_patch_and_checks_real_behavior(monkeypatch,tmp_path,backend):
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    item={'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME safely',
+          'functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']}
+    (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':[item],'panels':[],'required_ids':[]}))
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    monkeypatch.setattr(llm,'active_backend',lambda:backend)
+    bad='function isVideoFile(file){return file.type.startsWith("video/");}'
+    fixed='function isVideoFile(file){\n try { return file.type.startsWith("video/"); }\n catch(error) { return false; }\n}'
+    assert any(e.startswith('Helper execution failed:') for e in await project_checks.inspect_helper(bad,'video_file'))
+    calls=[]
+    async def model(messages,**options):
+        calls.append(messages)
+        if len(calls)==1:content=bad
+        else:
+            body=json.loads(messages[1]['content'])
+            assert body['numbered_lines']==[{'line':1,'text':bad}]
+            assert fixed not in messages[1]['content']
+            assert any(error.startswith('Helper execution failed:') for error in body['errors'])
+            content=json.dumps({'edits':[{'line':1,'replace':fixed}]})
+        return {'content':content,'stats':{'finish_reason':'stop'}}
+    monkeypatch.setattr(llm,'chat',model)
+    class Validated(Exception):pass
+    async def event(kind,value):
+        if kind=='source_part':
+            assert value['source']==fixed and len(value['repair_chain'])==1
+            assert project_patches.replay(bad,value['repair_chain'],'app.js')==fixed
+            assert await project_checks.inspect_helper(value['source'],'video_file')==[]
+            raise Validated()
+    with pytest.raises(Validated):await project_parts.generate('application',object(),event)
+    assert len(calls)==2

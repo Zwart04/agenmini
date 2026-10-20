@@ -2181,3 +2181,12 @@ pemeriksaan sintaks, kontrak, atau perilaku ekspor. Tidak ada kandidat yang
 diterima. Perubahan prompt, penambahan reasoning, patch kecil, pemisahan helper,
 dan model pembanding 1B belum membuktikan hasil editor yang layak. Menaikkan
 jumlah percobaan bukan pengganti keberhasilan pengujian.
+
+Koreksi berikutnya menghapus batas satu baris untuk patch JavaScript ketika
+pengujian menemukan exception saat eksekusi. Perbaikan scope atau penambahan
+blok `try/catch` kini dapat ditulis model dalam satu transaksi; sumber lengkap
+tetap diperiksa sintaks dan perilakunya, dengan rollback jika merusak bagian
+yang sudah lulus. Batas percobaan tetap sama. Jalur ini berlaku untuk backend
+lokal, API langsung, dan router. Sebanyak 257 tes bagian proyek lulus di Windows,
+termasuk tiga tes baru untuk perbaikan multiline. Ini bukti mekanisme koreksi,
+bukan bukti bahwa editor hasil model telah lulus pengujian browser.

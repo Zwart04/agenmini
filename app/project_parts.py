@@ -758,7 +758,12 @@ async def generate(brief,ctx,on_event=None):
                     patch_base=source
                     response=await project_patches.request(source,task=item['task'],errors=errors,
                         contracts=(js_prompt_context(prior,item.get('relevant_fields'),item.get('relevant_functions'))+'\n'+validated_helper_context(item,helper_sources)+'\n' if kind=='js' else '')+json.dumps(repair_contracts(item)),
-                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,single_line=kind!='document')
+                        max_tokens=min(1100,item.get('tokens',900)),diagnose=attempt>=2,indexed=True,
+                        # Exception recovery may need a block and shared local
+                        # scope. The normal syntax and behavior rollback still
+                        # applies to the complete, model-authored edit.
+                        single_line=kind!='document' and not (
+                            kind=='js' and any(error.startswith('Helper execution failed:') for error in errors)))
                 else:
                     schema=None if item.get('raw_source') or prefer_raw_html else css_source_schema(item) or html_source_schema(item) or js_source_schema(item)
                     generation_system=system
