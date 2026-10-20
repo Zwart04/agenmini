@@ -5,6 +5,30 @@ import time
 import aiohttp
 from . import config, db, llm
 
+_context_cache = {}
+
+
+async def context_window():
+    """Use llama-server's slot capacity, not the GGUF's theoretical maximum."""
+    base = os.environ.get('LOCAL_API_BASE', 'http://local:8080/v1').rstrip('/').removesuffix('/v1')
+    key = (base, db.setting('local_model_id'))
+    cached = _context_cache.get(key)
+    if cached and time.monotonic() - cached[0] < 60:
+        return cached[1]
+    capacity = 4096  # The bundled CPU server's configured fallback.
+    try:
+        async with llm.session().get(base + '/props', timeout=aiohttp.ClientTimeout(total=1)) as response:
+            if response.status == 200:
+                data = await response.json()
+                value = data.get('default_generation_settings', {}).get('n_ctx')
+                if type(value) is int and 256 <= value <= 2097152:
+                    capacity = value
+    except (aiohttp.ClientError, TimeoutError, ValueError, TypeError, AttributeError):
+        pass
+    _context_cache.clear()
+    _context_cache[key] = (time.monotonic(), capacity)
+    return capacity
+
 
 def stored():
     try: return json.loads((config.DATA_DIR / 'runtime-status.json').read_text())

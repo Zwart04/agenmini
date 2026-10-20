@@ -26,8 +26,9 @@ window.Workbench=(()=>{
  async function refresh(){if(loading)return;loading=true;try{const d=await api('/api/workbench/files'),s=document.querySelector('#wbFiles'),old=s.value;s.replaceChildren(new Option('Pilih berkas…',''));d.files.forEach(p=>s.add(new Option(p,p)));s.value=file?.path||old;window.refreshDesignControls?.();say(d.truncated?'Daftar dibatasi 300 berkas.':'Berkas ruang kerja · perubahan disimpan dengan pemeriksaan konflik.')}catch(e){say(e.message)}finally{loading=false}}
  async function choose(path){if(!path)return;if(dirty&&!(await uiConfirm('Ada perubahan belum disimpan. Buka berkas lain?')))return;try{file=await api('/api/workbench/file?path='+encodeURIComponent(path));editor.value=file.content;dirty=false;document.querySelector('#wbFiles').value=path;say(path);selectTab('code')}catch(e){say(e.message)}}
  function event(data){
-  const identity=JSON.stringify([data.run_id,data.kind,data.call_id,data.step,data.path,data.sha256,data.outcome]);if(seen.has(identity))return;seen.add(identity);if(seen.size>2000)seen.delete(seen.values().next().value);
+  const identity=JSON.stringify([data.run_id,data.kind,data.call_id,data.step,data.path,data.sha256,data.outcome,data.before_estimate]);if(seen.has(identity))return;seen.add(identity);if(seen.size>2000)seen.delete(seen.values().next().value);
   const list=document.querySelector('#wbLog'),line=document.createElement('li');line.textContent=(data.kind||'aktivitas')+(data.tool?' · '+data.tool:'')+(data.path?' · '+data.path:'')+(data.outcome?' · '+data.outcome:'');list.append(line);while(list.children.length>100)list.firstChild.remove();list.scrollTop=list.scrollHeight;
+  if(data.kind==='context/compacted')line.textContent='Konteks diringkas · perkiraan '+data.before_estimate+' → '+data.after_estimate+' token';
   if(data.kind==='file/change'){
    if(dirty){say('Agen mengubah '+data.path+'. Perubahan Anda tetap di editor; simpan atau salin sebelum membuka versi agen.');return}
    if(data.truncated){say('Perubahan besar tersedia di server; pilih berkas untuk membaca versi lengkap.');return}

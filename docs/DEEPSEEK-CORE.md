@@ -20,6 +20,8 @@ restriction on which models can use the harness. Provider-specific sampling
 and authentication belong to the model adapter, not the core workflow.
 Checks may reject or request repair of a model's source; they must not replace
 a failed implementation with an evaluator-authored application template.
+Long conversations use bounded working context and retain original chat rows;
+see [context compaction and its limits](CONTEXT-COMPACTION.md).
 Passing a dispatch test proves shared routing, not equivalent model quality.
 The guided standalone Python-file path also applies to all three backends:
 model-written source → syntax checks → permission → execute assertions →

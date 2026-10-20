@@ -254,7 +254,9 @@ async def chat_history(request):
     rows.reverse()
     for r in rows:
         r["meta"] = json.loads(r["meta"] or "{}")
-    return web.json_response({"messages": rows, "chat": {k: chat[k] for k in ("id", "title", "channel", "archived", "backend", "model")}})
+    checkpoint = db.one("SELECT through_id,note,updated_at FROM context_checkpoints WHERE chat_id=?", (chat["id"],))
+    return web.json_response({"messages": rows, "context_checkpoint": checkpoint,
+                             "chat": {k: chat[k] for k in ("id", "title", "channel", "archived", "backend", "model")}})
 
 
 # ---------- riwayat percakapan ----------

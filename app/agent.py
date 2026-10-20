@@ -275,6 +275,12 @@ def tool_label(name: str, args: dict) -> str:
     return label
 
 
+def tool_result_failed(result):
+    return (result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan",
+                               "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:"))
+            or bool(re.search(r"\[kode keluar (?!0\])", result)))
+
+
 def context_block(bot: dict, text: str, hint_text=None) -> tuple[str, list[int]]:
     parts = [f"Waktu sekarang: {db.now_str()}","OS eksekusi: "+__import__("sys").platform+". Pada Windows gunakan command/cmd yang kompatibel; pada Linux gunakan bash."]
     prof = memory.profile_memories(bot)
@@ -303,9 +309,9 @@ def context_block(bot: dict, text: str, hint_text=None) -> tuple[str, list[int]]
 def build_messages(bot: dict, chat: dict, text: str, hint_text=None, include_history=True) -> tuple[list[dict], list[int]]:
     system = system_prompt(bot)
     msgs = [{"role": "system", "content": system}] if system else []
-    if include_history and chat.get("summary"):
-        msgs.append({"role": "user", "content": f"[Ringkasan percakapan sebelumnya]\n{chat['summary']}"})
-        msgs.append({"role": "assistant", "content": "Baik, saya ingat."})
+    if include_history and (chat.get("working_context") or chat.get("summary")):
+        msgs.append({"role": "user", "content": chat.get("working_context") or f"[Ringkasan percakapan sebelumnya]\n{chat['summary']}",
+                     "_agen_checkpoint": True})
     for h in (db.history(chat["id"], limit=12) if include_history else []):
         content = h["content"]
         if h["meta"].get("image_desc"):  # gambar lama tetap "terlihat" lewat deskripsinya
@@ -436,6 +442,11 @@ class Turn:
             # jangan biarkan model mengarang isi gambar yang tidak pernah ia lihat
             reply = FAILED_IMAGE_REPLY if recent_image(chat["id"]) == "gagal" else NO_IMAGE_REPLY
             return await self._reply(text, reply, {}, t0)
+        from . import compaction
+        if db.setting('harness_mode') != 'none':
+            checkpoint = compaction.prepare_chat(chat["id"])
+            if checkpoint:
+                chat = {**chat, "working_context": checkpoint["note"]}
         msgs, skill_ids = build_messages(bot, chat, model_text, getattr(self,'intent_text',None), include_history=not bool(getattr(self,'project_folder',None)))  # riwayat dimuat sebelum pesan ini disimpan
         if save_user:
             db.add_message(chat["id"], "user", text or "(gambar)", user_meta)
@@ -618,6 +629,54 @@ class Turn:
         if bot.get('backend') and not model:
             model = {'router': db.setting('router_last_model'), 'freellmapi': db.setting('freellmapi_model') or 'auto:smart', 'online':db.setting('online_model'), 'local':db.setting('local_model_id') or 'qwenpaw-2b'}.get(bot['backend'])
         names = [s["function"]["name"] for s in schemas]
+        last_compaction = None
+        compactions = []
+        working_context = compaction.WorkingContext(next((m for m in reversed(msgs) if m["role"] == "user"), None))
+        call_attempts = {}
+        stalled = False
+
+        async def model_context(tool_schemas, output_tokens=900, budget=None):
+            nonlocal last_compaction
+            if db.setting('harness_mode') == 'none':
+                return compaction.provider_messages(msgs)
+            fitted, info = working_context.fit(msgs, tool_schemas, budget or compaction.input_budget(output_tokens))
+            if info and info != last_compaction:
+                last_compaction = info
+                counts = {key: value for key, value in info.items() if key != 'note'}
+                compactions.append(counts)
+                await self.on_event("status", "Merapikan konteks kerja; riwayat asli tetap tersimpan…")
+                if core:
+                    await core.emit("context/compacted", counts)
+            return compaction.provider_messages(fitted)
+
+        async def call_model(tool_schemas, output_tokens):
+            emitted = False
+            budget = None
+            capacity = None
+            if llm.active_backend() == 'local':
+                from . import runtime_status
+                capacity = await runtime_status.context_window()
+                budget = compaction.input_budget(output_tokens, capacity)
+
+            async def token(piece):
+                nonlocal emitted
+                emitted = emitted or bool(piece)
+                await self.on_event("token", piece)
+
+            for attempt in range(3):
+                fitted = await model_context(tool_schemas, output_tokens, budget)
+                operation = llm.chat(fitted, tools=tool_schemas, model=model,
+                                     on_token=token, prio=self.prio, max_tokens=output_tokens)
+                try:
+                    return await core.model(operation) if core else await operation
+                except llm.LLMError as error:
+                    if emitted or attempt == 2 or db.setting('harness_mode') == 'none' or not compaction.is_context_overflow(error):
+                        raise
+                    budget = int(min(budget or compaction.input_budget(output_tokens, capacity),
+                                     compaction.token_estimate(fitted) + compaction.token_estimate(tool_schemas or [])) * .7)
+                    if budget < 256:
+                        raise
+                    await self.on_event("status", "Konteks ditolak model; mengecilkan konteks sebelum mencoba lagi…")
 
         try:
             if llm.active_backend() == "ollama" and (model or db.setting("model")) != "online" and not await llm.is_loaded(model or db.setting("model")):
@@ -626,8 +685,7 @@ class Turn:
             if schemas and extra_msgs is None and not getattr(self, 'project_folder', None) and is_light(text, bot.get('tools', [])):
                 # jalur cepat: tanpa daftar alat, jawaban pendek; naik ke jalur lengkap kalau ternyata butuh alat
                 await self.on_event("status", "Menjawab…")
-                res = await llm.chat(msgs, tools=None, model=model, on_token=lambda p: self.on_event("token", p),
-                                     prio=self.prio, max_tokens=500)
+                res = await call_model(None, 500)
                 if not res.get("tool_calls") and not re.search(r"<(?:tool|tool_call|function_call)>",res["content"]) and not needs_escalation(res["content"]) and not missing_files(res["content"], text, []):
                     answer, stats, mode = clean_answer(res["content"]), res.get("stats", {}), "cepat"
             for step in range(0 if answer else max_steps + 1):
@@ -640,10 +698,9 @@ class Turn:
                     exposed=set(ctx.exposed_tools)|{s['function']['name'] for s in schemas}
                     schemas=[s for s in tools.schemas_for(bot) if s['function']['name'] in exposed]
                     names=[s['function']['name'] for s in schemas]
-                operation = llm.chat(msgs, tools=None if last else schemas, model=model,
-                                     on_token=lambda p: self.on_event("token", p), prio=self.prio,
-                                     max_tokens=(1400 if llm.active_backend()=='local' else 3000) if getattr(self,'project_folder',None) else None)
-                res = await core.model(operation) if core else await operation
+                output_tokens = ((1400 if llm.active_backend()=='local' else 3000)
+                                 if getattr(self,'project_folder',None) else int(db.setting('max_tokens') or 900))
+                res = await call_model(None if last else schemas, output_tokens)
                 stats = res.get("stats", {})
                 calls = res.get("tool_calls") or []
                 if not calls and not last:
@@ -705,13 +762,25 @@ class Turn:
                         if isinstance(args,dict):failures_by_scope.setdefault(tool_failure_scope(name,args),set()).add(failure)
                         msgs.append({'role':'tool','tool_name':name,'content':failure+' Request it in the next step if still needed.'})
                         continue
+                    key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
+                    call_attempts[key] = call_attempts.get(key, 0) + 1
+                    if call_attempts[key] >= 3:
+                        if core:await core.rejected(name, 'repetition_limit')
+                        failure = f"Error: {name} diulang tiga kali dengan argumen sama tanpa perbaikan; tindakan berikutnya tidak dijalankan."
+                        failures.append(failure)
+                        msgs.append({"role": "tool", "content": failure, "tool_name": name})
+                        answer = failure + " Periksa galat sebelumnya dan lanjutkan dengan langkah berbeda."
+                        stalled = True
+                        break
                     validation = tools.validate_arguments(name, args)
                     if validation:
                         if core:await core.rejected(name,'invalid_arguments')
-                        failures.append(f"Error: {name}: {validation}")
+                        failure = f"Error: {name}: {validation}"
+                        failures.append(failure)
+                        if isinstance(args, dict):
+                            failures_by_scope.setdefault(tool_failure_scope(name, args), set()).add(failure)
                         msgs.append({"role": "tool", "content": f"Error: {validation}. Correct the arguments; do not claim success.", "tool_name": name})
                         continue
-                    key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
                     t = tools.REGISTRY.get(name)
                     cached=key in seen_calls
                     if cached:
@@ -759,9 +828,14 @@ class Turn:
                     if not cached and name in ('write_file','edit_project_file','run_shell','run_python','run_project_command'):
                         for previous in tuple(seen_calls):
                             if previous!=key and previous.startswith(('read_file','list_files','inspect_project','inspect_website','preview_project','send_file','run_project_command','run_python','run_shell')):seen_calls.pop(previous,None)
+                        # A successful mutation may make a previous read useful again.
+                        if not tool_result_failed(result):
+                            for previous in tuple(call_attempts):
+                                if previous != key and previous.startswith(('read_file','list_files','inspect_project','inspect_website','preview_project')):
+                                    call_attempts.pop(previous, None)
                     if key not in seen_calls: seen_calls[key] = result
                     scope=tool_failure_scope(name,args)
-                    if result.startswith(("Error:", "Wrong arguments", "Tidak ada hasil", "Tool ", "Tidak disimpan", "Folder tidak ada", "Berkas tidak ada", "Tidak ada ingatan", "(dihentikan:")) or re.search(r"\[kode keluar (?!0\])", result):
+                    if tool_result_failed(result):
                         failure=(result[:150]+'\n'+result[-1800:]) if len(result)>1800 else result
                         failures.append(failure)
                         failures_by_scope.setdefault(scope,set()).add(failure)
@@ -785,8 +859,13 @@ class Turn:
                     if (name in UNTRUSTED_TOOLS or name.startswith("mcp_")) and not result.startswith("Error"):
                         result = f"<untrusted_content>\n{result}\n</untrusted_content>"
                     msgs.append({"role": "tool", "content": result, "tool_name": name})
+                if stalled:
+                    break
                 if step == max_steps - 1:
                     msgs.append({"role": "user", "content": "Cukup memakai alat. Sekarang berikan jawaban akhir."})
+        except compaction.ContextCapacityError as e:
+            inference_failed = True
+            answer = str(e)
         except llm.LLMError as e:
             inference_failed = True
             answer = f"Galat: {e}"
@@ -801,7 +880,7 @@ class Turn:
         if not answer:
             answer = "Maaf, saya belum menemukan jawabannya."
         meta = {"tools": used, "skills": skill_ids, "seconds": round(time.time() - t0, 1), "stats": stats,
-                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "recovered_tools":recovered_tools, "status": "failed" if inference_failed else "partial" if failures else "done"}
+                "model": model or db.setting("model"), "mode": mode, "files": ctx.attachments, "trace": trace, "tool_failures": failures, "recovered_tools":recovered_tools, "compactions": compactions, "status": "failed" if inference_failed else "partial" if failures else "done"}
         mid = db.add_message(chat["id"], "assistant", answer, meta)
         await self.on_event("done", {"text": answer, "message_id": mid, "meta": meta})
 

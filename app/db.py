@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS messages (
   meta TEXT DEFAULT '{}', created_at REAL, feedback INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS messages_chat ON messages(chat_id, id);
+CREATE TABLE IF NOT EXISTS context_checkpoints (
+  chat_id INTEGER PRIMARY KEY, through_id INTEGER NOT NULL,
+  note TEXT NOT NULL, source_hash TEXT NOT NULL, updated_at REAL NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS memories (
   id INTEGER PRIMARY KEY, scope TEXT, kind TEXT, text TEXT,
@@ -284,6 +288,7 @@ def copy_chat(chat_id: int, channel: str, ext_id: str) -> dict:
 
 def delete_chat(chat_id: int):
     run("DELETE FROM messages WHERE chat_id=?", (chat_id,))
+    run("DELETE FROM context_checkpoints WHERE chat_id=?", (chat_id,))
     run("DELETE FROM approvals WHERE chat_id=?", (chat_id,))
     run("DELETE FROM chats WHERE id=?", (chat_id,))
 

@@ -12,6 +12,54 @@ from app import config, db, llm, model_runtime, runtime_status, main, free_route
 main.bootstrap(profile='template')
 
 
+@pytest.mark.asyncio
+async def test_context_capacity_uses_live_slot_and_caches_per_model(monkeypatch):
+    runtime_status._context_cache.clear()
+    selected = {'id': 'first'}
+    monkeypatch.setattr(db, 'setting', lambda key: selected['id'])
+    calls = []
+    async def props(request):
+        calls.append(request.path)
+        return web.json_response({'default_generation_settings': {'n_ctx': 2048}})
+    app = web.Application()
+    app.router.add_get('/props', props)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    monkeypatch.setenv('LOCAL_API_BASE', str(client.make_url('/v1')))
+    try:
+        assert await runtime_status.context_window() == 2048
+        assert await runtime_status.context_window() == 2048
+        assert len(calls) == 1
+        selected['id'] = 'second'
+        assert await runtime_status.context_window() == 2048
+        assert len(calls) == 2
+    finally:
+        runtime_status._context_cache.clear()
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('payload', [[], None, {}, {'default_generation_settings': None},
+    {'default_generation_settings': {'n_ctx': True}},
+    {'default_generation_settings': {'n_ctx': -1}},
+    {'default_generation_settings': {'n_ctx': '8192'}}])
+async def test_context_capacity_falls_back_for_invalid_server_metadata(monkeypatch, payload):
+    runtime_status._context_cache.clear()
+    monkeypatch.setattr(db, 'setting', lambda key: 'fixture')
+    async def props(request):
+        return web.json_response(payload)
+    app = web.Application()
+    app.router.add_get('/props', props)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    monkeypatch.setenv('LOCAL_API_BASE', str(client.make_url('/v1')))
+    try:
+        assert await runtime_status.context_window() == 4096
+    finally:
+        runtime_status._context_cache.clear()
+        await client.close()
+
+
 def fixture_model():
     content = b'GGUF' + b'verified weights' * 100
     return {'id':'fixture', 'file':'fixture.gguf', 'repo':'fixture/model', 'revision':'abc',

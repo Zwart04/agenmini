@@ -208,6 +208,13 @@ async function loadChat(chatId) {
     $$('.sugs button').forEach(x => x.onclick = () => { $('#input').value = x.textContent; send() });
   }
   d.messages.forEach(m => addMsg(m));
+  if(d.context_checkpoint?.note){
+    const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('pre');
+    details.className='context-checkpoint';
+    summary.textContent='Catatan konteks · riwayat lengkap tetap tersimpan';
+    note.textContent=d.context_checkpoint.note;
+    details.append(summary,note);th.prepend(details);
+  }
   scrollEnd();
 }
 const scrollEnd = () => { const m = $('#msgs'); m.scrollTop = m.scrollHeight };

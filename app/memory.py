@@ -299,28 +299,6 @@ async def consolidate() -> dict:
     return report
 
 
-SUMMARY_PROMPT = """Summarize this conversation in Indonesian in at most 6 short bullet points. Keep names, numbers, decisions, and open tasks. Previous summary (merge it in):
-{old}
-
-Conversation:
-{conv}"""
-
-
 async def summarize_chat(chat_id: int, bot: dict, keep_last: int = 12):
-    """Kalau percakapan panjang, pesan lama diringkas ke chats.summary supaya konteks tetap kecil."""
-    chat = db.one("SELECT * FROM chats WHERE id=?", (chat_id,))
-    rows = db.q("SELECT * FROM messages WHERE chat_id=? AND created_at>? AND role IN ('user','assistant') ORDER BY id",
-                (chat_id, chat["reset_at"]))
-    if len(rows) <= keep_last + 8:
-        return
-    old = rows[:-keep_last]
-    conv = "\n".join(f"{r['role']}: {r['content'][:500]}" for r in old)[-6000:]
-    try:
-        res = await llm.chat([{"role": "user", "content": SUMMARY_PROMPT.format(old=chat["summary"] or "-", conv=conv)}],
-                             prio=llm.PRIO_BACKGROUND, temperature=0.1, model=bot.get("model") or None)
-    except Exception:
-        return
-    summary = res["content"].strip()[:1500]
-    if summary:
-        # geser batas riwayat: pesan lama tetap tersimpan, tapi tidak lagi dimuat ke konteks
-        db.run("UPDATE chats SET summary=?, reset_at=? WHERE id=?", (summary, old[-1]["created_at"], chat_id))
+    from .compaction import prepare_chat
+    return prepare_chat(chat_id, keep_last)
