@@ -28,6 +28,12 @@ Inti kontrol Agen Mini diadaptasi ke Python dari loop open-source [DeepSeek Harn
 
 Harness bawaan berlaku untuk model lokal, API online dan gateway/router. Model kecil dipakai sebagai acuan uji, bukan batas dukungan. Kode hasil tugas berasal dari model yang dipilih; pemeriksaan dapat menolak hasil dan meminta model memperbaikinya. Bukti uji nyata dipisahkan dari tes respons stub, dan hasil yang gagal tidak dilabeli sukses. [Benchmark aplikasi dan batasnya](docs/LOCAL-APPS-EVAL.md)
 
+Uji editor kelas 1B kini menghasilkan aplikasi satu klip dengan trim, teks,
+suara dan ekspor WebM yang diperiksa di browser serta didekode ulang.
+Hasil ini menggabungkan keluaran Qwen 0.8B dan DeepSeek Coder 1.3B dari beberapa
+percobaan; belum membuktikan satu model dapat membuat semua aplikasi secara
+mandiri. [Lihat hasil, gambar dan batas pengujian](docs/LOCAL-APPS-EVAL.md#23-oktober-2026--editor-gabungan-kelas-1b-berjalan-di-browser).
+
 Percakapan panjang memakai catatan konteks otomatis yang dapat dibuka di chat.
 Pesan asli tetap tersimpan; pemulihan konteks dan pengulangan alat dibatasi agar
 galat tidak berputar tanpa kemajuan. [Cara kerja dan batas auto-compact](docs/CONTEXT-COMPACTION.md)

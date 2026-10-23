@@ -8,6 +8,7 @@ from . import tools
 from .project_dom_checks import DOM_CASES
 from .project_canvas_checks import CANVAS_CASES
 from .project_export_checks import EXPORT_CASES, ASYNC_EXPORT_CHECKS
+from .project_control_checks import CONTROL_CASES
 
 CASE_FIXTURES = {**DOM_CASES, **CANVAS_CASES, **EXPORT_CASES}
 
@@ -17,9 +18,15 @@ const vm = require('node:vm');
 let input=''; process.stdin.on('data',b=>input+=b);
 process.stdin.on('end',()=>{
   try {
-    const {source,check,caseFixture,asyncChecks,timeoutMs}=JSON.parse(input);
+    const {source,check,caseFixture,controlFixture,asyncChecks,timeoutMs}=JSON.parse(input);
     const vmTimeout=timeoutMs===2000?2000:500;
     const context=vm.createContext(Object.create(null),{codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'});
+    if(controlFixture){
+      const outcome=vm.runInContext('"use strict";const failures=[];function assert(value,message){if(!value)failures.push(message);}\n'+controlFixture.setup+'\n'+source+'\n'+controlFixture.test+'\nJSON.stringify([...new Set(failures)].slice(0,12));',context,{timeout:vmTimeout});
+      const failures=JSON.parse(outcome);
+      if(failures.length){console.error(JSON.stringify({helper_failures:failures}));process.exitCode=1;return;}
+      console.log('behavioral control check passed');return;
+    }
     const fixtures=`"use strict";
       const app={loaded:false,busy:false};
       const ui={};
@@ -135,11 +142,13 @@ process.stdin.on('end',()=>{
 
 
 CHECKS.update(CASE_FIXTURES)
+CHECKS.update(CONTROL_CASES)
 
 async def inspect_helper(source, check):
     if check not in CHECKS:
         raise ValueError('Unknown helper behavioral check')
     payload=json.dumps({'source':source,'check':check,'caseFixture':CASE_FIXTURES.get(check),
+                        'controlFixture':CONTROL_CASES.get(check),
                         'asyncChecks':sorted(ASYNC_EXPORT_CHECKS)}).encode()
     # Fixed runner + untrusted data, through the existing project sandbox.
     # No fixture bytes are added to model output or delivered application files.

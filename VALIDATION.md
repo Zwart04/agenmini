@@ -1,4 +1,18 @@
-# Validasi Agen Mini 0.10.1
+# Validasi Agen Mini 0.10.3
+
+## Editor model lokal, 23 Oktober 2026
+
+Kandidat V208 lulus operasi browser nyata pada 1440/390 piksel: impor,
+play/pause, seek, trim, teks, ekspor/unduh berulang, penolakan trim invalid,
+Space pada bidang teks dan pembatalan dengan tombol/Escape. Dua berkas WebM
+memiliki video VP9 320×180, suara, durasi sekitar dua detik, serta frame
+bergerak yang cocok dengan rentang trim. Piksel judul ada pada ekspor dengan
+teks dan tidak ada pada ekspor tanpa teks. [Rincian](docs/LOCAL-APPS-EVAL.md).
+
+Sumber runtime berasal dari beberapa percobaan Qwen3.5 0.8B dan DeepSeek
+Coder 1.3B. Bukti ini tidak menyatakan satu model menulis seluruh aplikasi
+dari nol dalam satu percobaan. Tes fixture backend juga tidak membuktikan
+mutu respons provider online nyata. Pengujian VPS tetap tidak dilakukan.
 
 ## Keamanan dan self-improve - 7 Oktober 2026
 

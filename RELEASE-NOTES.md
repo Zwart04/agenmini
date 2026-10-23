@@ -1,4 +1,19 @@
-# Agen Mini 0.10.2
+# Agen Mini 0.10.3
+
+Pembuatan editor video satu klip memakai bagian kecil dengan pemeriksaan
+perilaku, termasuk wiring kontrol dan inisialisasi. Konteks dependensi berisi
+implementasi model yang sudah lulus, dengan batas ukuran; tidak memasukkan
+kode jawaban dari evaluator. Perbaikan yang merusak sintaks dikembalikan.
+Jalur ini dipakai bersama oleh lokal, API online dan router, melalui web
+maupun Telegram. Pengaturan lama bernilai `0` tetap menonaktifkannya.
+
+Kandidat gabungan Qwen 0.8B dan DeepSeek Coder 1.3B sudah lulus uji browser
+impor, playback, trim, teks dan unduhan WebM, termasuk pembatalan/pemulihan.
+Video hasil ekspor didekode untuk memeriksa durasi, gerakan, suara dan teks.
+Ini hasil beberapa percobaan kelas 1B, bukan satu respons atau bukti semua
+model kecil dapat menulis aplikasi apa pun. [Bukti dan batas](docs/LOCAL-APPS-EVAL.md).
+
+## 0.10.2
 
 Update web/CLI kini menampilkan status antrean dan proses supervisor. Pembaruan
 serta pergantian runtime menunggu pekerjaan/pemasangan harness eksternal selesai.

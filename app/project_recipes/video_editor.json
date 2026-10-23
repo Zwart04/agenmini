@@ -2871,14 +2871,23 @@
       "raw_source": true,
       "include_html": false,
       "tokens": 160,
-      "functions": ["stopExportVideoTracks"],
+      "functions": [
+        "stopExportVideoTracks"
+      ],
       "task": "Write stopExportVideoTracks(stream). For a non-null stream, get its video tracks and call stop on each original track once. For a null stream, do nothing. The getVideoTracks method already selects video tracks.",
-      "parameters": {"stream": "Nullable browser MediaStream; getVideoTracks returns original video track objects with callable stop."},
-      "relevant_fields": {"app": [], "ui": []},
+      "parameters": {
+        "stream": "Nullable browser MediaStream; getVideoTracks returns original video track objects with callable stop."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
       "relevant_functions": [],
       "state_writes": [],
       "system_contract": "Output only one complete function stopExportVideoTracks(stream). Use the supplied argument directly. No globals, imports, exports, comments or other functions.",
-      "behavior_checks": ["video_stop_export_tracks"]
+      "behavior_checks": [
+        "video_stop_export_tracks"
+      ]
     },
     {
       "name": "Cancel original numeric export frame",
@@ -2887,14 +2896,23 @@
       "raw_source": true,
       "include_html": false,
       "tokens": 130,
-      "functions": ["cancelExportFrame"],
+      "functions": [
+        "cancelExportFrame"
+      ],
       "task": "Write cancelExportFrame(handle). When handle is not null, call browser cancelAnimationFrame(handle) once. Zero is a valid handle and must be cancelled. When null, do nothing.",
-      "parameters": {"handle": "Number or null. It has no cancel method. Pass the original number directly to native cancelAnimationFrame."},
-      "relevant_fields": {"app": [], "ui": []},
+      "parameters": {
+        "handle": "Number or null. It has no cancel method. Pass the original number directly to native cancelAnimationFrame."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
       "relevant_functions": [],
       "state_writes": [],
       "system_contract": "Output only one complete function cancelExportFrame(handle). Use the native standalone cancelAnimationFrame function. No globals, comments, imports, exports or other functions.",
-      "behavior_checks": ["video_cancel_export_frame"]
+      "behavior_checks": [
+        "video_cancel_export_frame"
+      ]
     },
     {
       "name": "Clean export playback and video tracks",
@@ -2926,80 +2944,191 @@
         "raf"
       ],
       "system_contract": "Start immediately with function cleanupExport(stream). Output only this complete function. app and ui are existing outer objects; use them directly without declarations. Call existing helpers directly, not as methods.",
-      "behavior_dependencies": ["stopExportVideoTracks", "cancelExportFrame"],
+      "behavior_dependencies": [
+        "stopExportVideoTracks",
+        "cancelExportFrame"
+      ],
       "behavior_checks": [
         "video_export_cleanup"
       ]
     },
     {
       "name": "Discard failed recorded output",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 160,
-      "functions": ["discardExportResult"],
+      "functions": [
+        "discardExportResult"
+      ],
       "task": "Write discardExportResult(message,isError). Assign an empty array to existing app.chunks, set existing ui.downloadLink.hidden to true, and call setStatus(message,isError) once with the original arguments. Use existing outer objects directly.",
-      "relevant_fields": {"app": ["chunks"], "ui": ["downloadLink"]},
-      "relevant_functions": ["setStatus"], "state_writes": ["chunks"],
+      "relevant_fields": {
+        "app": [
+          "chunks"
+        ],
+        "ui": [
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "state_writes": [
+        "chunks"
+      ],
       "system_contract": "Output only one complete function discardExportResult(message,isError). app and ui already exist. Do not declare them or redefine setStatus. No comments or extra helpers.",
-      "behavior_checks": ["video_export_discard"]
+      "behavior_checks": [
+        "video_export_discard"
+      ]
     },
     {
       "name": "Construct Blob from original recording",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 140,
-      "functions": ["createRecordedBlob"],
+      "functions": [
+        "createRecordedBlob"
+      ],
       "task": "Write createRecordedBlob() with one return statement constructing a native Blob. app.chunks is ALREADY the flat array of recorded Blob chunks: pass that existing array itself as the first constructor argument, without wrapping it in another array. Set the type option to app.recorder.mimeType. Return the resulting Blob. Use the existing outer app object.",
       "context": "app.chunks has type Array<Blob>, not a single Blob. app.recorder.mimeType is a MIME string. The Blob constructor expects a flat array as its first argument. These globals already exist; no imports are needed.",
-      "relevant_fields": {"app": ["chunks", "recorder"], "ui": []},
-      "relevant_functions": [], "state_writes": [],
+      "relevant_fields": {
+        "app": [
+          "chunks",
+          "recorder"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Output one complete plain function createRecordedBlob with one return statement. Pass app.chunks directly to new Blob; never nest the array. No comments, imports, exports, globals or extra helpers.",
-      "behavior_checks": ["video_recorded_blob"]
+      "behavior_checks": [
+        "video_recorded_blob"
+      ]
     },
     {
       "name": "Replace original recording URL",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 160,
-      "functions": ["replaceRecordingURL"],
+      "functions": [
+        "replaceRecordingURL"
+      ],
       "task": "Write replaceRecordingURL(blob,previousURL). If previousURL is present, call native URL.revokeObjectURL with that string once. Return the string from native URL.createObjectURL(blob), using the original supplied Blob. URL methods are ordinary callable methods, not constructors.",
-      "parameters": {"blob": "Original recorded Blob object.", "previousURL": "String or null; pass the original string directly to revokeObjectURL when present."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "blob": "Original recorded Blob object.",
+        "previousURL": "String or null; pass the original string directly to revokeObjectURL when present."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Output only one complete function replaceRecordingURL(blob,previousURL). Use native URL and supplied arguments directly. No app/ui globals, imports, comments or extra helpers.",
-      "behavior_checks": ["video_recording_url"]
+      "behavior_checks": [
+        "video_recording_url"
+      ]
     },
     {
       "name": "Expose original download anchor",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 160,
-      "functions": ["exposeRecordingLink"],
+      "functions": [
+        "exposeRecordingLink"
+      ],
       "task": "Write exposeRecordingLink(link,url). Update the supplied anchor element: its href must be the supplied URL string, download must be filename clip-mini.webm, and hidden must be false. Modify the original link object directly.",
-      "parameters": {"link": "Existing HTMLAnchorElement to update directly.", "url": "New object URL string to assign as href."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "link": "Existing HTMLAnchorElement to update directly.",
+        "url": "New object URL string to assign as href."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Output only one complete function exposeRecordingLink(link,url). Use supplied parameters without redeclaring or replacing them. No globals, comments, imports or other helpers.",
-      "behavior_checks": ["video_recording_link"]
+      "behavior_checks": [
+        "video_recording_link"
+      ]
     },
     {
       "name": "Report original recording size",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 170,
-      "functions": ["reportRecordingReady"],
+      "functions": [
+        "reportRecordingReady"
+      ],
       "task": "Write reportRecordingReady(size,audioEnabled). Call existing setStatus once with a success message containing actual numeric size in bytes and label audio when audioEnabled is true or silent when false. Both modes are successes.",
-      "parameters": {"size": "Actual numeric Blob byte count, not a fixed number.", "audioEnabled": "Boolean selecting audio or silent success label."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["setStatus"], "state_writes": [],
+      "parameters": {
+        "size": "Actual numeric Blob byte count, not a fixed number.",
+        "audioEnabled": "Boolean selecting audio or silent success label."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "setStatus"
+      ],
+      "state_writes": [],
       "system_contract": "Output only one complete function reportRecordingReady(size,audioEnabled). Use supplied arguments and call standalone setStatus once. No globals, comments, imports or extra helpers.",
-      "behavior_checks": ["video_recording_status"]
+      "behavior_checks": [
+        "video_recording_status"
+      ]
     },
     {
       "name": "Publish actual recorded Blob",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 300,
-      "functions": ["publishRecordedBlob"],
+      "functions": [
+        "publishRecordedBlob"
+      ],
       "task": "Write publishRecordedBlob(blob,audioEnabled) by calling three existing helpers. Assign the string returned by replaceRecordingURL(blob,app.downloadURL) to app.downloadURL. Call exposeRecordingLink(ui.downloadLink,app.downloadURL). Then call reportRecordingReady(blob.size,audioEnabled). These helpers already handle URL operations, link properties and status. Use them unchanged and preserve existing outer app/ui objects.",
       "context": "Types: app.downloadURL is string|null, never an object. ui.downloadLink is an existing HTMLAnchorElement. blob.size is number; audioEnabled is boolean. URL is the browser global object with callable createObjectURL/revokeObjectURL, not a field of app.",
-      "parameters": {"blob": "Actual nonempty recorded Blob with numeric size.", "audioEnabled": "Boolean selecting the success label audio or silent."},
-      "relevant_fields": {"app": ["downloadURL"], "ui": ["downloadLink"]},
-      "relevant_functions": ["replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady"], "state_writes": ["downloadURL"],
+      "parameters": {
+        "blob": "Actual nonempty recorded Blob with numeric size.",
+        "audioEnabled": "Boolean selecting the success label audio or silent."
+      },
+      "relevant_fields": {
+        "app": [
+          "downloadURL"
+        ],
+        "ui": [
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "replaceRecordingURL",
+        "exposeRecordingLink",
+        "reportRecordingReady"
+      ],
+      "state_writes": [
+        "downloadURL"
+      ],
       "system_contract": "Output only one complete function publishRecordedBlob(blob,audioEnabled). app and ui already exist. Use them directly without local declarations. No comments, imports or extra helpers.",
-      "behavior_checks": ["video_publish_recording"],
-      "behavior_dependencies": ["replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady"]
+      "behavior_checks": [
+        "video_publish_recording"
+      ],
+      "behavior_dependencies": [
+        "replaceRecordingURL",
+        "exposeRecordingLink",
+        "reportRecordingReady"
+      ]
     },
     {
       "name": "Finalize recorded WebM download",
@@ -3012,9 +3141,15 @@
         "finishExport"
       ],
       "task": "Write finishExport(stream,audioEnabled,errorMessage) by composing existing helpers. First call cleanupExport(stream), even when stream is null. If errorMessage is nonempty, call discardExportResult(errorMessage,true) and immediately return. If app.cancelled is true, call discardExportResult with the STRING message \"Cancelled\" and false, then return. Otherwise obtain blob from createRecordedBlob(). If blob.size is zero, call discardExportResult with STRING message \"Empty recording\" and true, then return. Finally publishRecordedBlob(blob,audioEnabled). Message text must be quoted strings, not bare identifiers or Boolean values. Keep existing helpers unchanged.",
-      "parameters": {"stream": "Original export stream or null. Always forward it unchanged to cleanupExport, including null; do not return early for a null stream.", "errorMessage": "String. When nonempty, discard with this actual message and return immediately so no later status overwrites the error.", "audioEnabled": "Boolean forwarded unchanged to publisher on success."},
+      "parameters": {
+        "stream": "Original export stream or null. Always forward it unchanged to cleanupExport, including null; do not return early for a null stream.",
+        "errorMessage": "String. When nonempty, discard with this actual message and return immediately so no later status overwrites the error.",
+        "audioEnabled": "Boolean forwarded unchanged to publisher on success."
+      },
       "relevant_fields": {
-        "app": ["cancelled"],
+        "app": [
+          "cancelled"
+        ],
         "ui": []
       },
       "relevant_functions": [
@@ -3025,79 +3160,189 @@
       ],
       "state_writes": [],
       "system_contract": "Begin with function finishExport(stream,audioEnabled,errorMessage). Output only this complete function. Call existing standalone helpers directly. app is the existing outer object. No comments, imports, globals or copied declarations.",
-      "behavior_dependencies": ["discardExportResult", "createRecordedBlob", "replaceRecordingURL", "exposeRecordingLink", "reportRecordingReady", "publishRecordedBlob"],
+      "behavior_dependencies": [
+        "discardExportResult",
+        "createRecordedBlob",
+        "replaceRecordingURL",
+        "exposeRecordingLink",
+        "reportRecordingReady",
+        "publishRecordedBlob"
+      ],
       "behavior_checks": [
         "video_export_finish"
       ]
     },
     {
       "name": "Create callback for original recording chunks",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 190,
-      "functions": ["makeRecordingChunkCallback"],
+      "functions": [
+        "makeRecordingChunkCallback"
+      ],
       "task": "Write makeRecordingChunkCallback(chunks). Return an event callback. When event.data exists and its numeric size is greater than zero, push that original event.data object into the supplied chunks array. Otherwise do nothing. Preserve previous array items and the original array.",
-      "parameters": {"chunks": "Existing Array<Blob> to append to. Callback event.data is Blob or null; Blob has size, not length."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "chunks": "Existing Array<Blob> to append to. Callback event.data is Blob or null; Blob has size, not length."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Output only one complete function makeRecordingChunkCallback(chunks) returning a callback. Use supplied array directly. No globals, imports, comments or extra helpers.",
-      "behavior_checks": ["video_recording_chunk_callback"]
+      "behavior_checks": [
+        "video_recording_chunk_callback"
+      ]
     },
     {
       "name": "Finalize original recording once",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 190,
-      "functions": ["finishRecordingOnce"],
+      "functions": [
+        "finishRecordingOnce"
+      ],
       "task": "Write finishRecordingOnce(stream,audioEnabled,errorState). If errorState.finished is true, return immediately. Otherwise set that property to true before calling existing finishExport(stream,audioEnabled,errorState.message). This prevents duplicate finalization from error and stop events.",
-      "parameters": {"errorState": "Original shared mutable object with message string and finished Boolean; update its finished property directly."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishExport"], "state_writes": [],
+      "parameters": {
+        "errorState": "Original shared mutable object with message string and finished Boolean; update its finished property directly."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "finishExport"
+      ],
+      "state_writes": [],
       "system_contract": "Output only one complete function finishRecordingOnce(stream,audioEnabled,errorState). Use the original shared object and existing helper directly. No globals, comments, imports or other helpers.",
-      "behavior_checks": ["video_recording_finish_once"]
+      "behavior_checks": [
+        "video_recording_finish_once"
+      ]
     },
     {
       "name": "Create callback for recording completion",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 170,
-      "functions": ["makeRecordingStopCallback"],
+      "functions": [
+        "makeRecordingStopCallback"
+      ],
       "task": "Write makeRecordingStopCallback(stream,audioEnabled,errorState). Return an anonymous function value. Inside that returned function, call ordinary JavaScript helper finishRecordingOnce with THREE POSITIONAL arguments: stream first, audioEnabled second, errorState third. Do not bundle them in an object or invoke the helper early. The existing helper performs all state handling.",
-      "parameters": {"errorState": "Opaque original object to forward unchanged to finishRecordingOnce. Do not inspect it or replace it."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "parameters": {
+        "errorState": "Opaque original object to forward unchanged to finishRecordingOnce. Do not inspect it or replace it."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "finishRecordingOnce"
+      ],
+      "state_writes": [],
       "system_contract": "Start immediately with function makeRecordingStopCallback(stream,audioEnabled,errorState). Output only this complete plain JavaScript declaration. Its return value must be a function, not a helper call result. No globals, comments, imports, explanations or copied helpers.",
-      "behavior_checks": ["video_recording_stop_callback"],
-      "behavior_dependencies": ["finishRecordingOnce"]
+      "behavior_checks": [
+        "video_recording_stop_callback"
+      ],
+      "behavior_dependencies": [
+        "finishRecordingOnce"
+      ]
     },
     {
       "name": "Read original recording error message",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 170,
-      "functions": ["recordingErrorMessage"],
+      "functions": [
+        "recordingErrorMessage"
+      ],
       "task": "Write recordingErrorMessage(event) with ONE return statement. Read event.error.message safely using JavaScript optional chaining, then use logical OR to select the STRING \"Recording failed\" when the message is absent, null or empty. This is a pure getter: no assignments to any object and no mutation. Return actual nonempty message unchanged.",
-      "parameters": {"event": "Readonly event object; error may be absent. If present, error.message is the original string to return."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "event": "Readonly event object; error may be absent. If present, error.message is the original string to return."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Start with function recordingErrorMessage(event). Output only this complete plain function containing one return expression with optional chaining and a logical-or string fallback. No assignments, comments, globals, imports or extra functions.",
-      "behavior_checks": ["video_recording_error_message"]
+      "behavior_checks": [
+        "video_recording_error_message"
+      ]
     },
     {
       "name": "Settle recorder error by actual state",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 190,
-      "functions": ["settleRecordingError"],
+      "functions": [
+        "settleRecordingError"
+      ],
       "task": "Write settleRecordingError(recorder,stream,audioEnabled,errorState). If recorder.state is the string inactive, call existing finishRecordingOnce with three positional arguments stream,audioEnabled,errorState. Otherwise call recorder.stop() once and let its stop callback finish. Do not do both actions.",
-      "parameters": {"recorder": "Original MediaRecorder with state string recording, paused or inactive, and callable stop.", "errorState": "Opaque original object to forward unchanged to finishRecordingOnce."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["finishRecordingOnce"], "state_writes": [],
+      "parameters": {
+        "recorder": "Original MediaRecorder with state string recording, paused or inactive, and callable stop.",
+        "errorState": "Opaque original object to forward unchanged to finishRecordingOnce."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "finishRecordingOnce"
+      ],
+      "state_writes": [],
       "system_contract": "Start with function settleRecordingError(recorder,stream,audioEnabled,errorState). Output only this complete function. Use original parameters directly. No globals, comments, imports or copied helpers.",
-      "behavior_checks": ["video_settle_recording_error"],
-      "behavior_dependencies": ["finishRecordingOnce"]
+      "behavior_checks": [
+        "video_settle_recording_error"
+      ],
+      "behavior_dependencies": [
+        "finishRecordingOnce"
+      ]
     },
     {
       "name": "Create callback for actual recorder error",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 260,
-      "functions": ["makeRecordingErrorCallback"],
+      "functions": [
+        "makeRecordingErrorCallback"
+      ],
       "task": "Write makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState). Return a function receiving event. Inside that callback, assign the STRING returned by recordingErrorMessage(event) to errorState.message. Then call settleRecordingError(recorder,stream,audioEnabled,errorState) with four separate positional arguments. Existing helpers already read the input message and handle recorder state. Only compose them.",
-      "parameters": {"recorder": "Actual MediaRecorder; state is string recording, paused or inactive. stop is callable only when not inactive.", "errorState": "Original shared object whose message string must be updated before stopping."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["recordingErrorMessage", "settleRecordingError"], "state_writes": [],
+      "parameters": {
+        "recorder": "Actual MediaRecorder; state is string recording, paused or inactive. stop is callable only when not inactive.",
+        "errorState": "Original shared object whose message string must be updated before stopping."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "recordingErrorMessage",
+        "settleRecordingError"
+      ],
+      "state_writes": [],
       "system_contract": "Output only one complete function makeRecordingErrorCallback(recorder,stream,audioEnabled,errorState) returning a callback. Use original supplied arguments; no globals, comments, imports or other helpers.",
-      "behavior_checks": ["video_recording_error_callback"],
-      "behavior_dependencies": ["finishRecordingOnce", "recordingErrorMessage", "settleRecordingError"]
+      "behavior_checks": [
+        "video_recording_error_callback"
+      ],
+      "behavior_dependencies": [
+        "finishRecordingOnce",
+        "recordingErrorMessage",
+        "settleRecordingError"
+      ]
     },
     {
       "name": "Configure browser recorder callbacks",
@@ -3129,64 +3374,166 @@
       "behavior_checks": [
         "video_export_recorder"
       ],
-      "behavior_dependencies": ["makeRecordingChunkCallback", "finishRecordingOnce", "makeRecordingStopCallback", "recordingErrorMessage", "settleRecordingError", "makeRecordingErrorCallback"]
+      "behavior_dependencies": [
+        "makeRecordingChunkCallback",
+        "finishRecordingOnce",
+        "makeRecordingStopCallback",
+        "recordingErrorMessage",
+        "settleRecordingError",
+        "makeRecordingErrorCallback"
+      ]
     },
     {
       "name": "Check original recording end conditions",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 180,
-      "functions": ["recordingMustStop"],
+      "functions": [
+        "recordingMustStop"
+      ],
       "task": "Write recordingMustStop(time,end,ended,cancelled). Return Boolean true when cancelled or ended is true, or time is at least end minus 0.025 seconds. Otherwise return false. Use original supplied values without global state.",
-      "parameters": {"time": "Actual video currentTime number.", "end": "Selected trim end number.", "ended": "Video ended Boolean.", "cancelled": "User cancellation Boolean."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "time": "Actual video currentTime number.",
+        "end": "Selected trim end number.",
+        "ended": "Video ended Boolean.",
+        "cancelled": "User cancellation Boolean."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Start with function recordingMustStop(time,end,ended,cancelled). Output only this complete function returning a Boolean. No globals, comments, imports or other helpers.",
-      "behavior_checks": ["video_recording_end_test"]
+      "behavior_checks": [
+        "video_recording_end_test"
+      ]
     },
     {
       "name": "Calculate selected recording progress",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 180,
-      "functions": ["recordingProgress"],
+      "functions": [
+        "recordingProgress"
+      ],
       "task": "Write recordingProgress(time,start,end). Compute elapsed as time minus start and selected duration as end minus start. Divide elapsed by SELECTED DURATION, not by end, then multiply by 100. Round that percentage to an integer and clamp from 0 to 100. Return the number. end is greater than start. Use separate local numeric variables if helpful.",
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "First line must be a plain JavaScript function declaration beginning with the keyword function and name recordingProgress(time,start,end). Output only this complete function using supplied numeric arguments and native Math. No globals, comments, imports or extra helpers.",
-      "behavior_checks": ["video_recording_progress"]
+      "behavior_checks": [
+        "video_recording_progress"
+      ]
     },
     {
       "name": "Stop actual recording at selected boundary",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 180,
-      "functions": ["stopRecordingAtBoundary"],
+      "functions": [
+        "stopRecordingAtBoundary"
+      ],
       "task": "Write stopRecordingAtBoundary(recorder,video,end). If original video.currentTime is at least end minus 0.025, set video.currentTime to end. Otherwise preserve currentTime. Then call original recorder.stop() once. The caller only calls this helper for an active recorder.",
-      "parameters": {"recorder": "Original active MediaRecorder with callable stop.", "video": "Original video element with mutable numeric currentTime.", "end": "Selected trim end number."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": [], "state_writes": [],
+      "parameters": {
+        "recorder": "Original active MediaRecorder with callable stop.",
+        "video": "Original video element with mutable numeric currentTime.",
+        "end": "Selected trim end number."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "state_writes": [],
       "system_contract": "Start with function stopRecordingAtBoundary(recorder,video,end). Output only this complete function. Modify only the original video time when threshold reached. No globals, comments, imports or extra helpers.",
-      "behavior_checks": ["video_recording_stop_boundary"]
+      "behavior_checks": [
+        "video_recording_stop_boundary"
+      ]
     },
     {
       "name": "Paint actual frame and supplied progress label",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 180,
-      "functions": ["paintRecordingProgress"],
+      "functions": [
+        "paintRecordingProgress"
+      ],
       "task": "Write paintRecordingProgress(video,label,start,end). Perform these four steps in order: 1. Invoke the existing paintFrame function with no arguments to draw the video image. This call is required even though its return value is unused. 2. Compute percentage by calling recordingProgress with video.currentTime, start and end. 3. Set the supplied label.textContent to that percentage followed by a percent sign. 4. Return true. Do not change video.currentTime.",
       "context": "Two existing functions are available to call: paintFrame draws the video image onto the canvas; recordingProgress returns a numeric percentage. Neither needs a new implementation. This helper must perform both the drawing operation and the label update.",
-      "parameters": {"video": "Original video element with currentTime number.", "label": "Original label element whose textContent is mutable.", "start": "Selected start number.", "end": "Selected end number."},
-      "relevant_fields": {"app": [], "ui": []}, "relevant_functions": ["paintFrame", "recordingProgress"], "state_writes": [],
+      "parameters": {
+        "video": "Original video element with currentTime number.",
+        "label": "Original label element whose textContent is mutable.",
+        "start": "Selected start number.",
+        "end": "Selected end number."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "paintFrame",
+        "recordingProgress"
+      ],
+      "state_writes": [],
       "system_contract": "Output only the complete function paintRecordingProgress(video,label,start,end). Calling existing paintFrame and recordingProgress is permitted and required. Declare no additional functions or global variables.",
-      "behavior_checks": ["video_recording_paint_progress"],
-      "behavior_dependencies": ["recordingProgress"]
+      "behavior_checks": [
+        "video_recording_paint_progress"
+      ],
+      "behavior_dependencies": [
+        "recordingProgress"
+      ]
     },
     {
       "name": "Paint one original recording step",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
       "tokens": 330,
-      "functions": ["paintRecordingStep"],
+      "functions": [
+        "paintRecordingStep"
+      ],
       "task": "Write paintRecordingStep(). If app.recorder.state is not the STRING \"recording\", return false. Store Boolean from recordingMustStop(ui.preview.currentTime,app.end,ui.preview.ended,app.cancelled). If true, call stopRecordingAtBoundary(app.recorder,ui.preview,app.end) and return false. If false, call paintRecordingProgress(ui.preview,ui.progressLabel,app.start,app.end), then return true. Existing helpers perform stopping, painting and progress updates; only compose their calls using existing app/ui objects.",
-      "relevant_fields": {"app": ["recorder", "start", "end", "cancelled"], "ui": ["preview", "progressLabel"]},
-      "relevant_functions": ["recordingMustStop", "stopRecordingAtBoundary", "paintRecordingProgress"], "state_writes": [],
+      "relevant_fields": {
+        "app": [
+          "recorder",
+          "start",
+          "end",
+          "cancelled"
+        ],
+        "ui": [
+          "preview",
+          "progressLabel"
+        ]
+      },
+      "relevant_functions": [
+        "recordingMustStop",
+        "stopRecordingAtBoundary",
+        "paintRecordingProgress"
+      ],
+      "state_writes": [],
       "system_contract": "Start with function paintRecordingStep(). Output only this complete function. Use existing app/ui objects and standalone helpers directly; do not redeclare or replace them. No comments, imports or copied helpers.",
-      "behavior_checks": ["video_recording_step"],
-      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingProgress"]
+      "behavior_checks": [
+        "video_recording_step"
+      ],
+      "behavior_dependencies": [
+        "recordingMustStop",
+        "stopRecordingAtBoundary",
+        "recordingProgress",
+        "paintRecordingProgress"
+      ]
     },
     {
       "name": "Paint and monitor recording frames",
@@ -3200,7 +3547,9 @@
       ],
       "task": "Write watchExportFrames(). Create a local function named frame. Inside frame, call existing paintRecordingStep(). If its Boolean result is true, assign the number returned by native requestAnimationFrame(frame) to app.raf; if false, do nothing else. After defining frame, call frame() once immediately. The existing step handles painting, progress and stopping. app.raf is a numeric handle, not a function.",
       "relevant_fields": {
-        "app": ["raf"],
+        "app": [
+          "raf"
+        ],
         "ui": []
       },
       "relevant_functions": [
@@ -3213,42 +3562,111 @@
       "behavior_checks": [
         "video_export_frames"
       ],
-      "behavior_dependencies": ["recordingMustStop", "stopRecordingAtBoundary", "recordingProgress", "paintRecordingProgress", "paintRecordingStep"]
+      "behavior_dependencies": [
+        "recordingMustStop",
+        "stopRecordingAtBoundary",
+        "recordingProgress",
+        "paintRecordingProgress",
+        "paintRecordingStep"
+      ]
     },
     {
       "name": "Prepare original canvas recording stream",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
-      "tokens": 330, "functions": ["prepareRecordingStream"],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 330,
+      "functions": [
+        "prepareRecordingStream"
+      ],
       "task": "Write only async function prepareRecordingStream(), with no parameters. Perform these steps in order: (1) assign false to app.cancelled and an empty array to app.chunks; (2) call setBusy with true; (3) assign true to ui.downloadLink.hidden; (4) call prepareCanvas; (5) await seekExportStart; (6) call paintFrame; (7) return app.canvas.captureStream with argument 24. All four named standalone helpers already exist. Use them directly. Do not create any other helper, object, variable, or error handler.",
-      "relevant_fields": {"app":["cancelled","chunks","canvas"],"ui":["downloadLink"]},
-      "relevant_functions": ["setBusy","prepareCanvas","seekExportStart","paintFrame"],
-      "state_writes": ["cancelled","chunks"],
+      "relevant_fields": {
+        "app": [
+          "cancelled",
+          "chunks",
+          "canvas"
+        ],
+        "ui": [
+          "downloadLink"
+        ]
+      },
+      "relevant_functions": [
+        "setBusy",
+        "prepareCanvas",
+        "seekExportStart",
+        "paintFrame"
+      ],
+      "state_writes": [
+        "cancelled",
+        "chunks"
+      ],
       "system_contract": "Output one complete async function prepareRecordingStream. No comments or additional declarations.",
-      "behavior_checks": ["video_export_prepare"]
+      "behavior_checks": [
+        "video_export_prepare"
+      ]
     },
     {
       "name": "Start actual recorder before video playback",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
-      "tokens": 300, "functions": ["startRecordingStream"],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 300,
+      "functions": [
+        "startRecordingStream"
+      ],
       "task": "Write only async function startRecordingStream(stream,mime). Five ordered steps: (1) store the result of awaiting attachExportAudio(stream) in a local variable; (2) call createExportRecorder with stream, mime and that SAME local variable, storing the returned recorder; (3) call its start method; (4) await ui.preview.play(); (5) call watchExportFrames(). The audio result can be true OR false; both are valid. Do not branch or throw based on it. No return statement, extra helper, imports, comments or error handler. Errors from the existing functions propagate naturally.",
-      "parameters": {"stream":"Original captured MediaStream.","mime":"Selected MIME string."},
-      "relevant_fields": {"app":[],"ui":["preview"]},
-      "relevant_functions": ["attachExportAudio","createExportRecorder","watchExportFrames"],
+      "parameters": {
+        "stream": "Original captured MediaStream.",
+        "mime": "Selected MIME string."
+      },
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "attachExportAudio",
+        "createExportRecorder",
+        "watchExportFrames"
+      ],
       "state_writes": [],
       "system_contract": "Output one complete async function startRecordingStream(stream,mime). Reuse existing helpers; do not redefine them.",
-      "behavior_checks": ["video_export_start"]
+      "behavior_checks": [
+        "video_export_start"
+      ]
     },
     {
       "name": "Finalize export failure without duplicate callbacks",
-      "file": "app.js", "kind": "js", "raw_source": true, "include_html": false,
-      "tokens": 260, "functions": ["failRecordingStream"],
+      "file": "app.js",
+      "kind": "js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 260,
+      "functions": [
+        "failRecordingStream"
+      ],
       "task": "Write only function failRecordingStream(stream,error). Two steps in order. First: if app.recorder exists AND its state property differs from the string \"inactive\", assign null to app.recorder.onstop, then call app.recorder.stop(). Second: OUTSIDE that conditional, always call the standalone finishExport(stream,false,error.message). There are no early returns. Do not replace app.recorder. Do not add comments or other helpers. A null recorder must still reach the second step.",
-      "parameters": {"stream":"Original captured stream, possibly null.","error":"Original Error object with message string."},
-      "relevant_fields": {"app":["recorder"],"ui":[]},
-      "relevant_functions": ["finishExport"],
+      "parameters": {
+        "stream": "Original captured stream, possibly null.",
+        "error": "Original Error object with message string."
+      },
+      "relevant_fields": {
+        "app": [
+          "recorder"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "finishExport"
+      ],
       "state_writes": [],
       "system_contract": "Output one complete function failRecordingStream(stream,error). Preserve the app.recorder reference; only its onstop property may change.",
-      "behavior_checks": ["video_export_abort"]
+      "behavior_checks": [
+        "video_export_abort"
+      ]
     },
     {
       "name": "Orchestrate actual WebM export",
@@ -3288,27 +3706,537 @@
       "context": "Browser JavaScript. Existing globals app and ui are already declared. prepareRecordingStream() returns a Promise of the captured MediaStream. startRecordingStream(stream,mime) starts recording and returns before recording finishes. failRecordingStream(stream,error) cleans up a failed start. Keep the captured stream accessible to catch."
     },
     {
-      "name": "Menghubungkan kontrol",
-      "invoke_once": true,
-      "file": "app.js",
+      "name": "Kontrol editor: onVideoSelected",
       "kind": "js",
-      "tokens": 1900,
-      "functions": [
-        "initEditor"
-      ],
-      "task": "Define complete initEditor() then call it once. Add actual event handlers: fileInput.change calls loadVideo(first file), playBtn.click togglePlay, seekInput.input seekVideo(value), start/endInput.change validateTrim, titleInput.input updateText, exportBtn.click exportVideo, cancelBtn.click sets cancelled true. preview.timeupdate updates seekInput/playBtn and updateTimeline; when !busy and playing reaches app.end pause and show Play; preview.pause/ended updates label. timeline.click calculates seek seconds from clicked .track-lane bounding rectangle only (clamp0..duration) and calls seekVideo. Keyboard Space toggles playback unless target INPUT/TEXTAREA/contentEditable, preventDefault; Escape cancels busy. Set initial setBusy(false), updateText and status Import a video to start. Add beforeunload revoking app URLs if present and cancelling RAF. Do not redefine any helper/state/functions. All DOM controls must really call defined earlier functions.",
-      "required_patterns": [
-        "\\}\\s*initEditor\\(\\s*\\)\\s*;?\\s*$"
-      ],
+      "file": "app.js",
       "raw_source": true,
       "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onVideoSelected"
+      ],
+      "task": "Define only function onVideoSelected(). Read ui.fileInput.files[0]. If present, pass that original File object to existing loadVideo(file). Do nothing when no file. ui.fileInput and loadVideo exist.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "fileInput",
+          "fileInput"
+        ]
+      },
+      "relevant_functions": [
+        "loadVideo"
+      ],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_onVideoSelected"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: onSeekInput",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onSeekInput"
+      ],
+      "task": "Define only function onSeekInput(). Call existing seekVideo(value) with Number(ui.seekInput.value). ui and seekVideo already exist. Do not modify any UI fields.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "seekInput"
+        ]
+      },
+      "relevant_functions": [
+        "seekVideo"
+      ],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_onSeekInput"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: cancelExport",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "cancelExport"
+      ],
+      "task": "Define only function cancelExport(). Set existing app.cancelled to true. Do not change other app fields or call any function.",
+      "relevant_fields": {
+        "app": [
+          "cancelled"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_cancelExport"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: onPreviewPaused",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onPreviewPaused"
+      ],
+      "task": "Define only function onPreviewPaused(). Set ui.playBtn.textContent to Play. Do not change any other UI or app state. Do not call video.play or video.pause.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_onPreviewPaused"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: copyPreviewTime",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "copyPreviewTime"
+      ],
+      "task": "Define only function copyPreviewTime(input, video). Both parameters are existing plain objects. Set input.value to video.currentTime. Do not change video, query the DOM, or create any ui/app object. No return value is needed.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "seekInput",
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "updateTimeline"
+      ],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_copyPreviewTime"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "input, video",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: syncPreviewLabel",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "syncPreviewLabel"
+      ],
+      "task": "Define only function syncPreviewLabel(). The existing ui object contains preview and playBtn. Set ui.playBtn.textContent to Play if ui.preview.paused is true, otherwise Pause. No video.play/pause calls. Do not declare or reassign ui.",
+      "relevant_fields": {
+        "app": [
+          "busy",
+          "end"
+        ],
+        "ui": [
+          "preview",
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_syncPreviewLabel"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: pauseAtTrimEnd",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "pauseAtTrimEnd"
+      ],
+      "task": "Define only function pauseAtTrimEnd(). Existing app has busy:boolean and end:number. Existing ui.preview is a video. Only call ui.preview.pause() when app.busy is false AND ui.preview.paused is false AND ui.preview.currentTime >= app.end. Otherwise do nothing. Do not change app or call play().",
+      "relevant_fields": {
+        "app": [
+          "busy",
+          "end"
+        ],
+        "ui": [
+          "preview",
+          "playBtn"
+        ]
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_pauseAtTrimEnd"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: onPreviewTime",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onPreviewTime"
+      ],
+      "task": "Define only function onPreviewTime(). Existing global ui has seekInput and preview. Invoke existing copyPreviewTime(input, video) with those two objects, then pauseAtTrimEnd(), syncPreviewLabel(), and updateTimeline(). Only call these functions; do not redefine any helper or ui.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "seekInput",
+          "preview"
+        ]
+      },
+      "relevant_functions": [
+        "copyPreviewTime",
+        "pauseAtTrimEnd",
+        "syncPreviewLabel",
+        "updateTimeline"
+      ],
+      "behavior_dependencies": [
+        "copyPreviewTime",
+        "pauseAtTrimEnd",
+        "syncPreviewLabel"
+      ],
+      "behavior_checks": [
+        "video_controls_onPreviewTime"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: cleanupSourceUrl",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "cleanupSourceUrl"
+      ],
+      "task": "Define only function cleanupSourceUrl(state). If state.objectURL is nonempty, call URL.revokeObjectURL with that original URL. Ignore empty or absent URLs. Do not change state.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_cleanupSourceUrl"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "state",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: cleanupDownloadUrl",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "cleanupDownloadUrl"
+      ],
+      "task": "Define only function cleanupDownloadUrl(state). If state.downloadURL is nonempty, call URL.revokeObjectURL with that original URL. Ignore empty or absent URLs. Do not change state.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_cleanupDownloadUrl"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "state",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: cleanupEditor",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "cleanupEditor"
+      ],
+      "task": "Define only function cleanupEditor(state). The parameter state is the existing application object. Invoke existing cleanupSourceUrl with state, cleanupDownloadUrl with state, and cancelExportFrame with state.raf. These helpers already exist, shown below; call them without redefining them. Do not query the DOM or invent field names.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "cleanupSourceUrl",
+        "cleanupDownloadUrl",
+        "cancelExportFrame"
+      ],
+      "behavior_dependencies": [
+        "cleanupSourceUrl",
+        "cleanupDownloadUrl",
+        "cancelExportFrame"
+      ],
+      "behavior_checks": [
+        "video_controls_cleanupEditor"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "state",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: isEditableTarget",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "isEditableTarget"
+      ],
+      "task": "Define only function isEditableTarget(target). Return a BOOLEAN. Return true if target exists and its tagName is INPUT or TEXTAREA, or its isContentEditable property is true. Return false for null, undefined, or other targets. Only inspect the argument; no DOM queries.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_isEditableTarget"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "target",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: timelineFraction",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "timelineFraction"
+      ],
+      "task": "Define only function timelineFraction(clientX, left, width). Arguments are numbers. If width is zero or negative return null. Otherwise return the click distance from left divided by width, clamped between zero and one. Do not query DOM or introduce state.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_timelineFraction"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "clientX, left, width",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: isSpaceEvent",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": [
+        "isSpaceEvent"
+      ],
+      "task": "Define only function isSpaceEvent(event). Return Boolean true when event.key is a single space OR event.code is Space. Otherwise return Boolean false. Only inspect the argument.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_isSpaceEvent"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "event": "The original KeyboardEvent; inspect it directly, without registering listeners."
+      }
+    },
+    {
+      "name": "Kontrol editor: cancelFromKey",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": [
+        "cancelFromKey"
+      ],
+      "task": "Define only function cancelFromKey(event). Only when event.key is Escape AND existing app.busy is true, call existing cancelExport(). Otherwise do nothing. Never invoke playback.",
+      "relevant_fields": {
+        "app": [
+          "busy"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "cancelExport"
+      ],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_cancelFromKey"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "event": "The original KeyboardEvent; inspect it directly, without registering listeners."
+      }
+    },
+    {
+      "name": "Kontrol editor: playFromKey",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": [
+        "playFromKey"
+      ],
+      "task": "Define only function playFromKey(event). Return immediately if existing isSpaceEvent(event) is false. Then return immediately if existing isEditableTarget(event.target) is true. Otherwise call event.preventDefault() once and existing togglePlay() once. No cancellation or new state.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "isSpaceEvent",
+        "isEditableTarget",
+        "togglePlay"
+      ],
+      "behavior_dependencies": [
+        "isSpaceEvent",
+        "isEditableTarget"
+      ],
+      "behavior_checks": [
+        "video_controls_playFromKey"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "event": "The original KeyboardEvent; inspect it directly, without registering listeners."
+      }
+    },
+    {
+      "name": "Kontrol editor: onEditorKey",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onEditorKey"
+      ],
+      "task": "Define only function onEditorKey(event). Call existing cancelFromKey(event), then existing playFromKey(event). Both helpers already handle their own guards. Only these two calls, no branching, state changes or helper definitions.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "cancelFromKey",
+        "playFromKey"
+      ],
+      "behavior_dependencies": [
+        "cancelExport",
+        "isSpaceEvent",
+        "isEditableTarget",
+        "cancelFromKey",
+        "playFromKey"
+      ],
+      "behavior_checks": [
+        "video_controls_onEditorKey"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "event",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: onTimelineClick",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "onTimelineClick"
+      ],
+      "task": "Define only function onTimelineClick(event). Existing app has loaded, busy, duration. Return if not loaded or busy. Find event.target.closest(.track-lane); return if absent. Read THAT lane bounding rectangle. Call existing timelineFraction with event.clientX, rect.left, rect.width. If result is not null, call existing seekVideo with fraction times app.duration. No new helpers or globals.",
       "relevant_fields": {
         "app": [
           "loaded",
           "busy",
-          "duration",
-          "end",
           "cancelled",
+          "duration"
+        ],
+        "ui": []
+      },
+      "relevant_functions": [
+        "timelineFraction",
+        "seekVideo",
+        "togglePlay"
+      ],
+      "behavior_dependencies": [
+        "timelineFraction",
+        "seekVideo"
+      ],
+      "behavior_checks": [
+        "video_controls_onTimelineClick"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "parameters": {
+        "arguments": "event",
+        "contract": "Use the supplied arguments; do not invent or query a replacement object."
+      }
+    },
+    {
+      "name": "Kontrol editor: bindImportControls",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "bindImportControls"
+      ],
+      "task": "Define only function bindImportControls(). Existing ui.fileInput, ui.playBtn, ui.seekInput are DOM controls. Attach fileInput change to existing onVideoSelected, playBtn click to existing togglePlay, seekInput input to existing onSeekInput. Bind callbacks, never invoke actions during setup. No globals or replacement helpers.",
+      "relevant_fields": {
+        "app": [
           "objectURL",
           "downloadURL",
           "raf"
@@ -3327,17 +4255,222 @@
         ]
       },
       "relevant_functions": [
-        "loadVideo",
-        "togglePlay",
-        "seekVideo",
+        "onVideoSelected",
+        "onSeekInput"
+      ],
+      "behavior_dependencies": [
+        "onVideoSelected",
+        "onSeekInput"
+      ],
+      "behavior_checks": [
+        "video_controls_bindImportControls"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: bindTrimControls",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "bindTrimControls"
+      ],
+      "task": "Define only function bindTrimControls(). Register editing listeners on existing ui.startInput and ui.endInput so input or change calls existing validateTrim. Existing ui.titleInput input must call existing updateText. Bind callbacks only. Do not invoke actions during binding or redefine any helpers.",
+      "relevant_fields": {
+        "app": [
+          "objectURL",
+          "downloadURL",
+          "raf"
+        ],
+        "ui": [
+          "fileInput",
+          "playBtn",
+          "seekInput",
+          "startInput",
+          "endInput",
+          "titleInput",
+          "exportBtn",
+          "cancelBtn",
+          "preview",
+          "timeline"
+        ]
+      },
+      "relevant_functions": [
         "validateTrim",
-        "updateText",
+        "updateText"
+      ],
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_bindTrimControls"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: bindExportControls",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "bindExportControls"
+      ],
+      "task": "Define only function bindExportControls(). Existing ui.exportBtn click must call existing exportVideo(). Existing ui.cancelBtn click must call existing cancelExport(). Register callbacks only. Do not define any helpers or alter app.",
+      "relevant_fields": {
+        "app": [
+          "objectURL",
+          "downloadURL",
+          "raf"
+        ],
+        "ui": [
+          "fileInput",
+          "playBtn",
+          "seekInput",
+          "startInput",
+          "endInput",
+          "titleInput",
+          "exportBtn",
+          "cancelBtn",
+          "preview",
+          "timeline"
+        ]
+      },
+      "relevant_functions": [
+        "cancelExport",
         "exportVideo",
-        "updateTimeline",
+        "cancelExport"
+      ],
+      "behavior_dependencies": [
+        "cancelExport"
+      ],
+      "behavior_checks": [
+        "video_controls_bindExportControls"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: bindPreviewControls",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "bindPreviewControls"
+      ],
+      "task": "Define only function bindPreviewControls(). Existing ui.preview video timeupdate must call existing onPreviewTime(). Its pause and ended events must call existing onPreviewPaused(). Only bind callbacks; no state initialization, helper definitions, play or pause calls.",
+      "relevant_fields": {
+        "app": [
+          "objectURL",
+          "downloadURL",
+          "raf"
+        ],
+        "ui": [
+          "fileInput",
+          "playBtn",
+          "seekInput",
+          "startInput",
+          "endInput",
+          "titleInput",
+          "exportBtn",
+          "cancelBtn",
+          "preview",
+          "timeline"
+        ]
+      },
+      "relevant_functions": [
+        "onPreviewTime",
+        "onPreviewPaused",
+        "onPreviewTime",
+        "onPreviewPaused"
+      ],
+      "behavior_dependencies": [
+        "copyPreviewTime",
+        "pauseAtTrimEnd",
+        "syncPreviewLabel",
+        "onPreviewTime",
+        "onPreviewPaused"
+      ],
+      "behavior_checks": [
+        "video_controls_bindPreviewControls"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
+    },
+    {
+      "name": "Kontrol editor: bindEditorControls",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 450,
+      "functions": [
+        "bindEditorControls"
+      ],
+      "task": "Define only function bindEditorControls(). Make exactly three listener registrations: click on existing ui.timeline calls existing onTimelineClick with the original event; keydown on document calls existing onEditorKey with the original event; beforeunload on window calls existing cleanupEditor with existing app as its argument. Register callbacks; do not call cleanup now. No other UI controls, events, state writes or helper declarations.",
+      "relevant_fields": {
+        "app": [],
+        "ui": [
+          "timeline"
+        ]
+      },
+      "relevant_functions": [
+        "onTimelineClick",
+        "onEditorKey",
+        "cleanupEditor"
+      ],
+      "behavior_dependencies": [
+        "timelineFraction",
+        "seekVideo",
+        "onTimelineClick",
+        "isEditableTarget",
+        "onEditorKey",
+        "cleanupSourceUrl",
+        "cleanupDownloadUrl",
+        "cancelExportFrame",
+        "cleanupEditor"
+      ],
+      "behavior_checks": [
+        "video_controls_bindEditorControls"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "state_writes": []
+    },
+    {
+      "name": "Kontrol editor: initEditor",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 650,
+      "functions": [
+        "initEditor"
+      ],
+      "task": "Define only function initEditor(). Call these existing functions in order: bindImportControls, bindTrimControls, bindExportControls, bindPreviewControls, bindEditorControls. Then call setBusy(false), updateText(), and setStatus with Import a video to start. After the declaration invoke initEditor exactly once. No other operations.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "bindImportControls",
+        "bindTrimControls",
+        "bindExportControls",
+        "bindPreviewControls",
+        "bindEditorControls",
         "setBusy",
+        "updateText",
         "setStatus"
       ],
-      "system_contract": "Write only function initEditor() and then its single invocation initEditor();. This is browser DOM code, not Electron or Node. All app/ui objects and named helper functions already exist in this script. No imports, require, modules, classes or replacement helpers."
+      "behavior_dependencies": [],
+      "behavior_checks": [
+        "video_controls_initEditor"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "invoke_once": true,
+      "required_patterns": [
+        "\\}\\s*initEditor\\(\\s*\\)\\s*;?\\s*$"
+      ]
     },
     {
       "name": "Panduan hasil",

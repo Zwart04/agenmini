@@ -169,7 +169,10 @@ async def generate(brief, ctx, on_event=None):
     local=llm.active_backend()=='local'
     from . import project_parts
     from . import db
-    if db.setting('coding_parts_experimental')=='1' and project_parts.supports(brief):
+    # Keep the existing explicit opt-out, including on older installations.
+    # The checked single-clip path is shared by Web/Telegram and all backends.
+    if db.setting('coding_parts_experimental')!='0' and project_parts.supports(brief):
+        if on_event:await on_event('status','Membuat editor satu klip: impor, trim, teks, timeline dan ekspor WebM.')
         return await project_parts.generate(brief,ctx,on_event)
     required_types=typed_controls(brief);required_ids=requested_controls(brief)|set(required_types)
     if local:

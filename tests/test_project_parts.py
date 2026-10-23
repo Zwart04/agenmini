@@ -1166,11 +1166,12 @@ async def test_helper_behavior_bounds_execution_and_disallows_dynamic_code():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('backend',['local','online','router'])
-async def test_same_source_generation_path_for_all_backends(monkeypatch,backend):
+@pytest.mark.parametrize('setting',['','1'])
+async def test_same_source_generation_path_for_all_backends(monkeypatch,backend,setting):
     sentinel=object()
     monkeypatch.setattr(llm,'active_backend',lambda:backend)
     original=db.setting
-    monkeypatch.setattr(db,'setting',lambda key,*a,**kw:'1' if key=='coding_parts_experimental' else original(key,*a,**kw))
+    monkeypatch.setattr(db,'setting',lambda key,*a,**kw:setting if key=='coding_parts_experimental' else original(key,*a,**kw))
     async def generate(brief,ctx,on_event=None):
         assert brief=='Build video editor with export'
         return sentinel
@@ -2192,7 +2193,7 @@ async def test_export_caption_style_scales_font_and_configures_without_painting(
     assert await project_checks.inspect_helper(style+frame.replace('configureCaptionStyle(ctx,canvas.width);',''),'video_canvas_frame')
 
 
-def test_validated_helper_context_is_opt_in_scoped_and_never_truncates_source():
+def test_validated_helper_context_is_scoped_and_never_truncates_source():
     sources={'small':'function small(){return 17;}', 'large':'function large(){'+(' ' * 100)+'return 2;}', 'unrelated':'secret unrelated source'}
     item={'relevant_functions':['small','large'], 'include_helper_sources':['unrelated','missing','large','small','small']}
     context=project_parts.validated_helper_context(item,sources,max_chars=60)
@@ -2200,6 +2201,14 @@ def test_validated_helper_context_is_opt_in_scoped_and_never_truncates_source():
     assert sources['large'] not in context and 'function large' not in context
     assert sources['unrelated'] not in context
     assert project_parts.validated_helper_context({'relevant_functions':['small']},sources)==''
+
+
+def test_behavior_dependencies_supply_validated_source_with_explicit_opt_out():
+    sources={'load':'function load(file){return file.type;}', 'unrelated':'private unrelated source'}
+    item={'relevant_functions':['load'], 'behavior_dependencies':['load','unrelated','missing','load']}
+    context=project_parts.validated_helper_context(item,sources)
+    assert context.count(sources['load'])==1 and 'private unrelated source' not in context
+    assert project_parts.validated_helper_context({**item,'include_helper_sources':[]},sources)==''
 
 
 def test_property_diagnostics_follow_computed_value_inputs_without_evaluating_source():
@@ -2380,7 +2389,7 @@ async def test_model_repair_targets_property_inputs_and_does_not_supply_replacem
 async def test_generation_passes_only_prior_validated_model_helpers_to_caller(monkeypatch,tmp_path,backend):
     recipes=tmp_path/'project_recipes';recipes.mkdir()
     parts=[{'name':'Predicate','file':'app.js','kind':'js','task':'Check video MIME','functions':['isVideoFile'],'raw_source':True,'include_html':False,'behavior_checks':['video_file']},
-           {'name':'Caller','file':'app.js','kind':'js','task':'Call predicate','functions':['acceptVideo'],'raw_source':True,'include_html':False,'relevant_functions':['isVideoFile'],'include_helper_sources':['isVideoFile']}]
+           {'name':'Caller','file':'app.js','kind':'js','task':'Call predicate','functions':['acceptVideo'],'raw_source':True,'include_html':False,'relevant_functions':['isVideoFile'],'behavior_dependencies':['isVideoFile']}]
     (recipes/'video_editor.json').write_text(json.dumps({'architecture':'','parts':parts,'panels':[],'required_ids':[]}))
     monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
     monkeypatch.setattr(llm,'active_backend',lambda:backend)

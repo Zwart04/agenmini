@@ -1,6 +1,47 @@
 # Uji aplikasi dengan model lokal kecil
 
-Status terakhir, 20 Oktober 2026: **editor video belum siap dipakai**.
+## 23 Oktober 2026 — editor gabungan kelas 1B berjalan di browser
+
+Kandidat V208 berhasil menjalankan impor MP4, play/pause, scrub, klik timeline,
+trim, teks overlay, ekspor WebM, dan unduh berkas. Uji browser nyata juga
+memeriksa trim tidak valid, Space saat mengisi teks, Escape/tombol batal,
+serta ekspor ulang setelah dua pembatalan. Tidak ada galat JavaScript.
+Lebar dokumen sama dengan viewport pada 1440 dan 390 piksel.
+
+![Editor hasil model kelas 1B, setelah impor dan trim](screenshots/model-editor-v208.png)
+
+Video sumber berdurasi 5 detik, dipotong dari detik 1 sampai 3. Dua berkas
+ekspor diperiksa dengan FFprobe dan didekode dengan FFmpeg:
+
+| Pemeriksaan | Dengan teks | Tanpa teks |
+| --- | --- | --- |
+| Durasi | 1,956 detik | 1,965 detik |
+| Ukuran frame / codec | 320 × 180 / VP9 | 320 × 180 / VP9 |
+| Audio RMS, skala 0–1 | 0,1246 | 0,1246 |
+| Ukuran berkas | 243.901 byte | 247.872 byte |
+
+Frame pada tiga waktu berbeda memperlihatkan gerakan sumber. Teks masuk
+ke frame hasil ekspor: area judul memiliki 296–301 piksel putih, dibanding
+0 pada ekspor tanpa judul. Hasil ini melampaui pemeriksaan sintaks/helper.
+
+**Asal kode:** 145 bagian Qwen3.5 0.8B Q8_0, ditambah pengatur ekspor dan
+kontrol dari DeepSeek Coder 1.3B Q5_K_M. Semua implementasi runtime berasal
+dari keluaran model lokal; evaluator membuat kontrak, tes, perakitan dan
+dokumentasi. Perbaikan bagian tertentu ditulis atau dipilih model dan asalnya
+dicatat. Ini hasil gabungan beberapa percobaan kelas 1B, **bukan bukti satu
+model 1B menulis aplikasi lengkap dalam satu percobaan baru**, serta bukan
+hasil pelatihan bobot atau bukti kemampuan setara model frontier.
+
+Editor ini mendukung satu klip, trim, teks dan ekspor realtime; belum
+memiliki susunan banyak klip, efek, caption otomatis atau seluruh fitur CapCut.
+Bukti privat: `.local-tools/hasil-uji-web/video-mixed1b-v208/`, termasuk
+`generation.json`, `browser-results.json`, `edge-results.json`,
+`media-results.json`, screenshot dan dua video hasil unduhan. Bobot, data
+aplikasi serta log privat tidak dimasukkan ke repo atau installer.
+
+## Catatan 20 Oktober 2026
+
+Pada putaran ini editor video belum siap dipakai.
 Uji Qwen3.5 0.8B Q8_0 V171 mempertahankan 145 fragmen sumber model, termasuk
 impor, playback, trim, timeline, canvas, seek dan pemasangan track audio.
 Fallback audio dan pembersihan setelah ekspor lolos pemeriksaan perilaku

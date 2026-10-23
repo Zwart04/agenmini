@@ -217,7 +217,7 @@ def select_repeated_function(source,item):
 def select_model_helper(source,item):
     """Parse without executing model code; select an exact tested helper span."""
     names=item.get('functions',[])
-    if item.get('kind')!='js' or len(names)!=1 or not item.get('behavior_checks'):
+    if item.get('kind')!='js' or len(names)!=1 or not item.get('behavior_checks') or item.get('invoke_once'):
         return select_repeated_function(source,item)
     if len(source.encode())>65536:return source
     try:
@@ -556,12 +556,13 @@ def validated_helper_context(item, helper_sources, max_chars=2400):
     """Show selected complete model-authored dependencies, never test fixtures.
 
     Large helpers are omitted whole, rather than truncating their bodies into
-    misleading examples. This is opt-in for callers needing implementation
-    context; signatures remain available for omitted dependencies.
+    misleading examples. Behavioral dependencies provide implementation context
+    by default; an explicit include_helper_sources list overrides that selection.
+    Signatures remain available for omitted dependencies.
     """
     allowed=set(item.get('relevant_functions',[]))
     sources=[];used=0
-    for name in item.get('include_helper_sources',[]):
+    for name in item.get('include_helper_sources',item.get('behavior_dependencies',[])):
         source=helper_sources.get(name) if name in allowed else None
         if not source or source in sources or used+len(source)>max_chars:continue
         sources.append(source);used+=len(source)
