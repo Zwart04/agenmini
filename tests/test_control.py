@@ -104,6 +104,8 @@ async def test_consultation_removes_sensitive_tools_and_prevents_cycle(monkeypat
 
 @pytest.mark.asyncio
 async def test_update_controls_write_flags_not_shell(monkeypatch,tmp_path):
+    from app import update_control
+    monkeypatch.setattr(update_control,'managed',lambda:True)
     monkeypatch.setattr(config,'DATA_DIR',tmp_path)
     c=await client()
     headers={'Cookie':'agen_sesi='+pages.make_token()}

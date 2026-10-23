@@ -533,25 +533,14 @@ async def create_office_task(request):
 
 @routes.get('/api/update')
 async def update_state(request):
-    path = config.DATA_DIR / 'update-status.json'
-    status = json.loads(path.read_text()) if path.exists() else {}
-    runtime_path = config.DATA_DIR / 'runtime-status.json'
-    runtime = json.loads(runtime_path.read_text()) if runtime_path.exists() else {}
-    return web.json_response({'runtime_message': runtime.get('message', ''), 'version': VERSION, 'auto': (config.DATA_DIR / 'auto-update.enabled').exists(),
-                             'repository': 'https://github.com/Zwart04/agenmini', **status})
+    from . import update_control
+    return web.json_response(update_control.state())
 
 
 @routes.post('/api/update')
 async def update_action(request):
-    data = await request.json()
-    marker = config.DATA_DIR / 'auto-update.enabled'
-    if 'auto' in data:
-        marker.write_text('1') if data['auto'] else marker.unlink(missing_ok=True)
-    if data.get('check'):
-        (config.DATA_DIR / 'update-request').write_text('check')
-    if data.get('install'):
-        (config.DATA_DIR / 'update-request').write_text('install')
-    return web.json_response({'ok': True})
+    from . import update_control
+    return web.json_response(update_control.request(await request.json()))
 
 
 @routes.post('/api/mode')

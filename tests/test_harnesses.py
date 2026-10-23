@@ -70,6 +70,17 @@ async def test_runtime_requires_explicit_permission_and_does_not_expand_delegati
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('hid',[row['id'] for row in harnesses.CATALOG if row.get('kind')])
+async def test_each_external_runtime_denies_execution_without_owner_full_access(isolated,monkeypatch,hid):
+    monkeypatch.setattr(harnesses,'status',lambda _: {'phase':'installed'})
+    db.set_setting('full_access','0')
+    async def forbidden(*args,**kwargs):pytest.fail('External process started without owner permission')
+    monkeypatch.setattr(harnesses,'process',forbidden)
+    with pytest.raises(ValueError,match='akses penuh'):
+        await harnesses.run(hid,'Do work',forbidden)
+
+
+@pytest.mark.asyncio
 async def test_only_selected_runtime_is_queued_and_can_be_cancelled(isolated,monkeypatch):
     called=[]
     async def fake_install(hid):called.append(hid);await asyncio.sleep(20)

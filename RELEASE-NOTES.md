@@ -1,3 +1,27 @@
+# Agen Mini 0.10.2
+
+Update web/CLI kini menampilkan status antrean dan proses supervisor. Pembaruan
+serta pergantian runtime menunggu pekerjaan/pemasangan harness eksternal selesai.
+Permintaan update divalidasi, dipublikasikan utuh, dan tidak menimpa antrean aktif.
+Windows atau instalasi manual menyediakan tombol menuju installer resmi.
+
+Auto-compact menjaga catatan kerja dan riwayat asli. Pemeriksaan kode menerima
+patch beberapa baris untuk memperbaiki exception, dengan validasi dan rollback.
+Tes yang sama dapat dijalankan lagi setelah perubahan berkas yang berhasil.
+Web dan Telegram tetap memakai inti agen bersama.
+
+Tautan dukungan pemilik tersedia di README, sidebar web, halaman Update, serta
+`agen dukung` / `python -m app.cli dukung`. Tidak menambah layanan atau dependensi.
+
+Pengujian UI memakai data terpisah pada desktop/mobile dan kedua tema.
+Pemeriksaan keamanan mencakup autentikasi/origin, izin runtime, isolasi kredensial,
+antrean update dan pemindaian rahasia. Tidak mengakses VPS atau akun provider.
+Runtime eksternal dengan akses penuh tetap memiliki alat/izin sendiri.
+
+Benchmark video editor kelas 1B belum dinyatakan selesai: lolos tes fungsi ekspor
+belum membuktikan aplikasi lengkap bekerja di browser. Tidak ada klaim model
+kecil setara model besar atau training bobot baru.
+
 # Agen Mini 0.10.1
 
 - Maskot gelap otomatis di tema terang; satu PNG transparan.

@@ -50,3 +50,9 @@ Hapus program, simpan data: agen uninstall --yes
 Hapus seluruh data/model/kredensial: agen uninstall --all --yes
 Perintah terakhir permanen; backup dahulu. Docker dan aplikasi lain tetap ada.
 Panduan lengkap: README.md dan UNINSTALL.md pada Zwart04/agenmini.
+
+UPDATE DAN DUKUNGAN
+Web: Pengaturan > Update > Cek versi / Update sekarang.
+CLI: agen update check | agen update | agen update status
+Selesaikan tugas aktif sebelum update pertama dari versi lama.
+Dukungan sukarela: agen dukung atau https://tako.id/Zwart04/gift

@@ -183,3 +183,9 @@ pre.steps{background:none;padding:0;margin:8px 0 0;font:13px/1.6 inherit;white-s
   .page{padding-top:24px}
   .twocol{grid-template-columns:1fr}
 }
+
+.support-link{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);font-size:12px;text-decoration:none}
+.support-link:hover{color:var(--text);text-decoration:underline}
+.support-note{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.support-note h3{margin:0;font-size:16px;font-weight:500}
+#updateStatus .runtime-spinner{vertical-align:middle;margin-right:6px}

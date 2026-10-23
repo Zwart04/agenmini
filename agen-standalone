@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${1:-}" == dukung || "${1:-}" == support ]]; then
+  echo 'Dukung pengembangan Agen Mini: https://tako.id/Zwart04/gift'
+  exit 0
+fi
 if [[ "${1:-}" == uninstall || "${1:-}" == hapus ]]; then
   shift; exec bash /opt/agenmini/agen-uninstall.sh "$@"
 fi
@@ -15,7 +19,13 @@ case "${1:-bantuan}" in
   lokal-log) shift; compose logs --tail 80 local "$@" ;;
   free-log) shift; compose logs --tail 80 freellmapi "$@" ;;
   supervisor-log) journalctl -u agenmini-supervisor.service --no-pager -n 80 ;;
-  update) echo install > data/update-request; bash /opt/agenmini/agen-supervisor.sh ;;
+  update)
+    case "${2:-install}" in
+      check|cek) compose exec -T agen python -m app.cli update check; bash /opt/agenmini/agen-supervisor.sh ;;
+      status) compose exec -T agen python -m app.cli update status ;;
+      install) compose exec -T agen python -m app.cli update install; bash /opt/agenmini/agen-supervisor.sh ;;
+      *) echo 'Gunakan: agen update [check|status]'; exit 2 ;;
+    esac ;;
   router-log) compose logs -f --tail 100 router ;;
   start)
     rm -f data/maintenance
@@ -29,5 +39,6 @@ case "${1:-bantuan}" in
   sandi) compose exec -T agen python -m app.cli password ;;
   model) shift; compose exec -T agen python -m app.cli model "$@" ;;
   kode) compose exec -T agen python -m app.cli code ;;
-  *) echo "agen status | log | router-log | lokal-log | start | stop | restart | update | sandi | model <nama> | kode" ;;
+  *) echo "agen status | log | router-log | lokal-log | start | stop | restart | update [check|status] | sandi | model <nama> | kode | dukung"
+     echo 'Dukung Agen Mini: https://tako.id/Zwart04/gift' ;;
 esac

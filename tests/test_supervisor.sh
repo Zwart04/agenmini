@@ -58,9 +58,18 @@ echo invalid-model > data/local-model-request
 echo local > data/runtime-request
 bash agen-supervisor.sh
 grep -q 'tidak dikenal' data/runtime-status.json
+for guard in harness-install-busy harness-run-busy; do
+  echo working > "data/$guard"
+  echo check > data/update-request
+  bash agen-supervisor.sh
+  [[ "$(cat data/update-request)" == check && ! -f data/update-processing ]]
+  [[ ! -f data/update-status.json ]]
+  rm "data/$guard"
+done
 echo check > data/update-request
 bash agen-supervisor.sh
 grep -q 'sudah terbaru' data/update-status.json
+[[ ! -f data/update-processing ]]
 echo install > data/update-request
 if MOCK_NEW=1 bash agen-supervisor.sh; then echo 'bad checksum accepted';exit 1;fi
 grep -q 'Checksum release tidak cocok' data/update-status.json

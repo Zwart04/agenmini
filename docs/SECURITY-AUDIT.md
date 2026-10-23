@@ -35,3 +35,28 @@ Source ZIP publik 0.10.0 dipindai; enam kandidatnya sesuai definisi upstream/
 fixture yang ditinjau. Tidak ada berkas .env privat/DB/key pada riwayat. OSV
 querybatch memeriksa 62 paket terkunci Python: nol advisory dikenal saat audit.
 Dependensi sistem dan seluruh jalur provider belum dipentest.
+
+## Pemeriksaan 23 Oktober 2026
+
+Scope tetap Zwart04/agenmini, tanpa akses VPS atau akun provider. Pemindaian
+Gitleaks terhadap 142 commit/seluruh refs memakai baseline fingerprint yang
+sama: tidak menemukan kebocoran baru. Ini bukan jaminan keamanan mutlak.
+
+Seluruh sembilan adapter runtime eksternal diuji menolak eksekusi ketika pemilik
+belum mengaktifkan akses penuh. Pengujian juga mencakup isolasi kredensial host,
+allowlist konfigurasi, path runtime, kegagalan parser hasil, dan penghentian
+proses yang melewati batas. Versi distribusi tetap dipin; tidak memasang ulang
+atau memperbarui CLI upstream tanpa memilihnya. Akses penuh bukan sandbox
+per-aksi: CLI upstream memiliki alat/izin sendiri dan dapat mengakses jaringan.
+
+Updater hanya menerima boolean untuk cek/pasang/otomatis, tidak menerima URL
+atau perintah dari klien, membutuhkan login, dan menolak mutasi lintas origin.
+Marker antrean ditulis utuh dan tidak mengganti permintaan yang sudah aktif.
+Supervisor kini menunggu marker pemasangan dan pengerjaan harness eksternal,
+selain model/tugas tim. Pemeriksaan SHA256, backup dan rollback tetap berlaku.
+Windows/instalasi manual diarahkan ke installer resmi, tanpa antrean palsu.
+
+UI diuji di browser dengan data privat terpisah: desktop 1280 px/mobile 390 px,
+tema terang/gelap, status menunggu dan penyelesaian antrean simulasi. Tidak ada
+installer yang dijalankan pada VPS. Keamanan semua versi/dependensi upstream
+atau semua akun OAuth nyata belum dibuktikan oleh pemeriksaan ini.

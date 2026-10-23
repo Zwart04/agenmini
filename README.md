@@ -8,7 +8,7 @@ Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim b
 
 [Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
 
-[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md)
+[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md) · [Dukung pengembangan](https://tako.id/Zwart04/gift)
 
 ## Chat dan panel kerja
 
@@ -25,8 +25,6 @@ Untuk agen yang hanya membaca web, unduhan HTML adalah pilihan paling ringan. Li
 **Konteks seperlunya → model memilih tindakan → validasi alat/izin → jalankan berurutan → catat hasil → ulangi → verifikasi → jawab.**
 
 Inti kontrol Agen Mini diadaptasi ke Python dari loop open-source [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), dengan atribusi MIT dan commit sumber tetap. Ada batas langkah/waktu, log tindakan dengan identitas call/result, serta hasil belum diketahui ketika tindakan terputus. Tindakan mutasi tidak otomatis diputar ulang. Web dan Telegram menggunakan `agent.Turn` yang sama.
-
-Harness bawaan berlaku untuk model lokal, API online, dan router. Model kecil menjadi acuan pengujian kualitas; pemeriksaan meminta model memperbaiki kegagalan nyata, tanpa mengganti hasilnya dengan template aplikasi. Harness membantu kerja model, tetapi tidak menjamin model kecil menyamai model besar.
 
 Harness bawaan berlaku untuk model lokal, API online dan gateway/router. Model kecil dipakai sebagai acuan uji, bukan batas dukungan. Kode hasil tugas berasal dari model yang dipilih; pemeriksaan dapat menolak hasil dan meminta model memperbaikinya. Bukti uji nyata dipisahkan dari tes respons stub, dan hasil yang gagal tidak dilabeli sukses. [Benchmark aplikasi dan batasnya](docs/LOCAL-APPS-EVAL.md)
 
@@ -64,10 +62,12 @@ Alternatif: unduh `agenmini-vps.zip`, ekstrak, unggah kedua berkas pemasang/chec
 
 ## Update VPS yang sudah terpasang
 
-**Jangan hapus instalasi, model, `data`, atau `.env`.** Buat backup privat di Pengaturan terlebih dahulu.
+**Jangan hapus instalasi, model, `data`, atau `.env`.** Buat backup privat di Pengaturan terlebih dahulu. Saat memperbarui dari versi lama, selesaikan pekerjaan aktif sebelum menjalankan updater lama.
 
 ```bash
-agen update
+agen update check    # periksa release tanpa memasang
+agen update          # backup, verifikasi, lalu pasang
+agen update status   # baca status updater
 agen status
 ```
 
@@ -82,6 +82,8 @@ agen lokal-log
 agen supervisor-log
 agen sandi
 ```
+
+Di web, buka **Pengaturan → Update → Cek versi / Update sekarang**. Status permintaan diperbarui selama tab terbuka. Updater menunggu pekerjaan model, tugas tim, serta pemasangan/pengerjaan harness eksternal selesai. Windows dan instalasi manual menampilkan **Unduh update** menuju installer resmi.
 
 Update otomatis harian tersedia di Pengaturan dan perlu diaktifkan sendiri. Lokasi instalasi `/opt/agenmini`; data privat `/opt/agenmini/data`. Backup tidak boleh diunggah ke repo publik.
 
@@ -152,3 +154,9 @@ python scripts/evaluate_apps.py --server-exe /path/llama-server --gguf /path/mod
 Evaluasi kedua memakai model CPU nyata, data privat baru, tugas converter gambar dan editor teks, tanpa template hasil. Pemeriksaan ZIP/sintaks tidak cukup; unggah, resize, penggantian teks dan download perlu pengujian browser independen. Kanal `tg` menguji jalur agent yang sama, bukan pengiriman ke jaringan Telegram.
 
 [Validasi dan batas pengujian](VALIDATION.md) · [Proyek besar](PROYEK-BESAR.md) · [Model lokal](MODEL-CATALOG.md) · [Lisensi adaptasi](docs/deepseek-harness.LICENSE)
+
+## Dukung pengembangan
+
+Agen Mini dapat digunakan tanpa donasi. Jika aplikasi ini membantu, Anda bisa [mendukung pengembangannya melalui Tako](https://tako.id/Zwart04/gift). Dukungan membantu pemeliharaan, pengujian Windows/Linux, dan perbaikan alur agen.
+
+Tautan yang sama tersedia pada sidebar web, **Pengaturan → Update**, dan perintah `agen dukung` (atau `python -m app.cli dukung` untuk instalasi sumber). Tidak ada pembayaran atau pelacakan tambahan di dalam aplikasi.

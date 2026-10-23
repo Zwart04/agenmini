@@ -7,6 +7,7 @@ mkdir -p data
 [[ -f data/maintenance ]] && exit 0
 exec 9>data/supervisor.lock
 flock -n 9 || exit 0
+rm -f data/update-processing
 if [[ -f data/host-owner-home ]]; then export AGEN_HOST_HOME="$(cat data/host-owner-home)"; fi
 if [[ -f host-integrations.py ]]; then
   if [[ -f data/integrations/refresh-request ]]; then
@@ -71,7 +72,7 @@ runtime_status() {
 if [[ -f data/runtime-processing && ! -f data/runtime-request ]]; then
   mv data/runtime-processing data/runtime-request
 fi
-if [[ -f data/runtime-request && ( -f data/model-busy || -f data/task-busy ) ]]; then exit 0; fi
+if [[ -f data/runtime-request && ( -f data/model-busy || -f data/task-busy || -f data/harness-install-busy || -f data/harness-run-busy ) ]]; then exit 0; fi
 if [[ -f data/runtime-request ]]; then
   MODE=$(cat data/runtime-request)
   mv data/runtime-request data/runtime-processing
@@ -159,12 +160,13 @@ elif [[ -f data/auto-update.enabled ]]; then
   if (( $(date +%s) - LAST >= 86400 )); then ACTION=install; fi
 fi
 [[ -n "$ACTION" ]] || exit 0
-if [[ -f data/model-busy || -f data/task-busy ]]; then
+if [[ -f data/model-busy || -f data/task-busy || -f data/harness-install-busy || -f data/harness-run-busy ]]; then
   printf '%s' "$ACTION" > data/update-request
   exit 0
 fi
 TMP=$(mktemp -d)
-trap 'rm -rf -- "$TMP"' EXIT
+printf '%s' "$ACTION" > data/update-processing
+trap 'rm -f data/update-processing; rm -rf -- "$TMP"' EXIT
 API=https://api.github.com/repos/Zwart04/agenmini/releases/latest
 if ! curl -fsSL --retry 2 --max-time 30 "$API" -o "$TMP/release.json"; then
   write_status update-status.json 'Tidak bisa memeriksa GitHub; update belum dipasang.'

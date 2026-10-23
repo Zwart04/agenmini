@@ -133,10 +133,23 @@ function mcpBody(){const server={name:$('#mcpName').value,url:$('#mcpUrl').value
 $('#mcpDiscover').onclick=async()=>{try{const b=mcpBody();if(b.token)b.headers={Authorization:'Bearer '+b.token};const d=await api('/api/mcp/discover',{method:'POST',body:b});$('#mcpFound').textContent=d.tools.map(t=>t.name+' — '+(t.description||'')).join('\n');$('#mcpAllowed').value=d.tools.map(t=>t.name).join(', ');toast('Alat ditemukan. Tinjau daftar sebelum menyimpan.')}catch(e){sayError(e)}};
 $('#mcpForm').onsubmit=async e=>{e.preventDefault();try{const d=await api('/api/mcp',{method:'POST',body:mcpBody()});$('#mcpToken').value='';toast(d.connection_errors?.length?'Konfigurasi disimpan, koneksi gagal: '+d.connection_errors.join(', '):'MCP tersimpan dan aktif');loadMCP();refreshBots()}catch(e){sayError(e)}};
 
-async function loadUpdates(){const d=await api('/api/update');$('#updateVersion').textContent=d.version;$('#updateAuto').checked=d.auto;$('#updateStatus').textContent=d.message||'Belum ada pemeriksaan update.'}
-$('#updateAuto').onchange=async e=>{try{await api('/api/update',{method:'POST',body:{auto:e.target.checked}});toast('Pengaturan update disimpan')}catch(e){sayError(e)}};
-$('#updateCheck').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{check:true}});toast('VPS akan memeriksa release dalam sekitar 30 detik.')}catch(e){sayError(e)}};
-$('#updateInstall').onclick=async()=>{try{await api('/api/update',{method:'POST',body:{install:true}});toast('Update diminta. VPS akan membuat backup dan memasang release terbaru.')}catch(e){sayError(e)}};
+let updateTimer=null,updateSubmitting=false;
+function updateVisible(){const panel=$('#panel-updates')||$('#v-updates');return panel&&!panel.classList.contains('hidden')&&S.view==='settings'&&!document.hidden}
+function updateButtons(pending){for(const id of ['updateCheck','updateInstall']){const button=$('#'+id);button.disabled=!!pending;button.setAttribute('aria-busy',String(!!pending));}$('#updateAuto').disabled=!!pending;}
+async function loadUpdates(){
+ clearTimeout(updateTimer);
+ const d=await api('/api/update');$('#updateVersion').textContent=d.version;$('#updateAuto').checked=!!d.auto;
+ $('#updateCheck').classList.toggle('hidden',!d.managed);$('#updateInstall').classList.toggle('hidden',!d.managed);$('#updateDownload').classList.toggle('hidden',!!d.managed);$('#updateAuto').closest('label').classList.toggle('hidden',!d.managed);
+ $('#updatePlatform').textContent=d.managed?'Update dipasang supervisor saat tugas dan pemasangan harness selesai. Backup dibuat terlebih dahulu.':'Windows / instalasi manual: unduh installer resmi dan pasang di lokasi yang sama. Data Anda dipertahankan.';
+ const status=$('#updateStatus');status.replaceChildren();if(d.pending){const spinner=document.createElement('span');spinner.className='runtime-spinner';spinner.setAttribute('aria-hidden','true');status.append(spinner,' ');}status.append(document.createTextNode(d.message||'Belum ada pemeriksaan update.'));
+ updateButtons(d.pending||updateSubmitting);
+ if(d.pending&&updateVisible())updateTimer=setTimeout(()=>loadUpdates().catch(error=>{$('#updateStatus').textContent='Sambungan terputus saat update. Buka kembali tab Update untuk memeriksa hasil.';sayError(error)}),4000);
+ return d;
+}
+async function updateAction(body){if(updateSubmitting)return;updateSubmitting=true;updateButtons(true);try{const d=await api('/api/update',{method:'POST',body});toast(body.auto!==undefined?'Pengaturan update disimpan':'Permintaan diterima supervisor. Status diperbarui di sini.');return d}catch(error){sayError(error)}finally{updateSubmitting=false;await loadUpdates().catch(error=>{updateButtons(false);sayError(error)})}}
+$('#updateAuto').onchange=e=>updateAction({auto:e.target.checked});
+$('#updateCheck').onclick=()=>updateAction({check:true});
+$('#updateInstall').onclick=()=>updateAction({install:true});
 
 
 async function showOfficeLog(bot,refresh=false){if(!refresh&&typeof selectPageTab==='function')selectPageTab('office','activity');

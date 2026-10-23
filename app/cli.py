@@ -55,10 +55,28 @@ def usage():
 
 
 def run():
-    main.bootstrap()
     args = sys.argv[1:]
     cmd = args[0] if args else ""
-    if cmd == "pull":
+    if cmd in ('support', 'dukung'):
+        from .update_control import SUPPORT_URL
+        print('Dukung pengembangan Agen Mini: ' + SUPPORT_URL)
+        return
+    main.bootstrap()
+    if cmd == 'update':
+        from . import update_control
+        if not update_control.managed():
+            print('Unduh installer terbaru, lalu pasang di lokasi yang sama. Data tetap tersimpan.')
+            print(update_control.RELEASES_URL)
+        else:
+            mode = args[1] if len(args) > 1 else 'install'
+            if mode not in ('check', 'cek', 'install', 'status'):
+                raise SystemExit('Gunakan: update [check|install|status]')
+            try:
+                result = update_control.state() if mode == 'status' else update_control.request({'check' if mode in ('check', 'cek') else 'install': True})
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from None
+            print(result['message'] or 'Belum ada pemeriksaan update.')
+    elif cmd == "pull":
         asyncio.run(_pull(args[1]))
     elif cmd == "bench":
         asyncio.run(_bench(args[1:]))
@@ -92,7 +110,9 @@ def run():
     elif cmd == "candidates":
         print("\n".join(KANDIDAT))
     else:
-        print("perintah: pull <model> | bench [model...] | model [nama] | password [baru] | code | telegram <token> | status")
+        from .update_control import SUPPORT_URL
+        print("perintah: pull <model> | bench [model...] | model [nama] | password [baru] | code | telegram <token> | status | update [check|status] | dukung")
+        print('Dukung Agen Mini: ' + SUPPORT_URL)
 
 
 if __name__ == "__main__":
