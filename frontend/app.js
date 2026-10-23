@@ -127,7 +127,7 @@ function go(requested) {
   ['botSelect','histBtn2','newChat2'].forEach(id=>$('#'+id).classList.toggle('hidden',v!=='chat'));
   $$('#nav .item').forEach(b=>b.classList.toggle('on',b.dataset.v===(v==='ai'?'settings':v)));
   $$('.view').forEach(x=>x.classList.toggle('hidden',x.id!=='v-'+v));closeMenu();
-  const loaders={office:[loadOffice,loadBots,loadJobs],ai:[loadAI,loadMCP],settings:[loadSettings,loadSkills,loadMem,loadUpdates,loadModels]};
+  const loaders={office:[loadOffice,loadBots,loadJobs],ai:[loadAI,loadMCP],settings:[loadSettings,loadSkills,loadMem,loadModels]};
   for(const load of loaders[v]||[])load()?.catch(sayError);
   if(typeof selectPageTab==='function')selectPageTab(v,requested);
 }

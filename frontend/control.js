@@ -150,6 +150,7 @@ async function updateAction(body){if(updateSubmitting)return;updateSubmitting=tr
 $('#updateAuto').onchange=e=>updateAction({auto:e.target.checked});
 $('#updateCheck').onclick=()=>updateAction({check:true});
 $('#updateInstall').onclick=()=>updateAction({install:true});
+document.addEventListener('visibilitychange',()=>{if(updateVisible())loadUpdates().catch(sayError);else clearTimeout(updateTimer)});
 
 
 async function showOfficeLog(bot,refresh=false){if(!refresh&&typeof selectPageTab==='function')selectPageTab('office','activity');

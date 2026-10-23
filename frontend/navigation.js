@@ -67,5 +67,6 @@ function selectPageTab(parent,requested,restore=true) {
  tabs.forEach(([key])=>{ $('#panel-'+key).classList.toggle('hidden',key!==id);const b=$('#tab-'+key);b.setAttribute('aria-selected',String(key===id));b.tabIndex=key===id?0:-1; });
  if(restore)page.scrollTop=panelScroll.get(id)||0;
  if(parent==='office'&&id==='office'&&typeof positionOffice==='function')positionOffice();
+ if(parent==='settings'){if(id==='updates')loadUpdates().catch(sayError);else clearTimeout(updateTimer);}
 }
 start();
