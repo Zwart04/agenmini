@@ -291,4 +291,9 @@ CONTROL_CASES = {'video_controls_onVideoSelected': {'setup': '',
                                         "','Escape']){effects.length=0;playFromKey({key,target,preventDefault(){effects.push('prevent');}});const "
                                         "should=key===' "
                                         "'&&!(target&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable));assert(JSON.stringify(effects)===JSON.stringify(should?['prevent','play']:[]),'respect "
-                                        "key and editable target');}"}}
+                                        "key and editable target');}"},
+ 'video_controls_cleanupOnExit': {'setup': '',
+                                  'test': 'const '
+                                          "app={objectURL:'blob:input',downloadURL:'blob:output',raf:42},revoked=[],cancelled=[];const "
+                                          "URL={revokeObjectURL(url){revoked.push(url);}},window={cancelAnimationFrame(id){cancelled.push(id);}};cleanupOnExit({type:'beforeunload'});assert(revoked.length===2&&revoked.includes(app.objectURL)&&revoked.includes(app.downloadURL)&&cancelled.length===1&&cancelled[0]===42,'release "
+                                          "resources from original global app, never the browser event');"}}

@@ -18,7 +18,7 @@ def test_control_recipe_has_checked_ordered_dependencies():
         if any(check in CONTROL_CASES for check in part.get('behavior_checks',[])):
             assert len(part['functions'])==1
             controls.append(part['functions'][0])
-    assert len(controls)==24
+    assert len(controls)==25
     assert controls[-1]=='initEditor'
     dependencies={fn:set(part.get('behavior_dependencies',[])) for part in recipe['parts'] for fn in part.get('functions',[])}
     for part in recipe['parts']:
@@ -70,3 +70,16 @@ async def test_existing_opt_out_keeps_normal_project_path(monkeypatch):
     async def planned(*args,**kwargs):raise NormalPath()
     monkeypatch.setattr(projects.structured,'request',planned)
     with pytest.raises(NormalPath):await projects.generate('Build video editor with export',object())
+
+
+def test_guide_is_documentation_with_bounded_local_path(monkeypatch,tmp_path):
+    assert project_parts.read_guide({}) is None
+    recipes=tmp_path/'project_recipes';recipes.mkdir()
+    monkeypatch.setattr(project_parts,'__file__',str(tmp_path/'project_parts.py'))
+    (recipes/'guide.md').write_text('Actual controls')
+    assert project_parts.read_guide({'guide_file':'guide.md'})=='Actual controls'
+    for path in ['../outside.md','/private.md','C:/private.md','guide.js',123]:
+        with pytest.raises(ValueError):project_parts.read_guide({'guide_file':path})
+    for text in ['', 'x'*8001]:
+        (recipes/'guide.md').write_text(text)
+        with pytest.raises(ValueError):project_parts.read_guide({'guide_file':'guide.md'})

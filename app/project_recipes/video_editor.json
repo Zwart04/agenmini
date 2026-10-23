@@ -4399,6 +4399,36 @@
       "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions."
     },
     {
+      "name": "Kontrol editor: cleanupOnExit",
+      "kind": "js",
+      "file": "app.js",
+      "raw_source": true,
+      "include_html": false,
+      "tokens": 300,
+      "functions": [
+        "cleanupOnExit"
+      ],
+      "task": "Define only function cleanupOnExit() with no parameters. An existing global object app holds the original state. Call existing cleanupEditor with that same app object. Do nothing else. Do not redefine helpers, inspect event arguments, query DOM, or create state.",
+      "relevant_fields": {
+        "app": [],
+        "ui": []
+      },
+      "relevant_functions": [
+        "cleanupEditor"
+      ],
+      "behavior_dependencies": [
+        "cleanupSourceUrl",
+        "cleanupDownloadUrl",
+        "cancelExportFrame",
+        "cleanupEditor"
+      ],
+      "behavior_checks": [
+        "video_controls_cleanupOnExit"
+      ],
+      "system_contract": "Only the requested standalone function. Existing helpers and state already exist. Do not copy or redefine helpers. No sample data, stubs, modules or top-level actions.",
+      "state_writes": []
+    },
+    {
       "name": "Kontrol editor: bindEditorControls",
       "kind": "js",
       "file": "app.js",
@@ -4408,7 +4438,7 @@
       "functions": [
         "bindEditorControls"
       ],
-      "task": "Define only function bindEditorControls(). Make exactly three listener registrations: click on existing ui.timeline calls existing onTimelineClick with the original event; keydown on document calls existing onEditorKey with the original event; beforeunload on window calls existing cleanupEditor with existing app as its argument. Register callbacks; do not call cleanup now. No other UI controls, events, state writes or helper declarations.",
+      "task": "Define only function bindEditorControls(). Register exactly three existing callbacks, without invoking them: ui.timeline click uses onTimelineClick; document keydown uses onEditorKey; window beforeunload uses cleanupOnExit. No other listeners or actions. All three callbacks already exist and handle their own arguments.",
       "relevant_fields": {
         "app": [],
         "ui": [
@@ -4418,7 +4448,7 @@
       "relevant_functions": [
         "onTimelineClick",
         "onEditorKey",
-        "cleanupEditor"
+        "cleanupOnExit"
       ],
       "behavior_dependencies": [
         "timelineFraction",
@@ -4433,7 +4463,8 @@
         "cleanupSourceUrl",
         "cleanupDownloadUrl",
         "cancelExportFrame",
-        "cleanupEditor"
+        "cleanupEditor",
+        "cleanupOnExit"
       ],
       "behavior_checks": [
         "video_controls_bindEditorControls"
@@ -4475,13 +4506,7 @@
       "required_patterns": [
         "\\}\\s*initEditor\\(\\s*\\)\\s*;?\\s*$"
       ]
-    },
-    {
-      "name": "Panduan hasil",
-      "file": "README.md",
-      "kind": "md",
-      "tokens": 450,
-      "task": "Write concise honest Markdown usage instructions. Open index.html in a modern Chromium browser, import video, play/scrub, set trim bounds, overlay text, export then download WebM. The editor is single clip, real-time export up to720px, no cloud uploads, no AI/autocaption/multi-clip/full CapCut parity. Audio uses Web Audio when browser supports it, otherwise explicit silent fallback. Note that source was authored by selected AI model through the configured backend in small parts, no evaluator template. Do not say behavior tested unless provided actual evidence. No code examples needed."
     }
-  ]
+  ],
+  "guide_file": "video_editor_guide.md"
 }

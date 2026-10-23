@@ -39,6 +39,42 @@ Bukti privat: `.local-tools/hasil-uji-web/video-mixed1b-v208/`, termasuk
 `media-results.json`, screenshot dan dua video hasil unduhan. Bobot, data
 aplikasi serta log privat tidak dimasukkan ke repo atau installer.
 
+### Integrasi jalur utama: V215
+
+Pembagian kontrol kini menjadi 25 tugas kecil yang diperiksa perilakunya,
+termasuk keyboard, callback keluar halaman, dan inisialisasi. Dependensi yang
+sudah lulus ditampilkan secukupnya kepada model; fixture evaluator tidak
+masuk ke prompt atau berkas aplikasi. Pemeriksaan menolak callback yang
+dijalankan saat binding, argumen event yang salah, dan inisialisasi kosong.
+
+Percobaan V215 memakai `project_parts.generate` dan API lokal `llm.chat`
+yang sama dengan aplikasi. Bagian Qwen dan ekspor DeepSeek yang sudah diterima
+dipakai ulang dengan hash/provenance; kontrol baru ditulis DeepSeek Coder 1.3B
+melalui API chat biasa. Ini tetap perbandingan asal campuran, bukan resume
+benchmark satu model atau generasi seluruh aplikasi dari keadaan kosong.
+
+Aplikasi hasil V215 dibuka langsung lewat URL `file:` di Chromium. Seluruh
+aksi browser V208 diuji lagi dan lulus, termasuk dua pembatalan dan ekspor
+sesudahnya. Dua hasil WebM berdurasi 1,973/1,976 detik, dengan suara dan teks
+yang terkode ke frame. Perbandingan frame dengan video sumber juga membuktikan
+trim dimulai pada detik 1, bukan sekadar memotong durasi dari awal video.
+
+Jalur editor satu klip yang cocok kini tersedia tanpa flag eksperimen pada
+Web/Telegram dan semua backend. Nilai pengaturan lama
+`coding_parts_experimental=0` tetap dihormati. Pengujian API provider nyata
+dan jaringan Telegram tidak dilakukan dalam putaran ini.
+
+Panduan hasil memakai dokumentasi faktual dari harness, diberi label terpisah
+dari runtime model. Percobaan README model sempat menyebut tombol fiktif dan
+asal framework yang keliru; hasil tersebut ditolak. V218 menguji ulang
+171 bagian runtime V215 tanpa inferensi baru, menambahkan panduan ini, dan
+mencatat SHA256 byte berkas sesungguhnya agar cocok juga pada Windows.
+HTML/CSS/JavaScript V218 identik byte demi byte dengan V215 yang diuji browser.
+
+Paket lokal siap ditinjau di `output/clip-mini-1b/` dan
+`output/clip-mini-1b.zip` (sekitar 670 KiB, termasuk contoh video dan bukti).
+Paket ini tidak berisi DB, konfigurasi pribadi, model atau kunci API.
+
 ## Catatan 20 Oktober 2026
 
 Pada putaran ini editor video belum siap dipakai.

@@ -685,8 +685,20 @@ def compose_document(shell,nodes,panels):
     return shell[:body.start()]+body[1]+'\n'+markup+'\n'+body[2]+shell[body.end():]
 
 
+def read_guide(recipe):
+    """Factual user documentation is distinct from model-written runtime code."""
+    name=recipe.get('guide_file')
+    if name is None:return None
+    if not isinstance(name,str) or not re.fullmatch(r'[a-z_]+\.md',name):
+        raise ValueError('Invalid project guide path')
+    text=(Path(__file__).parent/'project_recipes'/name).read_text(encoding='utf-8')
+    if not text.strip() or len(text.encode())>8000:raise ValueError('Invalid project guide size')
+    return text
+
+
 async def generate(brief,ctx,on_event=None):
     recipe=json.loads((Path(__file__).parent/'project_recipes'/'video_editor.json').read_text(encoding='utf-8'))
+    guide=read_guide(recipe)
     known_helpers={fn for part in recipe['parts'] for fn in part.get('functions',[])}
     root='project-'+str(time.time_ns());contents={};panels={};nodes={};evidence=[];stats={};shell='';helper_sources={}
     async def emit(kind,value):
@@ -944,6 +956,7 @@ async def generate(brief,ctx,on_event=None):
         if kind in ('node','panel') and shell and all(part['slot'] in (nodes if part['kind']=='node' else panels) for part in recipe['parts'] if part['kind'] in ('node','panel')):
             contents['index.html']=compose_document(shell,nodes,panels) if nodes else assemble(shell,panels)
         await emit('code',{'path':root+'/'+path,'content':contents.get(path,source),'draft':True})
+    if guide is not None:contents['README.md']=guide
     errors=projects.inspect_html(contents['index.html'],required_ids=recipe['required_ids'],strict=True)['errors']
     errors+=projects.project_errors(contents,brief)+await projects.inspect_browser_js(contents)
     if errors:raise ValueError('Kontrak bagian belum benar: '+' '.join(errors)[:2200])
@@ -954,7 +967,9 @@ async def generate(brief,ctx,on_event=None):
         await tools.write_file(ctx,root+'/'+path,code)
         if tools._workpath(root+'/'+path).read_text(encoding='utf-8')!=code:raise ValueError('Verifikasi sumber gagal: '+path)
     provenance={'method':'model-written source parts; no runtime templates or evaluator source fixes','parts':evidence,
-                'files':{p:hashlib.sha256(v.encode()).hexdigest() for p,v in contents.items()},'backend':llm.active_backend(),'behavior_verified':False}
+                'files':{p:hashlib.sha256((folder/p).read_bytes()).hexdigest() for p in contents},'backend':llm.active_backend(),'behavior_verified':False}
+    if guide is not None:
+        provenance['documentation']={'README.md':{'author':'harness','source':recipe['guide_file']}}
     (folder/'generation.json').write_text(json.dumps(provenance,ensure_ascii=False,indent=2),encoding='utf-8')
     bundle=root+'/project.zip'
     with zipfile.ZipFile(tools._workpath(bundle),'w',zipfile.ZIP_DEFLATED) as archive:
