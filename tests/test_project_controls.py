@@ -20,6 +20,12 @@ def test_control_recipe_has_checked_ordered_dependencies():
             controls.append(part['functions'][0])
     assert len(controls)==24
     assert controls[-1]=='initEditor'
+    dependencies={fn:set(part.get('behavior_dependencies',[])) for part in recipe['parts'] for fn in part.get('functions',[])}
+    for part in recipe['parts']:
+        if not any(check in CONTROL_CASES for check in part.get('behavior_checks',[])):continue
+        chosen=set(part.get('behavior_dependencies',[]))
+        for name in chosen:
+            assert dependencies[name]<=chosen, 'Control fixture must include transitive model helpers for '+name
     item=next(part for part in recipe['parts'] if part.get('invoke_once'))
     source='function initEditor() {}\ninitEditor();'
     assert project_parts.select_model_helper(source,item)==source
