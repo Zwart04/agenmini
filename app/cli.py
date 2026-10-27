@@ -55,6 +55,11 @@ def usage():
 
 
 def run():
+    # Windows redirected output may use a legacy code page. Keep its encoding,
+    # but represent unsupported characters instead of failing after a setting write.
+    for stream in (sys.stdout, sys.stderr):
+        if callable(getattr(stream, 'reconfigure', None)):
+            stream.reconfigure(errors='backslashreplace')
     args = sys.argv[1:]
     cmd = args[0] if args else ""
     if cmd in ('coffee', 'support', 'dukung'):

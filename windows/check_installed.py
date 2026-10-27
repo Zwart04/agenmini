@@ -26,11 +26,12 @@ try:
     assert request('/api/mode',{'mode':'online'})['ok']
     assert (install/'agenmini.cmd').is_file()
     cli=[str(python),str(install/'launcher.py'),'--cli']
-    assert 'Provider' in subprocess.check_output(cli+['provider','online'],env=env,text=True,timeout=30)
-    subprocess.run(cli+['model','windows-cli-smoke'],env=env,check=True,timeout=30)
+    legacyenv={**env,'PYTHONIOENCODING':'cp1252'}
+    assert 'Provider' in subprocess.check_output(cli+['provider','online'],env=legacyenv,encoding='cp1252',timeout=30)
+    subprocess.run(cli+['model','windows-cli-smoke'],env=legacyenv,check=True,timeout=30)
     assert request('/api/settings')['online_model']=='windows-cli-smoke'
-    assert 'tako.id/Zwart04/gift' in subprocess.check_output(cli+['coffee'],env=env,text=True,timeout=30)
-    assert 'GPL-3.0-or-later' in subprocess.check_output(cli+['license'],env=env,text=True,timeout=30)
+    assert 'tako.id/Zwart04/gift' in subprocess.check_output(cli+['coffee'],env=legacyenv,encoding='cp1252',timeout=30)
+    assert 'GPL-3.0-or-later' in subprocess.check_output(cli+['license'],env=legacyenv,encoding='cp1252',timeout=30)
     assert not (data/'runtime-request').exists()
     assert request('/api/office')['bots'];assert request('/api/social')['connections'];assert 'learning' in request('/api/office/learning')
     script="""import asyncio,json\nfrom app import tools,config\nasync def go():\n a=await tools._run_sandboxed(['python3','-I','-c','print(125*8)'],timeout=10)\n assert a.strip()=='[kode keluar 0]\\n1000',a\n b=await tools._run_sandboxed(['node','-e','console.log(40+2)'],timeout=10)\n assert b.strip()=='[kode keluar 0]\\n42',b\n c=await tools._run_sandboxed(['python3','-I','-c','import time;time.sleep(10)'],timeout=1)\n assert 'dihentikan' in c,c\n print('PASS installed Python, Node, and timeout Job Object')\nasyncio.run(go())\n"""
