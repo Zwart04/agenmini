@@ -34,10 +34,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 build_release.py
-          gh run download "$WINDOWS_RUN" --name windows-installer --dir dist
-          gh run download "$TEST_RUN" --name gateway-binaries --dir dist
-          gh run download "$LINUX_RUN" --name linux-packages-amd64 --dir dist
-          gh run download "$LINUX_RUN" --name linux-packages-arm64 --dir dist
+          if test "$PRIVATE_RELEASE" = true; then
+            tag=$(python -c 'from app import VERSION; print("v"+VERSION)')
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir dist --clobber
+          else
+            gh run download "$WINDOWS_RUN" --name windows-installer --dir dist
+            gh run download "$TEST_RUN" --name gateway-binaries --dir dist
+            gh run download "$LINUX_RUN" --name linux-packages-amd64 --dir dist
+            gh run download "$LINUX_RUN" --name linux-packages-arm64 --dir dist
+          fi
           python3 - <<'PY'
           import hashlib,re,zipfile
           from pathlib import Path
@@ -62,7 +67,14 @@ jobs:
           files=sorted(p for p in Path('dist').iterdir() if p.is_file() and p.name!='SHA256SUMS')
           Path('dist/SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in files))
           PY
-          gh release create "$tag" dist/*.zip dist/*.exe dist/*.deb dist/*.rpm dist/*.pkg.tar.zst dist/*-linux-*.tar.gz dist/*.sha256 dist/pasang-vps.sh dist/SHA256SUMS dist/agenmini-gateway-linux-amd64 dist/agenmini-gateway-linux-arm64 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          if test "$PRIVATE_RELEASE" = true; then
+            test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
+            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+            gh release upload "$tag" dist/*.zip dist/*.exe dist/*.deb dist/*.rpm dist/*.pkg.tar.zst dist/*-linux-*.tar.gz dist/*.sha256 dist/pasang-vps.sh dist/SHA256SUMS dist/agenmini-gateway-linux-amd64 dist/agenmini-gateway-linux-arm64 --clobber
+            gh release edit "$tag" --title "Agen Mini $tag — private preview" --notes-file release-notes.md
+          else
+            gh release create "$tag" dist/*.zip dist/*.exe dist/*.deb dist/*.rpm dist/*.pkg.tar.zst dist/*-linux-*.tar.gz dist/*.sha256 dist/pasang-vps.sh dist/SHA256SUMS dist/agenmini-gateway-linux-amd64 dist/agenmini-gateway-linux-arm64 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          fi
           gh release edit "$tag" --draft=false
           mkdir public-verification
           python3 - <<'PY'

@@ -1,7 +1,7 @@
 name: Linux desktop packages
 on: [push, workflow_dispatch]
 permissions:
-  contents: read
+  contents: write
 jobs:
   packages:
     strategy:
@@ -44,6 +44,7 @@ jobs:
         if: matrix.arch == 'amd64'
         run: docker run --rm -v "$PWD:/src:ro" -v "$PWD/dist:/dist:ro" archlinux:base bash /src/linux/check_package.sh arch
       - uses: actions/upload-artifact@v4
+        if: github.event.repository.private != true
         with:
           name: linux-packages-${{ matrix.arch }}
           path: |
@@ -51,3 +52,8 @@ jobs:
             dist/*.rpm*
             dist/*.pkg.tar.zst*
             dist/*-linux-*.tar.gz*
+      - name: Save verified private Linux build
+        if: github.event.repository.private == true && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python .github/scripts/private_build.py linux
+        env:
+          GH_TOKEN: ${{ github.token }}

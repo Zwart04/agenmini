@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,6 +27,7 @@ jobs:
           cd gateway-dist
           for asset in agenmini-gateway-*; do sha256sum "$asset" > "$asset.sha256"; done
       - uses: actions/upload-artifact@v4
+        if: github.event.repository.private != true
         with:
           name: gateway-binaries
           path: gateway-dist/*
@@ -38,3 +41,8 @@ jobs:
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_installer.sh
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_supervisor.sh
       - run: docker run --rm -e AGEN_INSTALLER_TEST_CONTAINER=1 -v "$PWD:/src" agenmini-ci bash /src/tests/test_host_setup.sh
+      - name: Save verified private gateway build
+        if: github.event.repository.private == true && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python .github/scripts/private_build.py gateway
+        env:
+          GH_TOKEN: ${{ github.token }}

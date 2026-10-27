@@ -847,6 +847,7 @@ async def setup_done(request):
     if not isinstance(data,dict):raise ValueError('Setup harus objek JSON.')
     from . import onboarding
     choice=onboarding.plan(data)
+    if choice and (office.presence or llm.gate.busy):raise ValueError('Tunggu tugas AI aktif selesai sebelum mengganti koneksi setup.')
     if choice and choice['backend']=='router':
         available=(await router.state())['models']
         if not any(m['id']==choice['model'] and m.get('ready') is not False for m in available):raise ValueError('Model gateway tidak tersedia. Hubungkan provider dan pilih model yang terdaftar.')

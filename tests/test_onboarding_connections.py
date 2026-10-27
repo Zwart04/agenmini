@@ -19,7 +19,8 @@ def test_invalid_connection_does_not_change_preferences(isolated):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('reply,ready',[('AGEN_OK',True),('not the expected response',False)])
-async def test_real_local_http_setup_requires_verified_response(isolated,monkeypatch,reply,ready):
+@pytest.mark.parametrize('change_password',[False,True])
+async def test_real_local_http_setup_requires_verified_response(isolated,monkeypatch,reply,ready,change_password):
     monkeypatch.setenv('AGENMINI_DESKTOP','1')
     async def models(_):return aio.json_response({'data':[{'id':'local-test-model'}]})
     async def response(request):
@@ -34,7 +35,11 @@ async def test_real_local_http_setup_requires_verified_response(isolated,monkeyp
         r=await client.post('/api/setup/local-models',json={'url':url});assert r.status==401
         r=await client.post('/api/setup/local-models',headers=headers,json={'url':url});assert (await r.json())['models']==['local-test-model']
         body={'profile':'blank','harness':'none','source':'local','connection':'direct','url':url,'model':'local-test-model'}
+        if change_password:body['password']='test-only-new-password'
         r=await client.post('/api/setup',headers=headers,json=body);assert r.status==200,await r.text()
+        if change_password:
+            assert (await client.get('/api/setup',headers=headers)).status==401
+            headers={'Cookie':'agen_sesi='+web.make_token()}
         assert db.setting('setup_complete')=='0' and db.setting('setup_ai_source')=='local'
         assert db.setting('llm_backend')=='online' and db.setting('auto_9router')=='0'
         r=await client.post('/api/ai/test',headers=headers,json={'backend':'online','model':'local-test-model'});assert r.status==200,await r.text()
@@ -67,3 +72,17 @@ def test_public_error_does_not_echo_upstream_url_or_credentials():
     error=llm.ProviderError({'error':{'code':'bad_gateway','message':'upstream error https://secret.example/path?api_key=private'}})
     assert error.failure.kind=='upstream' and 'private' not in str(error) and 'https://' not in str(error)
     assert 'provider' in str(error)
+
+
+@pytest.mark.asyncio
+async def test_busy_setup_rejects_connection_change_before_writing(isolated,monkeypatch):
+    from app import office
+    monkeypatch.setattr(office,'presence',{'orchestrator':{'status':'working'}})
+    old=db.setting('llm_backend')
+    app=aio.Application(middlewares=[control.errors,web.auth_mw]);app.add_routes(control.routes)
+    client=TestClient(TestServer(app));await client.start_server()
+    try:
+        r=await client.post('/api/setup',headers={'Cookie':'agen_sesi='+web.make_token()},json={'source':'local','connection':'direct','url':'http://127.0.0.1:8080/v1','model':'test','profile':'blank'})
+        assert r.status==400 and 'tugas AI aktif' in (await r.json())['error']
+        assert db.setting('llm_backend')==old and db.setting('setup_profile')=='pending'
+    finally:await client.close()

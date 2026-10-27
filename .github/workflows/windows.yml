@@ -3,6 +3,8 @@ on: [push, workflow_dispatch]
 jobs:
   installer:
     runs-on: windows-latest
+    permissions:
+      contents: write
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +35,7 @@ jobs:
           python windows/check_installed.py $target $exe
           if ($LASTEXITCODE -ne 0) { throw 'Installed integration failed' }
       - uses: actions/upload-artifact@v4
+        if: github.event.repository.private != true
         with:
           name: windows-installer
           path: |
@@ -40,3 +43,8 @@ jobs:
             dist/agenmini-setup-*-windows-x64.exe.sha256
             dist/agenmini-*-windows-x64.zip*
           retention-days: 7
+      - name: Save verified private Windows build
+        if: github.event.repository.private == true && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python .github/scripts/private_build.py windows
+        env:
+          GH_TOKEN: ${{ github.token }}
