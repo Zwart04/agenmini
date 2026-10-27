@@ -26,3 +26,5 @@ supervisor VPS tersedia penuh di Linux; pada Windows gunakan API yang sudah
 tersedia atau WSL/Docker untuk komponen tersebut. Jangan menganggap komponen
 siap jika belum dipasang dan diuji. Installer saat ini tidak memiliki tanda
 tangan penerbit komersial; verifikasi checksum release.
+
+CLI versi 0.11+: buka Start Menu > Agen Mini CLI. Untuk ZIP portable, ekstrak lalu buka PowerShell pada folder tersebut dan jalankan .\agenmini.cmd provider online atau .\agenmini.cmd model ID-MODEL. Pengaturan API/model sama dengan aplikasi.

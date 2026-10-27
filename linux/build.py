@@ -84,7 +84,7 @@ def build():
         run('desktop-file-validate',stage/'usr/share/applications/agenmini.desktop')
         archive_tree(stage,output/f'agenmini-{version}-linux-{arch}.tar.gz')
         control=stage/'DEBIAN';control.mkdir()
-        (control/'control').write_text(f'Package: agenmini\nVersion: {version}\nSection: utils\nPriority: optional\nArchitecture: {arch}\nMaintainer: Zwart04 <noreply@users.noreply.github.com>\nDepends: libc6 (>= 2.35), libstdc++6, nodejs, git, xdg-utils\nHomepage: https://zwart04.github.io/agenmini/\nDescription: Agen Mini desktop and CLI with private runtime\n AI workspace; models and provider credentials are configured by the user.\n')
+        (control/'control').write_text(f'Package: agenmini\nVersion: {version}\nSection: utils\nPriority: optional\nArchitecture: {arch}\nMaintainer: Zwart04 <48742395+Zwart04@users.noreply.github.com>\nDepends: libc6 (>= 2.35), libstdc++6, nodejs, git, xdg-utils\nHomepage: https://zwart04.github.io/agenmini/\nDescription: Agen Mini desktop and CLI with private runtime\n AI workspace; models and provider credentials are configured by the user.\n')
         run('dpkg-deb','--root-owner-group','--build',stage,output/f'agenmini_{version}_{arch}.deb')
         shutil.rmtree(control)
         if arch=='amd64':

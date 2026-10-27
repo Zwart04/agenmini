@@ -35,11 +35,11 @@ function render(){
   summary.textContent='Windows 10 / 11 64-bit. Installer untuk sehari-hari, ZIP portable untuk aplikasi dan CLI tanpa pemasang.';
   row('exe','Windows installer','.exe · aplikasi desktop + agenmini.cmd',asset(n=>/^agenmini-setup-.*-windows-x64\.exe$/.test(n)));
   row('zip','Windows portable + CLI','.zip · ekstrak, lalu jalankan launcher / agenmini.cmd',asset(n=>/^agenmini-.*-windows-x64\.zip$/.test(n)));
-  note.textContent='Data berada di akun Windows Anda, terpisah dari program. Pasang update pada lokasi yang sama. Kunci/provider/model tetap bisa diubah melalui Pengaturan.';setCommand('agenmini.cmd model');
+  note.textContent='Data berada di akun Windows Anda, terpisah dari program. Pasang update pada lokasi yang sama. CLI: buka Start Menu → Agen Mini CLI, atau jalankan .\\agenmini.cmd dari folder portable. Kunci/provider/model tetap bisa diubah melalui Pengaturan.';setCommand('.\\agenmini.cmd model');
  }else{
   summary.textContent='macOS dan platform lain: gunakan source untuk menjalankan antarmuka web lokal dan CLI.';
   row('src','Source + CLI','Python 3.12, Node.js dan dependensi diperlukan',asset(n=>n==='agenmini-source.zip'));
-  note.textContent='Belum tersedia installer native macOS, Android atau iOS. Antarmuka web Agen Mini di VPS dapat dibuka lewat browser perangkat tersebut. Source bukan installer satu klik.';setCommand('python -m app.cli model');
+  note.textContent='Belum tersedia installer native macOS, Android atau iOS. Antarmuka web Agen Mini di VPS dapat dibuka lewat browser perangkat tersebut. Source bukan installer satu klik.';setCommand('DATA_DIR="$HOME/.local/share/agenmini" python -m app.cli model');
  }
  const source=asset(n=>n==='agenmini-source.zip');if(source)document.querySelector('#source-download').href=source.url;
 }

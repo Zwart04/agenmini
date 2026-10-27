@@ -23,6 +23,7 @@ def build():
             if private_path(name) or (ROOT / name).is_symlink(): raise ValueError('Private/generated path is tracked: ' + name)
             archive.write(ROOT / name, 'agenmini/' + name)
     with zipfile.ZipFile(dist / 'agenmini-frontend.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+        for notice in ('LICENSE','THIRD_PARTY_NOTICES.md'):archive.write(ROOT/notice,notice)
         for name in names:
             if name.startswith('frontend/'):
                 archive.write(ROOT / name, name)
