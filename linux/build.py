@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import platform
 import re
@@ -54,12 +55,15 @@ def build():
     with tempfile.TemporaryDirectory(prefix='native-linux-',dir=scratch) as work:
         work=Path(work);managed=work/'managed-python'
         run('uv','python','install','--install-dir',managed,'--no-bin','--no-registry','3.12')
-        candidates=[p for p in managed.iterdir() if p.is_dir() and p.name.startswith('cpython-')]
-        if len(candidates)!=1:raise ValueError('Expected exactly one private CPython')
+        found=Path(subprocess.check_output(['uv','python','find','--managed-python','--no-python-downloads','3.12'],env={**os.environ,'UV_PYTHON_INSTALL_DIR':str(managed)},text=True).strip()).resolve()
+        if not found.is_relative_to(managed.resolve()) or not found.is_file():raise ValueError('uv interpreter leaves private staging directory')
+        interpreter=found.parent.parent
         stage=work/'payload';app=stage/'opt/agenmini';app.mkdir(parents=True)
-        shutil.copytree(candidates[0],app/'runtime',symlinks=True)
+        shutil.copytree(interpreter,app/'runtime',symlinks=True)
         python=app/'runtime/bin/python3'
-        run('uv','pip','install','--python',python,'--python-platform',machine+'-manylinux_2_35','--only-binary=:all:','-r',ROOT/'requirements.lock')
+        if not python.resolve().is_relative_to(app.resolve()):raise ValueError('Private Python symlink leaves payload')
+        # This override applies only to the copied, disposable private runtime.
+        run('uv','pip','install','--python',python,'--break-system-packages','--python-platform',machine+'-manylinux_2_35','--only-binary=:all:','-r',ROOT/'requirements.lock')
         for folder in ('app','frontend'):copy_source(ROOT/folder,app/'server'/folder)
         for name in ('launcher.py','welcome.html'):shutil.copy2(ROOT/'linux'/name,app/name)
         for name in ('LICENSE','THIRD_PARTY_NOTICES.md','requirements.lock','README.md','CARA-PASANG-LINUX.md'):shutil.copy2(ROOT/name,app/name)
