@@ -23,7 +23,9 @@ def build():
     for name in ('index.html','site.css','site.js'):shutil.copy2(ROOT/name,output/name)
     (output/'assets').mkdir(exist_ok=True)
     shutil.copy2(ROOT.parent/'frontend/mascot.png',output/'assets/mascot.png')
-    shutil.copy2(ROOT.parent/'docs/screenshots/workbench-desktop-v010.jpg',output/'assets/workbench.jpg')
+    for name in ('workbench-desktop.webp','workbench-mobile.webp','workbench-desktop.png','workbench-mobile.png'):
+        shutil.copy2(ROOT.parent/'docs/screenshots'/name,output/'assets'/name)
+    (output/'assets/workbench.jpg').unlink(missing_ok=True)
     (output/'release.json').write_text(json.dumps({'tag':release['tag_name'],'assets':assets},indent=2))
     (output/'.nojekyll').write_text('')
     print('Website ready:',output,release['tag_name'],len(assets),'real release assets')

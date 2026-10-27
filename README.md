@@ -12,7 +12,9 @@ Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim b
 
 ## Chat dan panel kerja
 
-![Panel kode desktop](docs/screenshots/workbench-desktop-v010.jpg)
+[![Panel kode desktop, PNG resolusi 2×](docs/screenshots/workbench-desktop.png)](docs/screenshots/workbench-desktop.png)
+
+Klik gambar untuk membuka PNG ukuran penuh. [Tema terang](docs/screenshots/workbench-light.png) · [Detail editor](docs/screenshots/editor-detail.png) · [Galeri desktop & mobile](docs/screenshots/README.md). Seluruh preview memakai data demo terpisah.
 
 Pilih model pada chat, gunakan **Dengan izin / Akses penuh**, lalu buka **Panel kerja** untuk membaca/edit berkas, melihat perubahan agen, log dan preview. Editor memeriksa hash sebelum menyimpan; bila agen mengubah berkas setelah dibuka, simpan ditolak agar perubahan tidak tertimpa. Salinan sebelum edit disimpan privat, terpisah dari repo.
 
@@ -48,7 +50,7 @@ Pilih **Pengaturan → Koneksi AI & model** untuk model lokal, API langsung atau
 
 Katalog berisi 90 provider chat dengan logo asli, termasuk OpenCode Free, MiMo Free dan Devin CLI tanpa login. Tersedia API key, OAuth, refresh token, pemilih model dan fallback. Gratis tetap mengikuti kuota/ketersediaan provider; seluruh akun OAuth belum diuji nyata. Gemini CLI/Antigravity memerlukan client aplikasi Google sesuai [panduan gateway](gateway/README.md).
 
-![Provider terintegrasi](docs/screenshots/providers-desktop-v090.png)
+[![Katalog provider terintegrasi, PNG resolusi 2×](docs/screenshots/providers-desktop.png)](docs/screenshots/providers-desktop.png)
 
 Gateway memakai binary Go dengan SHA256, tanpa Node/compiler saat instalasi VPS. Batas container gateway 256 MB; pemakaian bergantung beban. Semua bot lokal berbagi satu model aktif melalui llama.cpp. Gateway lama dipertahankan untuk migrasi, tidak menjadi pilihan setup baru.
 
@@ -163,13 +165,20 @@ API yang sudah berjalan dapat digunakan langsung. Pengelolaan otomatis service L
 
 ## Preview aplikasi
 
-![Workspace](docs/screenshots/workspace-desktop.jpg)
+[![Workspace dan karakter tim, PNG resolusi 2×](docs/screenshots/workspace-desktop.png)](docs/screenshots/workspace-desktop.png)
 
-![Preview navigasi](docs/screenshots/preview.gif)
+[Workspace tema terang](docs/screenshots/workspace-light.png) · [Pilihan harness](docs/screenshots/harness-desktop.png)
 
-[Tonton / unduh MP4](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Mobile](docs/screenshots/chat-mobile.jpg) · [Panel mobile](docs/screenshots/workbench-mobile-v010.jpg)
+<p>
+  <a href="docs/screenshots/chat-mobile.png"><img src="docs/screenshots/chat-mobile.png" width="300" alt="Chat Agen Mini pada mobile, tangkapan 780 × 1688 piksel"></a>
+  <a href="docs/screenshots/workbench-mobile.png"><img src="docs/screenshots/workbench-mobile.png" width="300" alt="Panel kode mobile, tangkapan 780 × 1688 piksel"></a>
+</p>
 
-Gambar/video adalah preview antarmuka dengan data uji terpisah, bukan bukti model menyelesaikan tugas.
+[![Tur visual antarmuka, GIF 1440 × 960](docs/screenshots/preview.gif)](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4)
+
+[Tonton / unduh MP4 1920 × 1280](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Semua gambar ukuran penuh](docs/screenshots/README.md)
+
+PNG diambil ulang langsung dari aplikasi pada skala layar 2×, tanpa kompresi JPEG. GIF/video adalah tur visual dari tangkapan tersebut dengan data demo terpisah, bukan rekaman model menyelesaikan tugas. [Bukti kemampuan model](docs/LOCAL-APPS-EVAL.md) disajikan terpisah.
 
 ## Pengujian dan pengembangan
 

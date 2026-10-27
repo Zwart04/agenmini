@@ -30,7 +30,7 @@ Ini bukan jaminan mutlak atau audit seluruh dependency sistem/provider.
 
 74 tes terkait agent, proyek, jalur model lokal, editor, journal dan sintaks frontend lulus di Windows lokal. Kasus tambahan memastikan batch alat yang ditunda tetap parsial sampai benar-benar dijalankan, jalur Windows tidak menggandakan folder proyek, dan editor JS membaca kontrak HTML aktual. Kasus mencakup tindakan mutasi terputus dengan outcome unknown tanpa replay, argumen privat tidak masuk log, penolakan jalur traversal/berkas privat, dan simpan editor yang konflik dengan perubahan agen. Pemeriksaan packaging memastikan placeholder URL gateway benar-benar diganti pada pemasang yang dibangun. CI Linux memeriksa seluruh suite serta fixture pemasang/supervisor; release gate memerlukan sukses pada commit rilis yang sama.
 
-Browser nyata pada preview dengan data terpisah memeriksa simpan berkas dan tombol JavaScript di iframe preview. Pada desktop 1440×900 dan mobile 390×844, document scrollWidth sama dengan lebar viewport. Screenshot panel tersedia pada docs/screenshots/workbench-desktop-v010.jpg dan workbench-mobile-v010.jpg; berkas demo ditulis untuk pengujian editor, bukan bukti model menghasilkan aplikasi. Panel memakai textarea dan iframe native; tidak ada Monaco atau layanan render di VPS. RAM VPS belum diukur.
+Browser nyata pada preview dengan data terpisah memeriksa simpan berkas dan tombol JavaScript di iframe preview. Pada desktop 1440×900 dan mobile 390×844, document scrollWidth sama dengan lebar viewport. Screenshot panel terbaru tersedia pada [galeri resolusi 2×](docs/screenshots/README.md); berkas demo ditulis untuk pengujian editor, bukan bukti model menghasilkan aplikasi. Panel memakai textarea dan iframe native; tidak ada Monaco atau layanan render di VPS. RAM VPS belum diukur.
 
 Evaluasi model CPU nyata dapat diulang memakai scripts/evaluate_apps.py. Data, draft dan laporan disimpan ke direktori temp baru; kode tidak diganti dengan template evaluator. Tugas converter mencakup unggah, canvas, resize dan download; editor mencakup file UTF-8, hitungan kata, replace-all dan save. Kanal tg memanggil agent.Turn yang sama, bukan Telegram network. Respons yang terpotong/invalid tetap failed. Hasil pengujian aplikasi model dicatat di docs/LOCAL-APPS-EVAL.md; sintaks/ZIP tidak membuktikan perilaku browser.
 
@@ -66,7 +66,7 @@ Katalog menyediakan sembilan CLI upstream, diunduh hanya ketika dipilih. Workflo
 
 45 tes terkait harness/profil/penjaga/frontend lulus di Windows lokal. Kasus mencakup isolasi environment, masking kunci, mode Kosong, penolakan fallback, pembatalan/timeout, manifest rusak, izin native serta pemilihan model per percakapan web/Telegram. Release memerlukan keberhasilan workflow aplikasi Linux, installer Windows nyata dan seluruh matriks runtime pada commit yang sama. Bukti aktual tersedia melalui badge dan riwayat Actions.
 
-Pemilih custom dan penjelasan runtime diperiksa pada desktop 1440 px dan mobile 390 px. Screenshot `runtime-desktop.jpg` dan `runtime-mobile.jpg` memakai data demo. Pengujian ini tidak menggunakan kredensial, akun provider atau VPS pengguna.
+Pemilih custom dan penjelasan runtime diperiksa pada desktop 1440 px dan mobile 390 px. [Galeri runtime terbaru](docs/screenshots/README.md) memakai data demo. Pengujian ini tidak menggunakan kredensial, akun provider atau VPS pengguna.
 
 ## Pemeriksaan
 

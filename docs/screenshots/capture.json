@@ -1,0 +1,127 @@
+{
+  "fixture": true,
+  "description": "Real application UI with labelled documentation data, not model output.",
+  "screenshots": [
+    {
+      "name": "chat-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "workbench-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "workbench-light.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "workspace-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "workspace-light.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "providers-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "harness-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "runtime-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "toast-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "dialog-desktop.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "mascot-light.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "mascot-dark.png",
+      "width": 2880,
+      "height": 1920,
+      "scale": 2
+    },
+    {
+      "name": "chat-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "workbench-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "workspace-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "providers-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "harness-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "runtime-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "toast-mobile.png",
+      "width": 780,
+      "height": 1688,
+      "scale": 2
+    },
+    {
+      "name": "editor-detail.png",
+      "width": 1210,
+      "height": 1920,
+      "scale": 2
+    }
+  ],
+  "errors": []
+}
