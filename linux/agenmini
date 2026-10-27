@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec /opt/agenmini/runtime/bin/python3 -s /opt/agenmini/launcher.py "$@"

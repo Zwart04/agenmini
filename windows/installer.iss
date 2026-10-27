@@ -7,6 +7,7 @@ AppName=Agen Mini
 AppVersion={#AppVersion}
 AppPublisher=Zwart04
 AppPublisherURL=https://github.com/Zwart04/agenmini
+LicenseFile=..\LICENSE
 DefaultDirName={localappdata}\Programs\Agen Mini
 DefaultGroupName=Agen Mini
 PrivilegesRequired=lowest
@@ -27,6 +28,7 @@ Source: "payload\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs creat
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\server\app\static"
 [Icons]
+Name: "{group}\Agen Mini CLI"; Filename: "{cmd}"; Parameters: "/K """"{app}\agenmini.cmd"""""; WorkingDir: "{app}"
 Name: "{group}\Agen Mini"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"
 Name: "{group}\Hentikan Agen Mini"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\launcher.py"" --stop"; WorkingDir: "{app}"
 Name: "{autodesktop}\Agen Mini"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\launcher.py"""; Tasks: desktopicon

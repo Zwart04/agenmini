@@ -6,6 +6,11 @@ def main():
     install=Path(__file__).resolve().parent;data=Path(os.environ.get('AGENMINI_DATA_DIR',Path(os.environ['LOCALAPPDATA'])/'AgenMini'/'data'))
     data.mkdir(parents=True,exist_ok=True);url='http://127.0.0.1:'+os.environ.get('AGENMINI_PORT','8765')
     pidfile=data/'desktop.pid';python=install/'runtime/python.exe'
+    if '--cli' in sys.argv:
+        passwordfile=data/'initial-password.txt'
+        if not passwordfile.exists():passwordfile.write_text(secrets.token_urlsafe(18))
+        env=os.environ.copy();env.update(DATA_DIR=str(data),WEB_PASSWORD=passwordfile.read_text().strip(),LLM_BACKEND='online',PATH=str(install/'bin')+';'+str(install/'runtime')+';'+env.get('PATH',''))
+        raise SystemExit(subprocess.call([str(python),'-m','app.cli',*sys.argv[sys.argv.index('--cli')+1:]],cwd=install/'server',env=env))
     if '--backup' in sys.argv:
         import sqlite3,shutil
         backup=data/'backup'/('windows-update-'+time.strftime('%Y%m%d-%H%M%S'));backup.mkdir(parents=True,exist_ok=True)

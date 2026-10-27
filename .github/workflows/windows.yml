@@ -38,4 +38,5 @@ jobs:
           path: |
             dist/agenmini-setup-*-windows-x64.exe
             dist/agenmini-setup-*-windows-x64.exe.sha256
+            dist/agenmini-*-windows-x64.zip*
           retention-days: 7

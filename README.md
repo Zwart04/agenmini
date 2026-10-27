@@ -6,9 +6,9 @@
 
 Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim bot dalam satu aplikasi. Antarmuka memakai HTML/CSS/JavaScript tanpa framework, font eksternal atau editor besar.
 
-[Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
+[Website & download](https://zwart04.github.io/agenmini/) · [Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
 
-[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md) · [Dukung pengembangan](https://tako.id/Zwart04/gift)
+[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md) · [Buy me a coffee ☕](https://tako.id/Zwart04/gift)
 
 ## Chat dan panel kerja
 
@@ -51,6 +51,29 @@ Katalog berisi 90 provider chat dengan logo asli, termasuk OpenCode Free, MiMo F
 ![Provider terintegrasi](docs/screenshots/providers-desktop-v090.png)
 
 Gateway memakai binary Go dengan SHA256, tanpa Node/compiler saat instalasi VPS. Batas container gateway 256 MB; pemakaian bergantung beban. Semua bot lokal berbagi satu model aktif melalui llama.cpp. Gateway lama dipertahankan untuk migrasi, tidak menjadi pilihan setup baru.
+
+## Download aplikasi & CLI
+
+| Platform | Paket resmi | Penggunaan |
+| --- | --- | --- |
+| Windows x64 | `.exe`, ZIP portable | Aplikasi + `agenmini.cmd` |
+| Debian / Ubuntu / Mint | `.deb` amd64/arm64 | Aplikasi + `agenmini` |
+| Fedora | `.rpm` x86_64/aarch64 | Aplikasi + `agenmini` |
+| Arch / EndeavourOS / Manjaro | `.pkg.tar.zst` x86_64 | Aplikasi + `agenmini` |
+| GNU/Linux lain | `.tar.gz` amd64/arm64, glibc 2.35+ | Python privat, tanpa Docker |
+| macOS / platform lain | Source ZIP | Setup manual; belum ada installer native |
+
+Pilih paket dari **[website download](https://zwart04.github.io/agenmini/)**.
+Panduan Linux: **[pasang, update, remove dan data pribadi](CARA-PASANG-LINUX.md)**.
+Semua paket menyediakan source dan checksum pendamping. Python dan gateway Go
+ikut dalam paket desktop Linux; model tidak dibundel. Node/Git adalah dependensi
+distro, sedangkan runtime harness tambahan hanya dipasang saat dipilih.
+
+Model/provider dapat diganti lewat **Pengaturan → Koneksi AI & model** atau
+CLI `agenmini provider online` lalu `agenmini model ID-MODEL`. Windows memakai
+`agenmini.cmd`. Koneksi akun/API key tetap dikonfigurasi sendiri. Desktop dapat
+memakai endpoint lokal yang sudah berjalan; pengelolaan unduhan model otomatis
+menggunakan supervisor VPS.
 
 ## Pasang di VPS Debian / Ubuntu
 
@@ -161,8 +184,16 @@ Evaluasi kedua memakai model CPU nyata, data privat baru, tugas converter gambar
 
 [Validasi dan batas pengujian](VALIDATION.md) · [Proyek besar](PROYEK-BESAR.md) · [Model lokal](MODEL-CATALOG.md) · [Lisensi adaptasi](docs/deepseek-harness.LICENSE)
 
-## Dukung pengembangan
+## Buy me a coffee ☕
 
-Agen Mini dapat digunakan tanpa donasi. Jika aplikasi ini membantu, Anda bisa [mendukung pengembangannya melalui Tako](https://tako.id/Zwart04/gift). Dukungan membantu pemeliharaan, pengujian Windows/Linux, dan perbaikan alur agen.
+Agen Mini dapat digunakan tanpa donasi. Jika aplikasi ini membantu, Anda bisa [Buy me a coffee melalui Tako](https://tako.id/Zwart04/gift). Dukungan membantu pemeliharaan, pengujian Windows/Linux, dan perbaikan alur agen.
 
 Tautan yang sama tersedia pada sidebar web, **Pengaturan → Update**, dan perintah `agen dukung` (atau `python -m app.cli dukung` untuk instalasi sumber). Tidak ada pembayaran atau pelacakan tambahan di dalam aplikasi.
+
+## Lisensi
+
+Mulai versi 0.11.0: **GPL-3.0-or-later**, copyright (C) 2026 Zwart04,
+sama dengan SweepDesk. Tanpa jaminan. [Lisensi lengkap](LICENSE) ·
+[Komponen pihak ketiga](THIRD_PARTY_NOTICES.md). Source dan build scripts
+tersedia pada rilis yang sama dengan paket aplikasi. Lisensi/merek komponen
+pihak ketiga dipertahankan; perubahan ini tidak mencabut izin yang sudah ada.

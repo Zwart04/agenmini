@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Agen Mini
+Comment=Ruang kerja AI pribadi — chat, tools, dan tim bot
+Exec=agenmini open
+Icon=agenmini
+Terminal=false
+Categories=Utility;Development;
+Keywords=AI;Agent;Chat;CLI;
+StartupNotify=false

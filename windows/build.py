@@ -42,6 +42,7 @@ def build():
         shutil.copy2(ROOT/'docs'/name,payload/'docs'/name)
     shutil.copy2(ROOT/'host-integrations.py',payload/'server/host-integrations.py')
     shutil.copy2(ROOT/'windows/launcher.py',payload/'launcher.py')
+    shutil.copy2(ROOT/'windows/agenmini.cmd',payload/'agenmini.cmd')
     node_version='v24.21.0';node_zip='node-'+node_version+'-win-x64.zip';base='https://nodejs.org/dist/'+node_version+'/'
     checks=get(base+'SHASUMS256.txt').decode();expected=next(line.split()[0] for line in checks.splitlines() if line.endswith(node_zip));data=get(base+node_zip)
     if hashlib.sha256(data).hexdigest()!=expected:raise ValueError('Node SHA256 failed')
@@ -61,5 +62,12 @@ def build():
     exe=ROOT/'dist'/('agenmini-setup-'+version+'-windows-x64.exe');checksum=hashlib.sha256(exe.read_bytes()).hexdigest()
     if exe.read_bytes()[:2]!=b'MZ':raise ValueError('Installer is not a Windows executable')
     exe.with_suffix('.exe.sha256').write_text(checksum+'  '+exe.name+'\n')
+    portable=ROOT/'dist'/('agenmini-'+version+'-windows-x64.zip')
+    with zipfile.ZipFile(portable,'w',zipfile.ZIP_DEFLATED) as archive:
+        for file in payload.rglob('*'):
+            if file.is_file():archive.write(file,file.relative_to(payload))
+    with zipfile.ZipFile(portable) as archive:
+        if archive.testzip():raise ValueError('Portable ZIP CRC failed')
+    portable.with_name(portable.name+'.sha256').write_text(hashlib.sha256(portable.read_bytes()).hexdigest()+'  '+portable.name+'\n')
     print('Windows installer built and SHA256 verified:',exe.name)
 if __name__=='__main__':build()

@@ -123,7 +123,10 @@ def validate_arguments(name, args):
 
 def _kerja_limits(project=False):
     if not project: resource.setrlimit(resource.RLIMIT_AS, (768 * 1024 * 1024, 768 * 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+    # NPROC counts every thread for this UID. A desktop shares its UID with
+    # the user's browser/session; the dedicated container worker does not.
+    if os.environ.get('AGENMINI_DESKTOP') != '1':
+        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
     os.setsid()
 
 

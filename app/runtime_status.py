@@ -66,6 +66,9 @@ async def state():
 
 
 def request(mode, model=None):
+    if os.environ.get('AGENMINI_DESKTOP') == '1':
+        if mode in ('api','reconcile'):return
+        raise ValueError('Paket desktop memakai gateway bawaan atau API langsung. Untuk llama.cpp/Ollama yang sudah berjalan, pilih API langsung dan isi endpoint /v1 serta modelnya. Unduhan model otomatis memakai pemasangan VPS dengan supervisor.')
     if os.name == 'nt':
         if mode in ('api','reconcile'):return
         raise ValueError('Pemasangan mesin lokal/gateway dikelola oleh supervisor Linux. Pada Windows gunakan API langsung untuk gateway/model yang sudah berjalan, atau pemasangan VPS melalui WSL/Docker.')

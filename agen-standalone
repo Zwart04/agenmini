@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${1:-}" == dukung || "${1:-}" == support ]]; then
-  echo 'Dukung pengembangan Agen Mini: https://tako.id/Zwart04/gift'
+if [[ "${1:-}" == dukung || "${1:-}" == support || "${1:-}" == coffee ]]; then
+  echo 'Buy me a coffee ☕ https://tako.id/Zwart04/gift'
   exit 0
 fi
 if [[ "${1:-}" == uninstall || "${1:-}" == hapus ]]; then
@@ -40,5 +40,5 @@ case "${1:-bantuan}" in
   model) shift; compose exec -T agen python -m app.cli model "$@" ;;
   kode) compose exec -T agen python -m app.cli code ;;
   *) echo "agen status | log | router-log | lokal-log | start | stop | restart | update [check|status] | sandi | model <nama> | kode | dukung"
-     echo 'Dukung Agen Mini: https://tako.id/Zwart04/gift' ;;
+     echo 'Buy me a coffee ☕ https://tako.id/Zwart04/gift' ;;
 esac

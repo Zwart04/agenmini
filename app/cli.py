@@ -57,9 +57,12 @@ def usage():
 def run():
     args = sys.argv[1:]
     cmd = args[0] if args else ""
-    if cmd in ('support', 'dukung'):
+    if cmd in ('coffee', 'support', 'dukung'):
         from .update_control import SUPPORT_URL
-        print('Dukung pengembangan Agen Mini: ' + SUPPORT_URL)
+        print('Buy me a coffee ☕ ' + SUPPORT_URL)
+        return
+    if cmd in ('license','lisensi'):
+        print('Agen Mini · Copyright (C) 2026 Zwart04 · GPL-3.0-or-later\nTanpa jaminan. Source dan lisensi: https://github.com/Zwart04/agenmini/blob/main/LICENSE')
         return
     main.bootstrap()
     if cmd == 'update':
@@ -80,11 +83,19 @@ def run():
         asyncio.run(_pull(args[1]))
     elif cmd == "bench":
         asyncio.run(_bench(args[1:]))
+    elif cmd == 'provider':
+        if len(args) == 1:print('Provider aktif: ' + llm.active_backend())
+        elif len(args) == 2 and args[1] in ('online','local','router','auto','ollama'):
+            db.set_setting('llm_backend',args[1])
+            print('Provider: '+args[1]+'. URL, API key dan model dapat diubah di Pengaturan → Koneksi AI & model.')
+        else:raise SystemExit('Gunakan: provider [online|local|router|auto|ollama]')
     elif cmd == "model":
         if len(args) < 2:
-            print(f"Model sekarang: {db.setting('model')}")
+            print(f"Model sekarang: {llm.default_model()}")
         else:
-            db.set_setting("model", args[1])
+            if llm.active_backend()=='auto':raise SystemExit('Pilih provider tertentu dahulu: agenmini provider online atau router. Mode auto memilih model lewat routing.')
+            key={'online':'online_model','local':'local_model_id','router':'router_last_model'}.get(llm.active_backend(),'model')
+            db.set_setting(key, args[1])
             print(f"Model diganti ke {args[1]}. Berlaku untuk pesan berikutnya.")
     elif cmd == "password":
         pw = args[1] if len(args) > 1 else secrets.token_urlsafe(9)
@@ -111,8 +122,8 @@ def run():
         print("\n".join(KANDIDAT))
     else:
         from .update_control import SUPPORT_URL
-        print("perintah: pull <model> | bench [model...] | model [nama] | password [baru] | code | telegram <token> | status | update [check|status] | dukung")
-        print('Dukung Agen Mini: ' + SUPPORT_URL)
+        print("perintah: pull <model> | bench [model...] | model [nama] | provider [nama] | password [baru] | code | telegram <token> | status | update [check|status] | coffee | license")
+        print('Buy me a coffee ☕ ' + SUPPORT_URL)
 
 
 if __name__ == "__main__":

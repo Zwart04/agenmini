@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-FILES = ["app", "frontend", "gateway", "docs/DEEPSEEK-CORE.md", "docs/deepseek-harness.LICENSE", "docs/HARNESSES.md", "docs/BRANDING.md", "docs/PROJECT-MAP.md", "docs/SECURITY-AUDIT.md", "UNINSTALL.md", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
+FILES = ["app", "frontend", "gateway", "LICENSE", "THIRD_PARTY_NOTICES.md", "docs/DEEPSEEK-CORE.md", "docs/deepseek-harness.LICENSE", "docs/HARNESSES.md", "docs/BRANDING.md", "docs/PROJECT-MAP.md", "docs/SECURITY-AUDIT.md", "UNINSTALL.md", "Dockerfile", "docker-compose.yml", "docker-compose.standalone.yml", ".env.standalone.example", "mcp.example.json", "README.md", "requirements.txt", "requirements.lock", "MODEL-CATALOG.md", "VALIDATION.md", "agen", "agen-standalone", ".dockerignore", "agen-supervisor.sh", "agen-swap.sh", "agen-uninstall.sh", "host-integrations.py", "router-backup.py", "make_vps_backup.py"]
 DEFAULT_MODEL = "hf.co/agentscope-ai/QwenPaw-Flash-2B-Q4_K_M"
 
 

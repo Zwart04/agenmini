@@ -19,13 +19,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for workflow in test.yml windows.yml harnesses.yml secrets.yml; do
+          for workflow in test.yml windows.yml linux.yml harnesses.yml secrets.yml; do
             run_id=$(gh run list --workflow "$workflow" --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId')
             test -n "$run_id" && test "$run_id" != null
             gh run watch "$run_id" --exit-status
             test "$(gh run view "$run_id" --json conclusion --jq .conclusion)" = success
             if test "$workflow" = windows.yml; then echo "WINDOWS_RUN=$run_id" >> "$GITHUB_ENV"; fi
             if test "$workflow" = test.yml; then echo "TEST_RUN=$run_id" >> "$GITHUB_ENV"; fi
+            if test "$workflow" = linux.yml; then echo "LINUX_RUN=$run_id" >> "$GITHUB_ENV"; fi
           done
       - name: Build source and VPS assets and obtain tested Windows installer
         shell: bash
@@ -34,6 +35,8 @@ jobs:
           python3 build_release.py
           gh run download "$WINDOWS_RUN" --name windows-installer --dir dist
           gh run download "$TEST_RUN" --name gateway-binaries --dir dist
+          gh run download "$LINUX_RUN" --name linux-packages-amd64 --dir dist
+          gh run download "$LINUX_RUN" --name linux-packages-arm64 --dir dist
           python3 - <<'PY'
           import hashlib,re,zipfile
           from pathlib import Path
@@ -52,7 +55,13 @@ jobs:
         run: |
           set -euo pipefail
           tag=$(cat release-tag.txt)
-          gh release create "$tag" dist/agenmini-vps.zip dist/agenmini-source.zip dist/agenmini-frontend.zip dist/pasang-vps.sh dist/pasang-vps.sha256 dist/SHA256SUMS dist/agenmini-setup-*-windows-x64.exe dist/agenmini-setup-*-windows-x64.exe.sha256 dist/agenmini-gateway-* --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          files=sorted(p for p in Path('dist').iterdir() if p.is_file() and p.name!='SHA256SUMS')
+          Path('dist/SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in files))
+          PY
+          gh release create "$tag" dist/*.zip dist/*.exe dist/*.deb dist/*.rpm dist/*.pkg.tar.zst dist/*-linux-*.tar.gz dist/*.sha256 dist/pasang-vps.sh dist/SHA256SUMS dist/agenmini-gateway-linux-amd64 dist/agenmini-gateway-linux-arm64 --draft --target "$GITHUB_SHA" --title "Agen Mini $tag" --notes-file release-notes.md
           gh release edit "$tag" --draft=false
           mkdir public-verification
           python3 - <<'PY'

@@ -1,3 +1,26 @@
+# Agen Mini 0.11.0
+
+Website download resmi dengan pilihan sistem, arsitektur, aplikasi dan CLI.
+Link dihasilkan dari aset rilis nyata; format yang tidak tersedia tidak ditawarkan.
+Paket desktop Linux baru: .deb amd64/arm64, .rpm x86_64/aarch64,
+Arch .pkg.tar.zst x86_64, dan portable GNU/Linux glibc 2.35+.
+Windows menyediakan installer EXE serta ZIP portable dengan agenmini.cmd.
+
+Paket Linux menyertakan Python privat dan gateway Go. Tidak mengubah Python
+sistem, tidak menjalankan aplikasi sebagai root, dan tidak membundel bobot AI.
+Data pengguna terpisah dan tetap dipertahankan saat paket dihapus/diperbarui.
+API/provider/model tetap bisa diubah melalui Pengaturan dan CLI.
+
+Label dukungan menjadi **Buy me a coffee** dengan tautan Tako pemilik yang sama.
+Karya asli mulai rilis ini memakai **GPL-3.0-or-later**, sama dengan SweepDesk;
+lisensi komponen pihak ketiga dipertahankan. Source disediakan bersama paket.
+
+Panduan: [website](https://zwart04.github.io/agenmini/) ·
+[Linux](CARA-PASANG-LINUX.md) · [Windows](CARA-PASANG-WINDOWS.txt) ·
+[VPS](CARA-PASANG-VPS.txt) · [lisensi](LICENSE).
+
+## 0.10.3
+
 # Agen Mini 0.10.3
 
 Pembuatan editor video satu klip memakai bagian kecil dengan pemeriksaan
