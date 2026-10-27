@@ -1,208 +1,131 @@
-# Agen Mini
-
-[![Linux tests](https://github.com/Zwart04/agenmini/actions/workflows/test.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/test.yml)
-[![Windows installer](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml)
-[![External runtimes](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml/badge.svg)](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml)
-
-Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim bot dalam satu aplikasi. Antarmuka memakai HTML/CSS/JavaScript tanpa framework, font eksternal atau editor besar.
-
-[Website & download](https://zwart04.github.io/agenmini/) · [Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
-
-[Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md) · [Buy me a coffee ☕](https://tako.id/Zwart04/gift)
-
-## Chat dan panel kerja
-
-[![Panel kode desktop, PNG resolusi 2×](docs/screenshots/workbench-desktop.png)](docs/screenshots/workbench-desktop.png)
-
-Klik gambar untuk membuka PNG ukuran penuh. [Tema terang](docs/screenshots/workbench-light.png) · [Detail editor](docs/screenshots/editor-detail.png) · [Galeri desktop & mobile](docs/screenshots/README.md). Seluruh preview memakai data demo terpisah.
-
-Pilih model pada chat, gunakan **Dengan izin / Akses penuh**, lalu buka **Panel kerja** untuk membaca/edit berkas, melihat perubahan agen, log dan preview. Editor memeriksa hash sebelum menyimpan; bila agen mengubah berkas setelah dibuka, simpan ditolak agar perubahan tidak tertimpa. Salinan sebelum edit disimpan privat, terpisah dari repo.
-
-Preview proyek berjalan di browser Anda dalam iframe terisolasi tanpa akses cookie aplikasi atau jaringan. HTML dengan CSS/JS lokal sederhana didukung; import module, aset luar dan backend perlu server proyek. Tab Browser menampilkan situs yang mengizinkan embedding, dengan **Buka tab** untuk situs yang menolaknya. Panel tampilan ini bukan browser otomatis agen dan tidak menggantikan mesin otomatisasi DOM.
-
-Untuk agen yang hanya membaca web, unduhan HTML adalah pilihan paling ringan. Lightpanda atau Chromium tetap opsional untuk interaksi otomatis; jangan memasangnya hanya untuk memakai panel. Animasi maskot memakai CSS di perangkat pengguna, tanpa server animasi.
-
-## Harness bawaan
-
-**Konteks seperlunya → model memilih tindakan → validasi alat/izin → jalankan berurutan → catat hasil → ulangi → verifikasi → jawab.**
-
-Inti kontrol Agen Mini diadaptasi ke Python dari loop open-source [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), dengan atribusi MIT dan commit sumber tetap. Ada batas langkah/waktu, log tindakan dengan identitas call/result, serta hasil belum diketahui ketika tindakan terputus. Tindakan mutasi tidak otomatis diputar ulang. Web dan Telegram menggunakan `agent.Turn` yang sama.
-
-Harness bawaan berlaku untuk model lokal, API online dan gateway/router. Model kecil dipakai sebagai acuan uji, bukan batas dukungan. Kode hasil tugas berasal dari model yang dipilih; pemeriksaan dapat menolak hasil dan meminta model memperbaikinya. Bukti uji nyata dipisahkan dari tes respons stub, dan hasil yang gagal tidak dilabeli sukses. [Benchmark aplikasi dan batasnya](docs/LOCAL-APPS-EVAL.md)
-
-Uji editor kelas 1B kini menghasilkan aplikasi satu klip dengan trim, teks,
-suara dan ekspor WebM yang diperiksa di browser serta didekode ulang.
-Hasil ini menggabungkan keluaran Qwen 0.8B dan DeepSeek Coder 1.3B dari beberapa
-percobaan; belum membuktikan satu model dapat membuat semua aplikasi secara
-mandiri. [Lihat hasil, gambar dan batas pengujian](docs/LOCAL-APPS-EVAL.md#23-oktober-2026--editor-gabungan-kelas-1b-berjalan-di-browser).
-
-Percakapan panjang memakai catatan konteks otomatis yang dapat dibuka di chat.
-Pesan asli tetap tersimpan; pemulihan konteks dan pengulangan alat dibatasi agar
-galat tidak berputar tanpa kemajuan. [Cara kerja dan batas auto-compact](docs/CONTEXT-COMPACTION.md)
-
-Ini adaptasi inti tertentu, bukan port penuh Cordis atau CLI DeepSeek. **DeepSeek eksternal asli tetap tersedia** dan dipasang hanya saat dipilih. Kosong, Agen Mini bawaan dan runtime eksternal tetap dibedakan. [Detail adaptasi](docs/DEEPSEEK-CORE.md) · [Runtime asli dan batas integrasi](docs/HARNESSES.md)
-
-Skill dan ingatan dapat dilihat, diedit dan dikosongkan. Self-improve menyimpan prosedur yang dibuktikan dan ditinjau; tidak melatih bobot model. Model kecil masih dapat salah. Harness tidak menjadikannya setara model frontier.
-
-## Satu pintu koneksi AI
-
-Pilih **Pengaturan → Koneksi AI & model** untuk model lokal, API langsung atau gateway OAuth/API. Gateway adalah fork koneksi Go dari [9router-go](https://github.com/luqman-v1/9router-go), berdasarkan [9router](https://github.com/decolua/9router). Tidak menjalankan dashboard kedua atau fitur media/terminal/analitik router.
-
-Katalog berisi 90 provider chat dengan logo asli, termasuk OpenCode Free, MiMo Free dan Devin CLI tanpa login. Tersedia API key, OAuth, refresh token, pemilih model dan fallback. Gratis tetap mengikuti kuota/ketersediaan provider; seluruh akun OAuth belum diuji nyata. Gemini CLI/Antigravity memerlukan client aplikasi Google sesuai [panduan gateway](gateway/README.md).
-
-[![Katalog provider terintegrasi, PNG resolusi 2×](docs/screenshots/providers-desktop.png)](docs/screenshots/providers-desktop.png)
-
-Gateway memakai binary Go dengan SHA256, tanpa Node/compiler saat instalasi VPS. Batas container gateway 256 MB; pemakaian bergantung beban. Semua bot lokal berbagi satu model aktif melalui llama.cpp. Gateway lama dipertahankan untuk migrasi, tidak menjadi pilihan setup baru.
-
-## Download aplikasi & CLI
-
-| Platform | Paket resmi | Penggunaan |
-| --- | --- | --- |
-| Windows x64 | `.exe`, ZIP portable | Aplikasi + `agenmini.cmd` |
-| Debian / Ubuntu / Mint | `.deb` amd64/arm64 | Aplikasi + `agenmini` |
-| Fedora | `.rpm` x86_64/aarch64 | Aplikasi + `agenmini` |
-| Arch / EndeavourOS / Manjaro | `.pkg.tar.zst` x86_64 | Aplikasi + `agenmini` |
-| GNU/Linux lain | `.tar.gz` amd64/arm64, glibc 2.35+ | Python privat, tanpa Docker |
-| macOS / platform lain | Source ZIP | Setup manual; belum ada installer native |
-
-Pilih paket dari **[website download](https://zwart04.github.io/agenmini/)**.
-Panduan Linux: **[pasang, update, remove dan data pribadi](CARA-PASANG-LINUX.md)**.
-Semua paket menyediakan source dan checksum pendamping. Python dan gateway Go
-ikut dalam paket desktop Linux; model tidak dibundel. Node/Git adalah dependensi
-distro, sedangkan runtime harness tambahan hanya dipasang saat dipilih.
-
-Model/provider dapat diganti lewat **Pengaturan → Koneksi AI & model** atau
-CLI `agenmini provider online` lalu `agenmini model ID-MODEL`. Windows memakai
-`agenmini.cmd`. Koneksi akun/API key tetap dikonfigurasi sendiri. Desktop dapat
-memakai endpoint lokal yang sudah berjalan; pengelolaan unduhan model otomatis
-menggunakan supervisor VPS.
-
-## Pasang di VPS Debian / Ubuntu
-
-Login sebagai root, lalu jalankan tiga perintah berikut. Tidak perlu Docker sudah terpasang.
-
-```bash
-curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps.sh -o pasang-vps.sh
-curl -fL https://github.com/Zwart04/agenmini/releases/latest/download/pasang-vps.sha256 -o pasang-vps.sha256
-sha256sum -c pasang-vps.sha256 && bash pasang-vps.sh
-```
-
-Pemasang memeriksa OS/arsitektur, menyiapkan Docker/Compose, membuat sandi dan menampilkan alamat aplikasi. Buka TCP 443 pada firewall penyedia VPS. Sertifikat awal self-signed. Pilih sandi sendiri/otomatis dan swap opsional; model lokal disarankan mulai dari RAM 4 GB dan 2 CPU. API lebih ringan, RAM 2 GB disarankan. Swap memakai disk dan tidak menggantikan RAM cepat.
-
-Alternatif: unduh `agenmini-vps.zip`, ekstrak, unggah kedua berkas pemasang/checksum ke VPS dan jalankan perintah checksum terakhir di folder yang sama. Source ZIP dipakai untuk pengembangan, bukan pengganti pemasang.
-
-## Update VPS yang sudah terpasang
-
-**Jangan hapus instalasi, model, `data`, atau `.env`.** Buat backup privat di Pengaturan terlebih dahulu. Saat memperbarui dari versi lama, selesaikan pekerjaan aktif sebelum menjalankan updater lama.
-
-```bash
-agen update check    # periksa release tanpa memasang
-agen update          # backup, verifikasi, lalu pasang
-agen update status   # baca status updater
-agen status
-```
-
-Supervisor memeriksa release dan SHA256, membuat backup, menunggu tugas sibuk selesai, lalu memasang versi baru. Untuk melewati updater lama atau memperbaiki pemasangan yang berhenti, unduh ulang pemasang/checksum dengan tiga perintah instalasi di atas. Jalankan di atas instalasi lama; sandi, bot, skill, riwayat, model dan akun dipertahankan.
-
-Jika versi 0.9.0 gagal saat unduh gateway dengan 404 sesudah checksum pemasang OK, penyebabnya placeholder versi yang belum diganti pada URL binary. Perbaikan mengganti versi pada saat packaging dan memeriksa hash binary sebelum mengganti binary lama. Jangan menghapus model untuk memperbaiki galat ini.
-
-```bash
-agen log
-agen router-log
-agen lokal-log
-agen supervisor-log
-agen sandi
-```
-
-Di web, buka **Pengaturan → Update → Cek versi / Update sekarang**. Status permintaan diperbarui selama tab terbuka. Updater menunggu pekerjaan model, tugas tim, serta pemasangan/pengerjaan harness eksternal selesai. Windows dan instalasi manual menampilkan **Unduh update** menuju installer resmi.
-
-Update otomatis harian tersedia di Pengaturan dan perlu diaktifkan sendiri. Lokasi instalasi `/opt/agenmini`; data privat `/opt/agenmini/data`. Backup tidak boleh diunggah ke repo publik.
-
-## Remove di Linux
-
-Lihat dahulu tindakan yang akan dilakukan:
-
-```bash
-agen hapus --dry-run
-```
-
-Hapus layanan, **pertahankan data dan model** untuk dipasang kembali:
-
-```bash
-agen hapus
-```
-
-Hapus seluruh layanan **beserta data/model/akun Agen Mini** setelah backup:
-
-```bash
-agen hapus --all
-```
-
-Perintah meminta konfirmasi. Tidak mencopot Docker atau menghapus project/container lain. [Detail penghapusan](UNINSTALL.md)
-
-## Windows
-
-Unduh installer `agenmini-setup-VERSI-windows-x64.exe` dari [release terbaru](https://github.com/Zwart04/agenmini/releases/latest). Jalankan wizard dan buka dari Start. Update dengan installer terbaru di lokasi yang sama; data berada di `%LOCALAPPDATA%\AgenMini\data` dan dipertahankan.
-
-Hapus aplikasi melalui **Settings → Apps → Installed apps → Agen Mini → Uninstall**. Data tetap disimpan. Jika ingin menghapusnya permanen, backup dahulu lalu hapus folder data secara manual. Lihat [panduan Windows](CARA-PASANG-WINDOWS.txt).
-
-API yang sudah berjalan dapat digunakan langsung. Pengelolaan otomatis service Linux, swap dan container tidak dijalankan di Windows native; endpoint llama.cpp/gateway lokal yang sudah tersedia dapat dikoneksikan. Tidak perlu memasang WSL hanya untuk memakai API.
-
-## Mulai menggunakan
-
-1. Setup awal selalu dimulai dengan Orchestrator. Pilih isi kosong atau paket bot/skill, lalu harness dan sumber model.
-2. Hubungkan sumber AI dan **Uji koneksi**. Key tersimpan atau nama model belum membuktikan provider menjawab.
-3. Beri tujuan dan kriteria hasil pada Chat. Pilih model tiap percakapan/bot; lihat kode dan log melalui Panel kerja.
-4. Untuk proyek panjang, gunakan **Tugas & Tim** agar ada tahap, bukti, jeda, checkpoint dan ZIP hasil.
-5. Hubungkan Telegram melalui Pengaturan. `/model` mengganti model; `/belajar` meninjau prosedur. Alur harness bawaan sama dengan web.
-6. Tambahkan MCP/skill hanya bila diperlukan. HTTP MCP lebih mudah untuk VPS; stdio memerlukan executable pada runtime.
-
-| Menu utama | Isi |
-| --- | --- |
-| Chat | Model, akses, riwayat, berkas dan panel kode/preview/log |
-| Tugas & Tim | Orchestrator, spesialis, proyek, aktivitas dan jadwal |
-| Pengaturan | Koneksi AI/MCP, harness, skill, ingatan, Telegram, backup dan update |
-
-## Preview aplikasi
-
-[![Workspace dan karakter tim, PNG resolusi 2×](docs/screenshots/workspace-desktop.png)](docs/screenshots/workspace-desktop.png)
-
-[Workspace tema terang](docs/screenshots/workspace-light.png) · [Pilihan harness](docs/screenshots/harness-desktop.png)
-
-<p>
-  <a href="docs/screenshots/chat-mobile.png"><img src="docs/screenshots/chat-mobile.png" width="300" alt="Chat Agen Mini pada mobile, tangkapan 780 × 1688 piksel"></a>
-  <a href="docs/screenshots/workbench-mobile.png"><img src="docs/screenshots/workbench-mobile.png" width="300" alt="Panel kode mobile, tangkapan 780 × 1688 piksel"></a>
+<p align="center">
+  <img src="frontend/mascot.png" width="88" alt="Agen Mini mascot">
+</p>
+<h1 align="center">Agen Mini</h1>
+<p align="center"><strong>Your models. Your workspace. Work you can inspect.</strong></p>
+<p align="center">A lightweight AI workspace for local models and online providers.<br>Chat, code, delegate, and inspect the files and tool results behind an answer.</p>
+<p align="center">
+  <a href="https://zwart04.github.io/agenmini/">Download</a> ·
+  <a href="docs/INSTALL.md">Getting started</a> ·
+  <a href="docs/BENCHMARKS.md">Small-model benchmark</a> ·
+  <a href="README.id.md">Bahasa Indonesia</a>
+</p>
+<p align="center">
+  <img alt="Private preview" src="docs/assets/preview.svg" width="138" height="24">
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="docs/assets/license.svg" width="138" height="24"></a>
 </p>
 
-[![Tur visual antarmuka, GIF 1440 × 960](docs/screenshots/preview.gif)](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4)
+> **Private preview.** The repository is temporarily private while setup and provider reliability are being validated. Public website deployment is paused; release downloads require repository access.
 
-[Tonton / unduh MP4 1920 × 1280](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Semua gambar ukuran penuh](docs/screenshots/README.md)
+## Small models. A working video editor.
 
-PNG diambil ulang langsung dari aplikasi pada skala layar 2×, tanpa kompresi JPEG. GIF/video adalah tur visual dari tangkapan tersebut dengan data demo terpisah, bukan rekaman model menyelesaikan tugas. [Bukti kemampuan model](docs/LOCAL-APPS-EVAL.md) disajikan terpisah.
+**Clip Mini** is our documented local-model benchmark: a browser video editor with a CapCut-inspired workflow. It imports a clip, plays and seeks, trims a range, adds text, and exports a downloadable WebM with audio.
 
-## Pengujian dan pengembangan
+[![Clip Mini: actual local-model benchmark with imported video, trim controls, text overlay, and timeline](docs/screenshots/model-editor-v208.png)](docs/BENCHMARKS.md)
 
-Linux diuji pada container GitHub Actions; Windows mencakup pemeriksaan installer nyata. Runtime eksternal diuji pemasangan/CLI secara terpisah; hal itu tidak membuktikan akun provider atau kualitas model.
+| What was tested | Recorded result |
+| --- | --- |
+| Local model contributors | Qwen3.5 **0.8B** and DeepSeek Coder **1.3B** |
+| Browser workflow | Import → playback / seek → trim → text → export → download |
+| Export verification | Exported video decoded; motion, audio, text and trim checked |
+| Example trim | 5-second input → seconds 1–3 → **1.956-second** output with text |
+| Recovery checks | Invalid trim, keyboard input, cancellation, and export after cancellation |
 
-```bash
+The harness breaks work into small parts, checks behavior, and requests repairs. Runtime code came from local-model outputs; the evaluator supplied contracts, tests, and assembly. **This was a combined result across multiple attempts, not a one-shot 1B generation.** The editor handles one clip; it does not implement CapCut's full feature set. Results were recorded on October 23, 2026.
+
+[Read the benchmark, measurements, and provenance →](docs/BENCHMARKS.md)
+
+## Why Agen Mini
+
+| Capability | What you get |
+| --- | --- |
+| **Bring your own model** | Local endpoints, direct APIs, and an integrated OAuth/API connection gateway. Switch providers in Settings and models per conversation or bot. |
+| **Inspectable work** | Code panel, file edits, tool logs, approvals, and project previews alongside chat. |
+| **One workflow across channels** | Web and Telegram share the built-in agent loop, including context compaction and tool checks. |
+| **A small team when needed** | An Orchestrator and optional specialist bots with separate model choices. |
+| **Learning you can edit** | Reviewable procedures, editable skills and memory; external MCP tools are optional. This does not retrain model weights. |
+| **A lean interface** | System fonts, native browser rendering, no Electron shell or large editor framework. Model weights are downloaded separately. |
+
+## A workspace you can follow
+
+[![Agen Mini chat and code panel, captured at 2x resolution with documentation demo data](docs/screenshots/workbench-desktop.png)](docs/screenshots/workbench-desktop.png)
+
+Read code, review changes, and inspect tool activity without leaving the conversation. File saves check for conflicts with the agent's edits. Preview runs in an isolated frame; backend projects and sites that refuse embedding need their own server or tab.
+
+[Light theme](docs/screenshots/workbench-light.png) · [Editor close-up](docs/screenshots/editor-detail.png) · [Desktop and mobile gallery](docs/screenshots/README.md)
+
+<details>
+<summary>Team workspace, providers, and mobile</summary>
+
+[![Team workspace](docs/screenshots/workspace-desktop.png)](docs/screenshots/workspace-desktop.png)
+
+[![Integrated provider catalog](docs/screenshots/providers-desktop.png)](docs/screenshots/providers-desktop.png)
+
+<p>
+  <a href="docs/screenshots/chat-mobile.png"><img src="docs/screenshots/chat-mobile.png" width="280" alt="Chat on mobile"></a>
+  <a href="docs/screenshots/workbench-mobile.png"><img src="docs/screenshots/workbench-mobile.png" width="280" alt="Code panel on mobile"></a>
+</p>
+
+[Interface tour: MP4, 1920 × 1280](https://raw.githubusercontent.com/Zwart04/agenmini/main/docs/screenshots/preview.mp4) · [Animated GIF](docs/screenshots/preview.gif)
+
+These workspace images use documentation demo data. The model-generated benchmark image and measurements are documented separately above.
+
+</details>
+
+## Download and install
+
+**[Choose your platform on the download website →](https://zwart04.github.io/agenmini/#download)**
+
+| Platform | Available package | Includes |
+| --- | --- | --- |
+| Windows 10 / 11 x64 | Installer `.exe` or portable `.zip` | App and `agenmini.cmd` CLI |
+| Debian / Ubuntu / Mint | `.deb`, amd64 / arm64 | App and `agenmini` CLI |
+| Fedora | `.rpm`, x86_64 / aarch64 | App and CLI |
+| Arch / EndeavourOS / Manjaro | `.pkg.tar.zst`, x86_64 | App and CLI |
+| Other GNU/Linux | Portable `.tar.gz`, amd64 / arm64, glibc 2.35+ | Private Python and gateway |
+| macOS and other platforms | Source ZIP, manual setup | No native installer yet |
+
+Verify the matching SHA256 before installing. Linux packages bundle private Python and the Go connection gateway; Node.js, Git and xdg-utils are system dependencies. Desktop opens in your existing browser. Packages do not contain model weights or provider accounts.
+
+**[English install, update, and uninstall guide](docs/INSTALL.md)** · [All release files and checksums](https://github.com/Zwart04/agenmini/releases/latest)
+
+1. Open Agen Mini and choose **Local AI** or **Online AI** first. Optional harness, bot, password and swap settings are under Advanced.
+2. Connect a running local model, choose an online provider through the gateway, or enter a direct API endpoint. Setup completes only after a real response check succeeds. Later, change the source in **Settings → AI connections & model** (**Pengaturan → Koneksi AI & model**).
+3. Choose a model and give the Orchestrator a task. Review tool results and files before accepting the output.
+4. Connect Telegram if needed. `/model` changes the model; the built-in harness is shared with the web app.
+
+On Linux, `agenmini provider online` and `agenmini model MODEL-ID` change the selected source and model. Windows uses `agenmini.cmd`. Configure the endpoint and API key in Settings first.
+
+## How the harness works
+
+**Load relevant context → choose an action → validate tools and permissions → execute → record results → verify → answer.**
+
+The built-in loop adapts selected control contracts from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), with attribution retained. Long chats use context compaction; the original messages remain stored. Interrupted mutations are not replayed automatically. Web, local/API backends, and Telegram use the same built-in core.
+
+Skills, memory, and operating instructions can be inspected and edited. Self-improvement stores reviewed procedures with evidence; it does not make every small model reliable or equivalent to a larger model. Original external harness runtimes are separate, optional installs with their own permissions and credentials.
+
+[Harness architecture](docs/DEEPSEEK-CORE.md) · [External runtimes](docs/HARNESSES.md) · [Context compaction](docs/CONTEXT-COMPACTION.md)
+
+## Verification and development
+
+[Project tests](https://github.com/Zwart04/agenmini/actions/workflows/test.yml) · [Windows installation tests](https://github.com/Zwart04/agenmini/actions/workflows/windows.yml) · [Linux package tests](https://github.com/Zwart04/agenmini/actions/workflows/linux.yml) · [Runtime installation matrix](https://github.com/Zwart04/agenmini/actions/workflows/harnesses.yml) · [Secret scan](https://github.com/Zwart04/agenmini/actions/workflows/secrets.yml)
+
+CI checks the core, package installation, login, CLI settings, update/data preservation, and removal. Those checks do not prove every external provider account works or that every generated application is correct. Real-model evaluations and UI demo captures are reported separately.
+
+```sh
 python -m pytest tests -q
+# Optional real local-model evaluation; requires your own llama.cpp and GGUF:
 python scripts/evaluate_apps.py --server-exe /path/llama-server --gguf /path/model.gguf
 ```
 
-Evaluasi kedua memakai model CPU nyata, data privat baru, tugas converter gambar dan editor teks, tanpa template hasil. Pemeriksaan ZIP/sintaks tidak cukup; unggah, resize, penggantian teks dan download perlu pengujian browser independen. Kanal `tg` menguji jalur agent yang sama, bukan pengiriman ke jaringan Telegram.
+[Validation notes](VALIDATION.md) · [Project map](docs/PROJECT-MAP.md) · [Security audit](docs/SECURITY-AUDIT.md) · [Report an issue](https://github.com/Zwart04/agenmini/issues)
 
-[Validasi dan batas pengujian](VALIDATION.md) · [Proyek besar](PROYEK-BESAR.md) · [Model lokal](MODEL-CATALOG.md) · [Lisensi adaptasi](docs/deepseek-harness.LICENSE)
+## Support development
 
-## Buy me a coffee ☕
+If Agen Mini helps your work, you can buy its independent developer a coffee. Contributions support maintenance and testing; the app works without a donation. The button opens the developer's **Tako** page.
 
-Agen Mini dapat digunakan tanpa donasi. Jika aplikasi ini membantu, Anda bisa [Buy me a coffee melalui Tako](https://tako.id/Zwart04/gift). Dukungan membantu pemeliharaan, pengujian Windows/Linux, dan perbaikan alur agen.
+<a href="https://tako.id/Zwart04/gift"><img src="docs/assets/coffee.svg" width="196" height="48" alt="Buy me a coffee — support Zwart04 on Tako"></a>
 
-Tautan yang sama tersedia pada sidebar web, **Pengaturan → Update**, dan perintah `agen dukung` (atau `python -m app.cli dukung` untuk instalasi sumber). Tidak ada pembayaran atau pelacakan tambahan di dalam aplikasi.
+## License
 
-## Lisensi
-
-Mulai versi 0.11.0: **GPL-3.0-or-later**, copyright (C) 2026 Zwart04,
-sama dengan SweepDesk. Tanpa jaminan. [Lisensi lengkap](LICENSE) ·
-[Komponen pihak ketiga](THIRD_PARTY_NOTICES.md). Source dan build scripts
-tersedia pada rilis yang sama dengan paket aplikasi. Lisensi/merek komponen
-pihak ketiga dipertahankan; perubahan ini tidak mencabut izin yang sudah ada.
+Original Agen Mini work from 0.11.0 is **GPL-3.0-or-later**, copyright © 2026 Zwart04. Distributed without warranty. [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md). Dependencies and provider trademarks retain their own terms. Corresponding application source and build scripts accompany each binary release.

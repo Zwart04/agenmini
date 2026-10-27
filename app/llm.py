@@ -115,8 +115,26 @@ class LLMError(Exception):
     pass
 
 
+class ProviderError(LLMError):
+    def __init__(self, payload):
+        from .provider_errors import describe
+        self.failure = describe(payload)
+        super().__init__(self.failure.message)
+
+
 def online_ready() -> bool:
-    return bool(db.setting("online_base") and db.setting("online_key") and db.setting("online_model"))
+    base=db.setting('online_base')
+    if not base or not db.setting('online_model'):return False
+    if db.setting('online_key'):return True
+    return keyless_endpoint(base)
+
+
+def keyless_endpoint(base):
+    from urllib.parse import urlparse
+    try:
+        parsed=urlparse(base)
+        return parsed.scheme in ('http','https') and parsed.hostname in ('127.0.0.1','localhost','::1') and not parsed.username and not parsed.password
+    except ValueError:return False
 
 
 # ---------- pengurai panggilan alat dari teks ----------
@@ -390,6 +408,7 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
             emitted=True
             if on_token:await on_token(content)
         for route in routes:
+            if auto_router.cooling(route):continue
             office.phase('Router: '+route['backend']+' / '+route['model'],'thinking')
             backend_token=backend_context.set(route['backend'])
             try:
@@ -397,10 +416,11 @@ async def chat(messages: list[dict], tools: list[dict] | None = None, model: str
                 result.setdefault('stats',{})['routing']={'backend':route['backend'],'selected_model':route['model'],'reason':route['reason'],'attempts':len(errors)+1}
                 return result
             except (LLMError,ValueError,aiohttp.ClientError,TimeoutError) as exc:
-                auto_router.failed(route);errors.append(route['backend']+': '+str(exc)[:180])
+                auto_router.failed(route, error=exc)
+                errors.append(auto_router.failure_message(route, exc))
                 if emitted:raise
             finally:backend_context.reset(backend_token)
-        raise LLMError('Semua kandidat router gagal: '+' | '.join(errors))
+        raise LLMError('AI belum bisa menjawab. '+' '.join(dict.fromkeys(errors))+' Buka Pengaturan → Koneksi AI untuk memilih model/provider lain atau menghubungkan model lokal.')
     model = model or default_model()
     names = {t["function"]["name"] for t in (tools or [])}
     if prio == PRIO_USER:
@@ -568,7 +588,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
     if local and backend == "freellmapi": key = db.setting("freellmapi_key")
     model = model_override if local else (model_override or db.setting("online_model"))
     if local and backend == "local": model = db.setting("local_model_id") or "qwenpaw-2b"
-    if not (base and model and (local or key)):
+    if not (base and model and (local or key or keyless_endpoint(base))):
         raise LLMError("API online belum diatur (Pengaturan → Otak online).")
     msgs, pending = [], []
     for i, m in enumerate(messages):
@@ -651,7 +671,10 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
                     if 'stream_options' in rejection or 'include_usage' in rejection:
                         body.pop('stream_options',None)
                         continue
-                    raise LLMError('Provider menolak permintaan: '+rejection[:200])
+                    raise ProviderError(rejection)
+                if r.status>=400:
+                    raw=await r.content.read(65536)
+                    raise ProviderError({'status':r.status,'message':raw.decode('utf-8',errors='replace')})
                 if body.get('stream') and 'text/event-stream' in r.headers.get('Content-Type',''):
                     parts, usage, served, finish_reason = [], {}, '', None
                     async for line in r.content:
@@ -660,7 +683,7 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
                         payload = line[5:].strip()
                         if payload == '[DONE]': break
                         chunk = json.loads(payload)
-                        if chunk.get('error'): raise LLMError(str(chunk['error'])[:300])
+                        if chunk.get('error'): raise ProviderError(chunk['error'])
                         served = chunk.get('model') or served
                         usage = chunk.get('usage') or usage
                         for choice in chunk.get('choices',[]):
@@ -677,12 +700,15 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
             break
     except asyncio.TimeoutError:
         raise LLMError('Model melewati batas waktu. Coba permintaan lebih pendek atau model/API lebih cepat.')
+    except LLMError:
+        raise
     except Exception as e:
         raise LLMError(f"API gagal: {str(e) or type(e).__name__}")
+    if not isinstance(data,dict):raise ProviderError({'error':'invalid provider response'})
     if "choices" not in data and "API key required" in str(data):
         raise LLMError("9router belum memiliki API key yang valid. Buka menu AI & 9router lalu tekan Hubungkan otomatis. Jika masih gagal, perbarui pemasang VPS.")
     if not data.get("choices"):
-        raise LLMError(f"API online menolak: {str(data)[:300]}")
+        raise ProviderError(data)
     msg = data["choices"][0]["message"]
     calls = []
     if constrained_tools:

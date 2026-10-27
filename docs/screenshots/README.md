@@ -1,6 +1,6 @@
 # Galeri Agen Mini
 
-Tangkapan langsung aplikasi versi 0.11.0, diperbarui 27 Oktober 2026.
+Tangkapan antarmuka versi 0.11.0; setup Lokal/Online diperbarui pada preview 0.11.1, 27 Oktober 2026.
 Klik nama gambar untuk membuka berkas ukuran penuh. Desktop **2880 × 1920**;
 mobile **780 × 1688**, diambil pada skala layar **2×** dengan PNG lossless.
 Detail editor dipotong langsung dari panel yang sama, tanpa diperbesar.
@@ -11,6 +11,7 @@ panggilan model, atau akses VPS selama pengambilan gambar.
 
 | Tampilan | Desktop | Mobile / alternatif |
 | --- | --- | --- |
+| Setup Lokal / Online | [PNG](setup-desktop.png) | [Mobile](setup-mobile.png) |
 | Chat | [PNG](chat-desktop.png) | [Mobile](chat-mobile.png) |
 | Panel kerja | [PNG](workbench-desktop.png) | [Mobile](workbench-mobile.png) · [Tema terang](workbench-light.png) |
 | Editor lebih dekat | [Detail PNG](editor-detail.png) | Potongan panel asli |

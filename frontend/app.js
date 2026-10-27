@@ -498,7 +498,7 @@ async function sideStatus() {
     const s = await api('/api/status');
     const cls = s.backend==='local'&&!s.runtime?.ready ? (s.runtime?.phase==='failed'?'bad':'busy') : s.backend==='ollama'&&!s.ollama_ok ? 'bad' : s.queue ? 'busy' : 'ok';
     const txt = s.backend==='local' ? 'Lokal · '+(s.runtime?.ready?'siap':s.runtime?.phase==='failed'?'gagal':'belum siap') : s.backend==='ollama'&&!s.ollama_ok ? 'Ollama tidak terhubung' : s.queue ? `Sibuk · ${s.queue} antre` : 'Mode '+s.backend;
-    $('#sideStatus').innerHTML = `<span class="dot ${cls}"></span>${txt}`;
+    $('#sideStatus').innerHTML = s.setup_complete===false?'<span class="dot busy"></span>Setup AI belum selesai':`<span class="dot ${cls}"></span>${txt}`;
     $('#sideRam').textContent = `RAM ${(s.ram_used_mb / 1024).toFixed(1)} / ${(s.ram_total_mb / 1024).toFixed(1)} GB · ${s.backend==='local'?s.local_model_name:s.backend==='auto'?'Smart Router':prettyModel(s.active_model||s.model)}`;
     $('#ver').textContent = s.version;
   } catch (e) {}

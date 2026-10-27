@@ -1,3 +1,24 @@
+# Agen Mini 0.11.1 — private testing
+
+First-run setup asks Local or Online before showing relevant connection choices.
+Advanced harness, bot, password and swap options remain available in a collapsed section.
+A connection must pass a real response check before setup is marked complete.
+Loopback model endpoints can work without an invented API key.
+
+Provider errors are categorized without exposing raw upstream payloads.
+Provider-wide free-access limits pause that provider across model aliases and
+skip redundant retries during the same turn. Other providers remain eligible.
+Free access is subject to provider restrictions and is not guaranteed.
+
+Native Linux code tools now use the bundled Python and its libraries; numerical
+libraries use bounded thread counts. The installed-package check exercises plotting.
+
+English README and website source feature the recorded small-model video-editor
+benchmark with original imagery, measured exports and explicit provenance.
+Coffee links use one custom vector badge and retain the owner's Tako URL.
+
+The repository remains private and public website deployment is disabled.
+
 # Agen Mini 0.11.0
 
 Website download resmi dengan pilihan sistem, arsitektur, aplikasi dan CLI.

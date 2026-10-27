@@ -3,10 +3,67 @@ const setupExtra=document.createElement('section');setupExtra.className='compact
 setupExtra.innerHTML=`<label class="toggle-row"><input type="checkbox" id="setupBotTemplates">Tambahkan template tim bot</label><p class="hint">Orchestrator selalu menjadi bot awal. Template menambahkan spesialis; skill, ingatan dan harness mengikuti pilihan terpisah di atas.</p><label>Sandi web baru (opsional)<input class="inp" id="setupPassword" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label><label>Ulangi sandi<input class="inp" id="setupPasswordConfirm" type="password" autocomplete="new-password"></label><p class="hint">Kosongkan untuk mempertahankan sandi pemasangan. Mengganti sandi akan meminta login ulang.</p><label id="setupSwapRow" class="hidden">Swap VPS<select class="inp" id="setupSwap"><option value="0">Tidak menambah swap</option><option value="2">Tambah 2 GB</option><option value="4">Tambah 4 GB</option><option value="8">Tambah 8 GB</option></select></label><p class="hint" id="setupSwapHint"></p>`;
 document.getElementById('setupDone').before(setupExtra);
 document.getElementById('setupProfile').addEventListener('change',()=>{document.getElementById('setupBotTemplates').checked=document.getElementById('setupProfile').value==='template'});
+// Fresh setup asks for the source first; existing connection forms keep their IDs.
+const setupGuide=$('#setupGuide'),setupTitle=setupGuide.querySelector('h3'),setupIntro=setupGuide.querySelector('p');
+setupTitle.textContent='Mulai dengan AI pilihan Anda';setupIntro.textContent='Pilih Lokal atau Online. Bot, harness dan pilihan lain tersedia di pengaturan lanjutan.';
+const setupAdvanced=document.createElement('details');setupAdvanced.className='preference-detail';setupAdvanced.id='setupAdvanced';const setupAdvancedLabel=document.createElement('summary');setupAdvancedLabel.textContent='Lanjutan · harness, template, sandi & swap';setupAdvanced.append(setupAdvancedLabel);
+for(const child of [...setupGuide.children])if(![setupTitle,setupIntro,$('#setupDone')].includes(child))setupAdvanced.append(child);
+setupGuide.insertBefore(setupAdvanced,$('#setupDone'));
+$('#setupProfile').value='template';$('#setupHarness').value='assisted';$('#setupBotTemplates').checked=false;
+const setupWizard=document.createElement('div');setupWizard.id='setupWizard';
+setupWizard.innerHTML=`<p class="setup-step" id="setupStepLabel">1 · Pilih sumber AI</p><div class="setup-source-grid"><button type="button" class="setup-source" data-setup-source="local" aria-pressed="false"><b>AI Lokal</b><span>Model berjalan di mesin Anda. Tidak memakai kuota provider online.</span></button><button type="button" class="setup-source" data-setup-source="online" aria-pressed="false"><b>AI Online</b><span>Hubungkan akun provider atau API key Anda.</span></button></div><section id="setupConnection" class="hidden"><div id="setupOnlineMethods" class="setup-source-grid hidden"><button type="button" class="setup-source" data-setup-method="gateway" aria-pressed="false"><b>Login akun / gateway</b><span>Pilih provider, login OAuth atau masukkan key, lalu pilih model.</span></button><button type="button" class="setup-source" data-setup-method="direct" aria-pressed="false"><b>API langsung</b><span>Masukkan URL /v1, API key, dan ID model dari provider.</span></button></div><div id="setupEndpoint" class="hidden"><label>URL model / API<input id="setupApiUrl" class="inp" type="url" placeholder="http://127.0.0.1:8080/v1"></label><label>API key (jika diperlukan)<input id="setupApiKey" class="inp" type="password" autocomplete="off"></label><button type="button" class="btn" id="setupDetect">Deteksi model lokal</button><p class="hint" id="setupDetectStatus" role="status"></p><label>ID model<input id="setupApiModel" class="inp" placeholder="ID model yang dilaporkan server/provider" list="setupDetectedModels"></label><datalist id="setupDetectedModels"></datalist></div><div id="setupManagedLocal" class="hidden"><label>Model lokal<select id="setupLocalChoice" class="inp"></select></label><p class="hint">Unduhan baru dimulai setelah Anda menyimpan pilihan. Status pemuatan ditampilkan setelah itu.</p></div><p id="setupConnectionHint" class="hint"></p></section><p id="setupConnectionResult" class="hint" role="status" aria-live="polite"></p>`;
+setupGuide.insertBefore(setupWizard,setupAdvanced);$('#setupDone').textContent='Simpan & uji koneksi';$('#setupDone').disabled=true;
+const setupState={source:'',method:'',managed:false,initialised:false,gatewaySelected:''};
+$('#routerModel').addEventListener('change',()=>{setupState.gatewaySelected=$('#routerModel').value});
+const setupConnectionNodes=[...setupGuide.parentElement.children].filter(n=>n!==setupGuide&&!['NAV','SPAN','H2','P'].includes(n.tagName));
+function renderSetupWizard(){
+ const active=!setupGuide.classList.contains('hidden'),gateway=setupState.source==='online'&&setupState.method==='gateway';
+ if(active)$('#aiMode').textContent=setupState.source?'Menunggu uji koneksi':'Belum dipilih';
+ setupConnectionNodes.forEach(n=>n.classList.toggle('setup-muted',active&&!(gateway&&['routerPanel','routerHeading','routerStatus'].includes(n.id))));
+ $('#setupConnection').classList.toggle('hidden',!setupState.source);$('#setupOnlineMethods').classList.toggle('hidden',setupState.source!=='online');
+ const endpoint=setupState.method==='direct';$('#setupEndpoint').classList.toggle('hidden',!endpoint);$('#setupDetect').classList.toggle('hidden',setupState.source!=='local'||!endpoint);$('#setupManagedLocal').classList.toggle('hidden',setupState.method!=='managed');
+ $$('[data-setup-source]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.setupSource===setupState.source)));$$('[data-setup-method]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.setupMethod===setupState.method)));
+ $('#setupStepLabel').textContent=setupState.source?'2 · Hubungkan '+(setupState.source==='local'?'model lokal':'provider online'):'1 · Pilih sumber AI';
+ $('#setupDone').disabled=!setupState.source||!setupState.method;
+ $('#setupConnectionHint').textContent=gateway?'Hubungkan provider pada katalog di bawah, lalu pilih model. Layanan gratis tetap memiliki kuota dan pembatasan akses.':setupState.source==='local'&&endpoint?'Untuk desktop, jalankan server llama.cpp/Ollama lokal, lalu klik Deteksi model lokal. Belum ada unduhan atau koneksi model yang diklaim berhasil.':endpoint?'Gunakan endpoint dan ID model persis dari provider Anda. Key hanya disimpan di aplikasi ini.':'';
+ if(window.refreshDesignControls)refreshDesignControls();
+}
+async function syncSetupWizard(){
+ if(setupGuide.classList.contains('hidden')){renderSetupWizard();return}
+ const data=await api('/api/setup');setupState.managed=data.managed_runtime;
+ if(!setupState.initialised){setupState.initialised=true;if(data.agent.profile!=='pending'){$('#setupProfile').value=data.agent.profile;$('#setupHarness').value=data.agent.harness;if(window.harnessHints)harnessHints()}}
+ renderSetupWizard();
+}
+$$('[data-setup-source]').forEach(b=>b.onclick=async()=>{
+ setupState.source=b.dataset.setupSource;setupState.method=setupState.source==='local'?(setupState.managed?'managed':'direct'):'';$('#setupConnectionResult').textContent='';
+ if(setupState.source==='local'){
+  $('#setupApiUrl').value='http://127.0.0.1:8080/v1';$('#setupApiModel').value='';$('#setupApiKey').value='';
+  if(setupState.managed){try{const d=await api('/api/local-models');$('#setupLocalChoice').replaceChildren(...d.models.filter(m=>m.fits).map(m=>new Option(m.name+(m.id===d.recommended?' · Rekomendasi':''),m.id)));if(d.recommended)$('#setupLocalChoice').value=d.recommended;if(!$('#setupLocalChoice').options.length)$('#setupConnectionResult').textContent='Belum ada model yang cocok dengan RAM. Pilih Online atau tambah kapasitas mesin.'}catch(e){$('#setupConnectionResult').textContent=e.message}}
+ }
+ renderSetupWizard();
+});
+$$('[data-setup-method]').forEach(b=>b.onclick=async()=>{setupState.method=b.dataset.setupMethod;$('#setupConnectionResult').textContent='';renderSetupWizard();if(setupState.method==='gateway'){aiDraftMode='router';await loadAI();renderSetupWizard()}else{$('#setupApiUrl').value='';$('#setupApiModel').value='';$('#setupApiKey').value=''}});
+$('#setupDetect').onclick=async()=>{const b=$('#setupDetect');b.disabled=true;$('#setupDetectStatus').textContent='Memeriksa server model lokal…';try{const data=await api('/api/setup/local-models',{method:'POST',body:{url:$('#setupApiUrl').value,api_key:$('#setupApiKey').value}});$('#setupDetectedModels').replaceChildren(...data.models.map(id=>new Option(id,id)));if(data.models.length)$('#setupApiModel').value=data.models[0];$('#setupDetectStatus').textContent=data.models.length?data.models.length+' model dilaporkan server lokal.':'Server belum memuat model.';if(window.refreshDesignControls)refreshDesignControls()}catch(e){$('#setupDetectStatus').textContent=e.message}finally{b.disabled=false}};
+const beforeSetupAI=loadAI;loadAI=async function(){await beforeSetupAI();await syncSetupWizard()};
 document.getElementById('setupDone').onclick=async()=>{
- const password=document.getElementById('setupPassword').value;if(password!==document.getElementById('setupPasswordConfirm').value)return toast('Kedua sandi harus sama.');
- try{const result=await api('/api/setup',{method:'POST',body:{profile:$('#setupProfile').value,harness:$('#setupHarness').value,full_access:$('#setupFullAccess').checked,bot_templates:$('#setupBotTemplates').checked,password,swap_gb:Number($('#setupSwap').value)}});$('#setupPassword').value='';$('#setupPasswordConfirm').value='';$('#setupGuide').classList.add('hidden');if(password){location.reload();return}await refreshBots();go('chat');toast(result.mcp_errors?.length?'Setup disimpan; periksa koneksi MCP.':'Setup disimpan. Orchestrator siap setelah model terhubung.')}catch(e){sayError(e)}
+ const password=$('#setupPassword').value;if(password!==$('#setupPasswordConfirm').value)return toast('Kedua sandi harus sama.');
+ const b=$('#setupDone'),result=$('#setupConnectionResult');b.disabled=true;b.classList.add('is-loading');result.textContent='Menyimpan pilihan AI…';
+ try{
+  if(!setupState.source||!setupState.method)throw Error('Pilih AI Lokal atau Online dan cara koneksinya dahulu.');
+  const model=setupState.method==='managed'?$('#setupLocalChoice').value:setupState.method==='gateway'?$('#routerModel').value:$('#setupApiModel').value;
+  if(setupState.method==='gateway'&&(!setupState.gatewaySelected||model!==setupState.gatewaySelected))throw Error('Pilih model secara jelas pada daftar gateway sebelum menguji koneksi.');
+  await api('/api/setup',{method:'POST',body:{source:setupState.source,connection:setupState.method,url:$('#setupApiUrl').value,api_key:$('#setupApiKey').value,model,local_model:model,profile:$('#setupProfile').value,harness:$('#setupHarness').value,full_access:$('#setupFullAccess').checked,bot_templates:$('#setupBotTemplates').checked,password,swap_gb:Number($('#setupSwap').value)}});
+  $('#setupPassword').value='';$('#setupPasswordConfirm').value='';
+  if(password){location.reload();return}
+  if(setupState.method==='managed'&&!(await api('/api/runtime')).ready){result.textContent='Model sedang disiapkan. Tunggu status siap, lalu klik Simpan & uji koneksi untuk memeriksa jawabannya.';aiDraftMode='local';await loadAI();renderSetupWizard();return}
+  result.textContent='Menguji jawaban nyata dari model…';
+  const test=await api('/api/ai/test',{method:'POST',body:{backend:setupState.method==='managed'?'local':setupState.method==='gateway'?'router':'online',model}});
+  if(!test.ok)throw Error('Model merespons, tetapi pemeriksaan instruksi belum lulus. Coba model lain atau ulangi uji.');
+  setupGuide.classList.add('hidden');renderSetupWizard();await refreshBots();go('chat');toast('Koneksi model teruji. Orchestrator siap digunakan.');
+ }catch(e){result.textContent=e.message+' Pilihan tersimpan tetap bisa diperbaiki di sini.';result.setAttribute('role','alert')}
+ finally{b.classList.remove('is-loading');renderSetupWizard()}
 };
+
 const templateDescriptions={asisten:'Bantuan umum, berkas dan pengingat.',riset:'Riset web dan ringkasan dengan sumber.',pengingat:'Pengingat dan jadwal rutin.',teknisi:'Coding, perintah dan pemeriksaan server.',trading:'Analisis pasar dan simulasi, tanpa transaksi.',sosmed:'Strategi konten dan kalender publikasi.',copywriter:'Caption, naskah dan draf email.',desainer:'Desain antarmuka, brief dan kode.',reviewer:'Pemeriksaan hasil, sumber dan angka.'};
 const templatesButton=document.createElement('button');templatesButton.type='button';templatesButton.className='btn';templatesButton.id='chooseBotTemplates';templatesButton.textContent='Template bot';document.getElementById('addBot').before(templatesButton);
 const botTemplates=document.createElement('div');botTemplates.className='modal hidden';botTemplates.id='botTemplatesModal';

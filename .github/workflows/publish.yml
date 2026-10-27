@@ -10,6 +10,7 @@ jobs:
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
+      PRIVATE_RELEASE: ${{ github.event.repository.private }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -65,15 +66,19 @@ jobs:
           gh release edit "$tag" --draft=false
           mkdir public-verification
           python3 - <<'PY'
-          import hashlib,json,urllib.request
+          import hashlib,json,urllib.request,os
           from pathlib import Path
           import subprocess
           tag=Path('release-tag.txt').read_text()
           release=json.loads(subprocess.check_output(['gh','release','view',tag,'--json','assets']))
           for asset in release['assets']:
               source=Path('dist')/asset['name']
-              request=urllib.request.Request(asset['url'],headers={'User-Agent':'AgenMini-Release-Verification'})
-              with urllib.request.urlopen(request,timeout=120) as response:data=response.read()
+              if os.environ.get('PRIVATE_RELEASE')=='true':
+                  subprocess.run(['gh','release','download',tag,'--pattern',asset['name'],'--dir','public-verification','--repo',os.environ['GITHUB_REPOSITORY']],check=True)
+                  data=(Path('public-verification')/asset['name']).read_bytes()
+              else:
+                  request=urllib.request.Request(asset['url'],headers={'User-Agent':'AgenMini-Release-Verification'})
+                  with urllib.request.urlopen(request,timeout=120) as response:data=response.read()
               assert hashlib.sha256(data).digest()==hashlib.sha256(source.read_bytes()).digest(),asset['name']
-              print('Public SHA256 verified:',asset['name'])
+              print('Release download SHA256 verified:',asset['name'])
           PY

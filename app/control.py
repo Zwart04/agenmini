@@ -701,6 +701,9 @@ async def ai_connection_test(request):
     token=llm.backend_context.set(backend);started=time.monotonic()
     try:
         result=await llm.chat([{'role':'system','content':'This is a connection instruction-following test. Output only the exact text AGEN_OK. No explanation or formatting.'},{'role':'user','content':'AGEN_OK'}],model=data.get('model') or llm.default_model(backend),max_tokens=256)
+        if result['content'].strip()=='AGEN_OK':
+            from . import onboarding
+            onboarding.verified(backend,data.get('model') or llm.default_model(backend))
         return web.json_response({'ok':result['content'].strip()=='AGEN_OK','text':result['content'][:100], 'seconds':round(time.monotonic()-started,1),'model':result.get('stats',{}).get('served_model',''), 'routing':result.get('stats',{}).get('routing',{})})
     finally:llm.backend_context.reset(token)
 
@@ -813,13 +816,40 @@ async def social_configure(request):
 async def setup_status(request):
     from . import social_connections,integrations,profiles
     from . import host_setup
-    return web.json_response({'complete':db.setting('setup_complete')=='1','agent':profiles.status(),'resources':host_setup.status(),'social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':__import__('os').name!='nt'})
+    from . import onboarding
+    return web.json_response({'complete':db.setting('setup_complete')=='1','agent':profiles.status(),'resources':host_setup.status(),'social':social_connections.status(),'host':integrations.status(),'engine':db.setting('llm_backend'),'platform':__import__('platform').system(),'managed_runtime':onboarding.managed_local(),'ai_source':db.setting('setup_ai_source') or '', 'needs_connection_test':bool(db.setting('setup_connection_pending'))})
+
+
+@routes.post('/api/setup/local-models')
+async def setup_local_models(request):
+    from . import onboarding
+    import aiohttp
+    data=await request.json()
+    if not isinstance(data,dict):raise ValueError('Data deteksi harus objek JSON.')
+    url=onboarding.endpoint(data.get('url',''),local=True)
+    key=data.get('api_key','')
+    if not isinstance(key,str) or len(key)>8192 or '\n' in key or '\r' in key:raise ValueError('API key tidak valid.')
+    try:
+        async with llm.session().get(url+'/models',headers={'Authorization':'Bearer '+key} if key else {},allow_redirects=False,timeout=aiohttp.ClientTimeout(total=4)) as response:
+            if response.status!=200:raise ValueError('Server model belum siap atau memerlukan API key.')
+            body=await response.content.read(1024*1024+1)
+            if len(body)>1024*1024:raise ValueError('Daftar model terlalu besar.')
+            value=json.loads(body)
+            models=[m['id'] for m in value.get('data',[]) if isinstance(m,dict) and isinstance(m.get('id'),str) and 1<=len(m['id'])<=200 and not any(ord(c)<32 for c in m['id'])][:100]
+    except (aiohttp.ClientError,TimeoutError):raise ValueError('Model lokal belum terhubung. Jalankan server llama.cpp/Ollama lokal, lalu deteksi kembali.') from None
+    except (TypeError,AttributeError,json.JSONDecodeError):raise ValueError('Server tidak mengembalikan daftar model OpenAI-compatible.') from None
+    return web.json_response({'models':models,'message':'Model yang benar-benar dilaporkan server lokal.'})
 
 @routes.post('/api/setup')
 async def setup_done(request):
     from . import profiles
     data=await request.json()
     if not isinstance(data,dict):raise ValueError('Setup harus objek JSON.')
+    from . import onboarding
+    choice=onboarding.plan(data)
+    if choice and choice['backend']=='router':
+        available=(await router.state())['models']
+        if not any(m['id']==choice['model'] and m.get('ready') is not False for m in available):raise ValueError('Model gateway tidak tersedia. Hubungkan provider dan pilih model yang terdaftar.')
     if db.setting('setup_profile')=='pending' and data.get('profile') not in ('blank','template'):raise ValueError('Pilih Kosong atau Paket bawaan.')
     from . import harnesses
     selected=data.get('harness', 'none' if data.get('profile')=='blank' else 'assisted')
@@ -831,6 +861,11 @@ async def setup_done(request):
     if type(swap)!=int or swap not in (0,2,4,8):raise ValueError('Pilihan swap tidak valid.')
     bot_templates=data.get('bot_templates',False)
     if type(bot_templates)!=bool:raise ValueError('Pilihan template bot tidak valid.')
+    if choice:
+        if choice['backend']=='local' and db.setting('llm_backend')=='local' and db.setting('local_model_id')==choice['model']:
+            state=await runtime_status.state()
+            choice['already_preparing']=state.get('phase') in ('queued','preparing','downloading','verifying','loading','ready')
+        onboarding.apply(choice)
     if swap:
         from . import host_setup
         host_setup.request(swap)
@@ -847,9 +882,9 @@ async def setup_done(request):
         if data.get('profile') == 'template':
             from .main import activate_builtin_mcp
             errors = await activate_builtin_mcp()
-            db.set_setting('setup_complete','1')
+            db.set_setting('setup_complete','0' if choice else '1')
             return web.json_response({'ok':True,'mcp_errors':errors})
-    db.set_setting('setup_complete','1');return web.json_response({'ok':True})
+    db.set_setting('setup_complete','0' if choice else '1');return web.json_response({'ok':True})
 
 @routes.get('/api/bot-templates')
 async def bot_templates(request):

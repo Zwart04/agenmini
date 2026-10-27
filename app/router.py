@@ -149,10 +149,13 @@ async def state():
         error=str(c.get('lastError') or '')[:500]
         for key,value in c.items():
             if re.search('token|secret|key',key,re.I) and isinstance(value,str) and value:error=error.replace(value,'[rahasia]')
-        quota=bool(re.search('quota|resource_exhausted|rate.?limit',error,re.I))
+        quota=bool(re.search('quota|resource_exhausted|rate.?limit|freeusagelimiterror|free usage limit',error,re.I))
+        restricted=bool(re.search('freeusagelimiterror|free usage limit|free models work in opencode',error,re.I))
         auth=bool(re.search('invalid_grant|unauthorized|invalid.?token',error,re.I))
-        row.update({'lastError':error,'available':c.get('isActive') not in (False,0) and not auth})
-        if quota:row['testStatus']='Sebagian model terkena batas kuota; model lain tetap dapat dicoba'
+        from .provider_errors import describe
+        row.update({'lastError':describe(error).message if error else '', 'available':c.get('isActive') not in (False,0) and not auth and not restricted})
+        if restricted:row['testStatus']='Akses gratis dibatasi provider; gunakan akun/API key yang didukung'
+        elif quota:row['testStatus']='Sebagian model terkena batas kuota; model lain tetap dapat dicoba'
         elif auth:row['testStatus']='Perlu login ulang'
         row['modelLocks']={k[len('modelLock_'):]:v for k,v in c.items() if k.startswith('modelLock_') and isinstance(v,(str,int,float))}
         connections.append(row)

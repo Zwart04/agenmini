@@ -140,8 +140,14 @@ async def _run_sandboxed(argv: list[str], timeout: int = 60, stdin: bytes | None
     extra = {}
     if os.geteuid() == 0:
         extra = {"user": config.KERJA_UID, "group": config.KERJA_GID, "extra_groups": []}
-    env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(config.WORK_DIR), "LANG": "C.UTF-8",
-           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg", "NODE_OPTIONS":"--max-old-space-size="+str(384 if project else 192), "GIT_TERMINAL_PROMPT":"0"}  # grafik matplotlib ke berkas
+    sandbox_path='/usr/local/bin:/usr/bin:/bin'
+    if os.environ.get('AGENMINI_DESKTOP')=='1':
+        import sys
+        runtime_bin=str(Path(sys.executable).resolve().parent)
+        sandbox_path=runtime_bin+':'+sandbox_path
+        if argv and argv[0] in ('python','python3'):argv=[sys.executable,*argv[1:]]
+    env = {"PATH": sandbox_path, "HOME": str(config.WORK_DIR), "LANG": "C.UTF-8",
+           "TZ": config.TZ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg", "OPENBLAS_NUM_THREADS":"1", "OMP_NUM_THREADS":"1", "MKL_NUM_THREADS":"1", "NUMEXPR_NUM_THREADS":"1", "NODE_OPTIONS":"--max-old-space-size="+str(384 if project else 192), "GIT_TERMINAL_PROMPT":"0"}  # grafik matplotlib ke berkas
     proc = await asyncio.create_subprocess_exec(
         *argv, stdin=asyncio.subprocess.PIPE if stdin else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,

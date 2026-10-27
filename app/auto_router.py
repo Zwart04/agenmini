@@ -8,6 +8,23 @@ from . import db,llm,runtime_status,router,free_router
 _cache=[];_at=0;_lock=asyncio.Lock();_cooldown={}
 
 
+def provider_key(route):
+    value=route.get('provider') or route['model'].split('/')[0]
+    return route['backend'], router.provider_id(value)
+
+
+def cooling(route):
+    now=time.monotonic()
+    return _cooldown.get((route['backend'],route['model']),0)>now or _cooldown.get(('provider',*provider_key(route)),0)>now
+
+
+def failure_message(route, error):
+    from .provider_errors import describe
+    pid=provider_key(route)[1]
+    name=next((p['name'] for p in router.PROVIDER_CATALOG if router.provider_id(p['id'])==pid),route['backend'])
+    return name+': '+describe(error).message
+
+
 def complex_request(messages):
     users=[str(m.get('content','')) for m in messages if m.get('role')=='user']
     text=(task_context.get() or (users[-1] if users else '')).split('[Pesan]')[-1][-14000:]
@@ -38,7 +55,7 @@ async def discover(force=False):
         if db.setting('auto_9router')=='1' or db.setting('compatible_key'):jobs.append(collect('router',router.state))
         if db.setting('freellmapi_key'):jobs.append(collect('freellmapi',free_router.state))
         await asyncio.gather(*jobs)
-        if db.setting('online_base') and db.setting('online_model') and db.setting('online_key'):
+        if llm.online_ready():
             rows.append({'backend':'online','model':db.setting('online_model'),'ready':False,'kind':'api','configured':True})
         _cache=rows;_at=time.monotonic()
         return [dict(x) for x in rows]
@@ -62,15 +79,22 @@ async def candidates(messages):
     for row in rows:
         key=row['backend'];provider=(key,row.get('provider') or row['model'].split('/')[0])
         limit=4 if key=='router' else 2 if key=='freellmapi' else 1
-        if counts.get(key,0)>=limit or _cooldown.get((key,row['model']),0)>time.monotonic():continue
+        if counts.get(key,0)>=limit or cooling(row):continue
         if key=='router' and providers.get(provider,0)>=2:continue
         counts[key]=counts.get(key,0)+1;providers[provider]=providers.get(provider,0)+1
         selected.append({**row,'reason':'Coding/proyek: prioritaskan API yang terhubung.' if complexity else 'Tugas ringan: lokal siap didahulukan; API menjadi cadangan.'})
-    if not selected:raise llm.LLMError('Router Agen Mini belum memiliki kandidat siap. Hubungkan provider atau nyalakan model lokal melalui Koneksi.')
+    if not selected:
+        if rows and any(cooling(row) for row in rows):raise llm.LLMError('Koneksi sedang dijeda setelah provider menolak atau gagal merespons. Pilih provider lain/model lokal di Koneksi AI, atau coba kembali nanti.')
+        raise llm.LLMError('Router Agen Mini belum memiliki kandidat siap. Hubungkan provider atau nyalakan model lokal melalui Koneksi.')
     return selected
 
 
-def failed(route,seconds=60):_cooldown[(route['backend'],route['model'])]=time.monotonic()+seconds
+def failed(route,seconds=60,error=None):
+    from .provider_errors import describe
+    failure=describe(error) if error is not None else None
+    seconds=failure.seconds if failure else seconds
+    _cooldown[(route['backend'],route['model'])]=time.monotonic()+seconds
+    if failure and failure.provider_scope:_cooldown[('provider',*provider_key(route))]=time.monotonic()+seconds
 
 
 async def status():

@@ -17,7 +17,7 @@ def build():
         if os.environ.get('GITHUB_TOKEN'):headers['Authorization']='Bearer '+os.environ['GITHUB_TOKEN']
         request=urllib.request.Request('https://api.github.com/repos/Zwart04/agenmini/releases/latest',headers=headers)
         with urllib.request.urlopen(request,timeout=60) as response:release=json.load(response)
-    if release.get('draft') or release.get('prerelease'):raise ValueError('Only stable public releases can be advertised')
+    if release.get('draft') or release.get('prerelease'):raise ValueError('Only stable published releases can be advertised')
     assets=[{'name':a['name'],'url':a['browser_download_url'],'size':a['size']} for a in release['assets']]
     output=ROOT/'dist';output.mkdir(exist_ok=True)
     for name in ('index.html','site.css','site.js'):shutil.copy2(ROOT/name,output/name)
@@ -26,6 +26,8 @@ def build():
     for name in ('workbench-desktop.webp','workbench-mobile.webp','workbench-desktop.png','workbench-mobile.png'):
         shutil.copy2(ROOT.parent/'docs/screenshots'/name,output/'assets'/name)
     (output/'assets/workbench.jpg').unlink(missing_ok=True)
+    for source,name in (('docs/screenshots/model-editor-v208.png','clip-mini-v208.png'),('docs/screenshots/model-editor-v208.webp','clip-mini-v208.webp'),('docs/assets/coffee.svg','coffee.svg')):
+        shutil.copy2(ROOT.parent/source,output/'assets'/name)
     (output/'release.json').write_text(json.dumps({'tag':release['tag_name'],'assets':assets},indent=2))
     (output/'.nojekyll').write_text('')
     print('Website ready:',output,release['tag_name'],len(assets),'real release assets')

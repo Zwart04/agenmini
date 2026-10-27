@@ -120,6 +120,7 @@ async def system_stats() -> dict:
     local_name = next((m['name'] for m in local_models.all_models() if m['id'] == db.setting('local_model_id')), 'Model lokal')
     return {
         "version": VERSION, "backend": db.setting("llm_backend"), "runtime":runtime, "local_model_name":local_name,
+        "setup_complete":db.setting('setup_complete')=='1',
         "ram_total_mb": mem.get("MemTotal", 0), "ram_available_mb": mem.get("MemAvailable", 0),
         "ram_used_mb": mem.get("MemTotal", 0) - mem.get("MemAvailable", 0),
         "swap_used_mb": mem.get("SwapTotal", 0) - mem.get("SwapFree", 0), "swap_total_mb": mem.get("SwapTotal", 0),

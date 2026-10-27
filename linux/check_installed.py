@@ -2,6 +2,7 @@
 import http.cookiejar
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -18,7 +19,8 @@ def check():
         data=Path(folder)/'data'
         env={**os.environ,'AGENMINI_DATA_DIR':str(data),'AGENMINI_PORT':str(free_port()),'AGENMINI_GATEWAY_PORT':str(free_port())}
         def cli(*args):return subprocess.check_output(['agenmini',*args],env=env,text=True,timeout=60)
-        assert '0.11.0' in cli('--version')
+        expected=re.search(r'VERSION = "([^"]+)"',Path('/opt/agenmini/server/app/__init__.py').read_text())[1]
+        assert expected in cli('--version')
         assert 'tako.id/Zwart04/gift' in cli('coffee')
         assert 'GPL-3.0-or-later' in cli('license')
         try:
@@ -37,6 +39,9 @@ def check():
             assert 'native-router-model' in cli('model','native-router-model')
             assert 'native-router-model' in cli('model')
             assert client.open(url,timeout=20).status==200
+            runtime='/opt/agenmini/runtime/bin/python3'
+            check="import asyncio; from app import tools; result=asyncio.run(tools._run_sandboxed(['python','-I','-c','import matplotlib.pyplot as plt; plt.figure(); plt.close(); print(42)'])); assert result.strip()=='[kode keluar 0]\\n42',result; print('PASS bundled Python and plotting tools')"
+            subprocess.run([runtime,'-c',check],cwd='/opt/agenmini/server',env={**env,'DATA_DIR':str(data),'AGENMINI_DESKTOP':'1'},check=True,timeout=60)
             print('PASS installed app, loopback health, login, CLI model/provider persistence, private data permissions')
         finally:
             cli('stop')
