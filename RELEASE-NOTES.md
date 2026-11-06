@@ -1,3 +1,15 @@
+# Agen Mini 0.11.3 — local endpoint compatibility
+
+Fix for local model servers that enable thinking by default.
+
+- Direct `/v1` endpoints on loopback (llama.cpp, Ollama, vLLM, LM Studio) now send
+  `chat_template_kwargs: {"enable_thinking": false}`. Thinking templates otherwise
+  spent the whole connection test inside reasoning and returned an empty answer, so
+  setup could not complete on a default llama.cpp server.
+- Added a regression test that inspects the request body sent to a loopback server.
+- Verified end to end on this laptop: llama.cpp b12144 with Qwen3.5 0.8B Q4_K_M,
+  desktop package, Local AI → direct endpoint → Detect → save/test → chat reply.
+
 # Agen Mini 0.11.2 — documentation and public release polish
 
 No runtime behaviour changed in this release. The packaged application code is

@@ -70,6 +70,33 @@ async def test_ollama_invalid_json_retries_text_mode(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_direct_loopback_endpoint_disables_thinking(monkeypatch):
+    monkeypatch.setattr(llm, "_session", None)
+    bodies = []
+    async def handler(request):
+        bodies.append(await request.json())
+        return web.json_response({"choices": [{"message": {"content": "AGEN_OK"}}]})
+    app = web.Application()
+    app.router.add_post("/v1/chat/completions", handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    monkeypatch.setattr(llm, "active_backend", lambda: "online")
+    original = db.setting
+    monkeypatch.setattr(db, "setting", lambda key: {"online_base": f"http://127.0.0.1:{port}/v1", "online_key": "", "online_model": "local.gguf", "tool_mode": "text"}.get(key, original(key)))
+    try:
+        result = await llm._chat_online([{"role":"system","content":"test"},{"role":"user","content":"AGEN_OK"}], None, 0, None, max_tokens=8)
+        assert result["content"] == "AGEN_OK"
+        assert bodies[0]["chat_template_kwargs"] == {"enable_thinking": False}
+    finally:
+        await runner.cleanup()
+        if llm._session:
+            await llm._session.close()
+        llm._session = None
+
+@pytest.mark.asyncio
 async def test_compatible_without_key_respects_token_limit(monkeypatch):
     monkeypatch.setattr(llm, "_session", None)
     bodies = []

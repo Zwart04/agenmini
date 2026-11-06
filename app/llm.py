@@ -651,6 +651,10 @@ async def _chat_online(messages, tools, temperature, fmt, local=False, model_ove
         if local_sampling.get():body.update(local_sampling.get())
         if coding_reasoning.get():
             body.update(temperature=0.6, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=0.0, repetition_penalty=1.0)
+    elif backend == "online" and keyless_endpoint(base):
+        # Loopback servers with thinking templates otherwise spend the whole
+        # connection test inside reasoning and return an empty answer.
+        body["chat_template_kwargs"] = {"enable_thinking": coding_reasoning.get()}
     if tools and not text_tools:
         body["tools"] = tools
     if fmt:
