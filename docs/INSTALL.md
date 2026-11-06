@@ -1,9 +1,8 @@
 # Install, update, and remove Agen Mini
 
-[Choose a download](https://zwart04.github.io/agenmini/#download) ·
 [Release files and checksums](https://github.com/Zwart04/agenmini/releases/latest)
 
-**Private preview:** anonymous release URLs and the public website are currently unavailable. An authorized owner can download files with `gh release download --repo Zwart04/agenmini` after `gh auth login`. Do not paste a GitHub token into scripts or application chat.
+**Public preview:** downloads are open, but provider quotas and local-model availability still vary. Verify every package with its published SHA256 before installing.
 
 Choose **x64 / amd64 / x86_64** for Intel and AMD computers, or **arm64 /
 aarch64** for supported ARM Linux systems. Model weights and provider accounts

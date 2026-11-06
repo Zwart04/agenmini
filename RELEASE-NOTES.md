@@ -1,4 +1,4 @@
-# Agen Mini 0.11.1 — private testing
+# Agen Mini 0.11.1 — public preview
 
 First-run setup asks Local or Online before showing relevant connection choices.
 Advanced harness, bot, password and swap options remain available in a collapsed section.
@@ -17,7 +17,7 @@ English README and website source feature the recorded small-model video-editor
 benchmark with original imagery, measured exports and explicit provenance.
 Coffee links use one custom vector badge and retain the owner's Tako URL.
 
-The repository remains private and public website deployment is disabled.
+The repository and release downloads are public. Provider quotas and local-model availability still vary.
 
 # Agen Mini 0.11.0
 
@@ -36,7 +36,7 @@ Label dukungan menjadi **Buy me a coffee** dengan tautan Tako pemilik yang sama.
 Karya asli mulai rilis ini memakai **GPL-3.0-or-later**, sama dengan SweepDesk;
 lisensi komponen pihak ketiga dipertahankan. Source disediakan bersama paket.
 
-Panduan: [website](https://zwart04.github.io/agenmini/) ·
+Panduan: [rilis](https://github.com/Zwart04/agenmini/releases/latest) ·
 [Linux](CARA-PASANG-LINUX.md) · [Windows](CARA-PASANG-WINDOWS.txt) ·
 [VPS](CARA-PASANG-VPS.txt) · [lisensi](LICENSE).
 

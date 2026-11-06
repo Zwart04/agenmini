@@ -5,8 +5,7 @@ Python privat dan gateway Go ikut dalam paket. Antarmuka memakai browser lokal,
 tanpa Electron, Docker, unduhan model, atau layanan root. Node.js, Git dan
 xdg-utils dipasang sebagai dependensi distro; harness eksternal tetap opsional.
 
-Unduh dari [website](https://zwart04.github.io/agenmini/) atau
-[rilis resmi](https://github.com/Zwart04/agenmini/releases/latest).
+Unduh dari [rilis resmi](https://github.com/Zwart04/agenmini/releases/latest).
 Pilih amd64/x86_64 untuk Intel/AMD, arm64/aarch64 untuk ARM.
 Verifikasi berkas dengan checksum pendamping sebelum memasang:
 

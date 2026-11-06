@@ -1,7 +1,7 @@
 name: Linux desktop packages
 on: [push, workflow_dispatch]
 permissions:
-  contents: write
+  contents: read
 jobs:
   packages:
     strategy:

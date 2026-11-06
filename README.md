@@ -5,17 +5,17 @@
 <p align="center"><strong>Your models. Your workspace. Work you can inspect.</strong></p>
 <p align="center">A lightweight AI workspace for local models and online providers.<br>Chat, code, delegate, and inspect the files and tool results behind an answer.</p>
 <p align="center">
-  <a href="https://zwart04.github.io/agenmini/">Download</a> ·
+  <a href="https://github.com/Zwart04/agenmini/releases/latest">Download</a> ·
   <a href="docs/INSTALL.md">Getting started</a> ·
   <a href="docs/BENCHMARKS.md">Small-model benchmark</a> ·
   <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 <p align="center">
-  <img alt="Private preview" src="docs/assets/preview.svg" width="138" height="24">
+  <img alt="Public preview" src="docs/assets/preview.svg" width="138" height="24">
   <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="docs/assets/license.svg" width="138" height="24"></a>
 </p>
 
-> **Private preview.** The repository is temporarily private while setup and provider reliability are being validated. Public website deployment is paused; release downloads require repository access.
+> **Public preview.** Packages and checksums are on GitHub Releases. Provider quotas and local-model availability still vary, so expect rough edges.
 
 ## Small models. A working video editor.
 
@@ -74,7 +74,7 @@ These workspace images use documentation demo data. The model-generated benchmar
 
 ## Download and install
 
-**[Choose your platform on the download website →](https://zwart04.github.io/agenmini/#download)**
+**[Download the package for your platform →](https://github.com/Zwart04/agenmini/releases/latest)**
 
 | Platform | Available package | Includes |
 | --- | --- | --- |

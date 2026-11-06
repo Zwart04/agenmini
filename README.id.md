@@ -1,6 +1,6 @@
 [English](README.md) · Bahasa Indonesia
 
-> Repo sementara privat selama setup dan keandalan provider diperiksa. Website publik dinonaktifkan; unduhan rilis memerlukan akses GitHub pemilik.
+> Pratinjau publik. Paket dan checksum tersedia di GitHub Releases. Kuota provider dan ketersediaan model lokal tetap bervariasi.
 
 # Agen Mini
 
@@ -10,7 +10,7 @@
 
 Asisten AI pribadi untuk Windows dan Linux: chat web, Telegram, berkas dan tim bot dalam satu aplikasi. Antarmuka memakai HTML/CSS/JavaScript tanpa framework, font eksternal atau editor besar.
 
-[Website & download](https://zwart04.github.io/agenmini/) · [Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
+[Unduh release](https://github.com/Zwart04/agenmini/releases/latest) · [Panduan VPS](CARA-PASANG-VPS.txt) · [Panduan Windows](CARA-PASANG-WINDOWS.txt) · [Bukti pengujian](VALIDATION.md)
 
 [Peta folder](docs/PROJECT-MAP.md) · [Audit keamanan](docs/SECURITY-AUDIT.md) · [Buy me a coffee ☕](https://tako.id/Zwart04/gift)
 
@@ -69,7 +69,7 @@ Gateway memakai binary Go dengan SHA256, tanpa Node/compiler saat instalasi VPS.
 | GNU/Linux lain | `.tar.gz` amd64/arm64, glibc 2.35+ | Python privat, tanpa Docker |
 | macOS / platform lain | Source ZIP | Setup manual; belum ada installer native |
 
-Pilih paket dari **[website download](https://zwart04.github.io/agenmini/)**.
+Pilih paket dari **[GitHub Releases](https://github.com/Zwart04/agenmini/releases/latest)**.
 Panduan Linux: **[pasang, update, remove dan data pribadi](CARA-PASANG-LINUX.md)**.
 Semua paket menyediakan source dan checksum pendamping. Python dan gateway Go
 ikut dalam paket desktop Linux; model tidak dibundel. Node/Git adalah dependensi
