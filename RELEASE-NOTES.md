@@ -1,3 +1,19 @@
+# Agen Mini 0.11.2 — documentation and public release polish
+
+No runtime behaviour changed in this release. The packaged application code is
+the tested 0.11.1 build.
+
+- README rewritten around a quick start, download table, verification and limits.
+- CI badges for core tests, Windows, Linux packages, runtime matrix and secret scan.
+- Download links now point to GitHub Releases, so they work with the public repository.
+- Landing page adds public CI evidence, system requirements, a footer navigation,
+  and corrected public-preview copy.
+- Workflow tokens use least privilege; the test workflow can be dispatched manually.
+- Release assets rebuilt from this commit so the source ZIP matches the published docs.
+
+Provider quotas, local-model availability, and external provider accounts still
+vary. This remains a public preview.
+
 # Agen Mini 0.11.1 — public preview
 
 First-run setup asks Local or Online before showing relevant connection choices.
