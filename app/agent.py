@@ -456,7 +456,7 @@ class Turn:
             roster='; '.join(b['id']+': '+b['name'] for b in db.bots(active_only=True))
             msgs[0]['content'] += '\n[Rekan bot tersedia] '+roster
         schemas = tools.schemas_for(bot)
-        if profiles.assisted() and llm.active_backend() == 'local':
+        if profiles.assisted() and llm.local_like():
             relevant = {name for name, _ in intents(text, bot.get('tools', []))}
             if getattr(self,'project_folder',None):
                 relevant=set(bot['tools']) & {'list_files','read_file','write_file','edit_project_file','run_project_command','inspect_project','preview_project','send_file'}
@@ -470,7 +470,7 @@ class Turn:
                     relevant |= {'schedule','list_schedules','cancel_schedule'}
                 schemas = [schema for schema in schemas if schema['function']['name'] in relevant]
 
-        if profiles.assisted() and llm.active_backend() == 'local' and len(schemas)>9:
+        if profiles.assisted() and llm.local_like() and len(schemas)>9:
             wanted={name for name,_ in intents(text,bot.get('tools',[]))}
             ranked=sorted(schemas,key=lambda row:len(set(memory.words(text)) & set(memory.words(row['function']['name'].replace('_',' ')+' '+row['function']['description']))),reverse=True)
             wanted.update(row['function']['name'] for row in ranked[:7])
@@ -653,7 +653,7 @@ class Turn:
             emitted = False
             budget = None
             capacity = None
-            if llm.active_backend() == 'local':
+            if llm.local_like():
                 from . import runtime_status
                 capacity = await runtime_status.context_window()
                 budget = compaction.input_budget(output_tokens, capacity)
@@ -698,7 +698,7 @@ class Turn:
                     exposed=set(ctx.exposed_tools)|{s['function']['name'] for s in schemas}
                     schemas=[s for s in tools.schemas_for(bot) if s['function']['name'] in exposed]
                     names=[s['function']['name'] for s in schemas]
-                output_tokens = ((1400 if llm.active_backend()=='local' else 3000)
+                output_tokens = ((1400 if llm.local_like() else 3000)
                                  if getattr(self,'project_folder',None) else int(db.setting('max_tokens') or 900))
                 res = await call_model(None if last else schemas, output_tokens)
                 stats = res.get("stats", {})

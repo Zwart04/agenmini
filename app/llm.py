@@ -367,6 +367,11 @@ backend_context = contextvars.ContextVar('bot_backend', default='')
 def active_backend():
     return backend_context.get() or db.setting('llm_backend')
 
+def local_like():
+    """Managed local runtime or a direct loopback endpoint behaves like a local model."""
+    backend=active_backend()
+    return backend=='local' or (backend=='online' and keyless_endpoint(db.setting('online_base')))
+
 def default_model(backend=None):
     backend = backend or active_backend()
     return {'router': db.setting('router_last_model') or (db.setting('model') if db.setting('llm_backend')=='router' and not db.setting('model').startswith(('auto:', 'smart')) else ''),

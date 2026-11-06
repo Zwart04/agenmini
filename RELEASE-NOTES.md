@@ -1,3 +1,17 @@
+# Agen Mini 0.11.4 — small local context and tool selection
+
+Follow-up for direct loopback endpoints.
+
+- A direct localhost `/v1` endpoint now follows the same tool-selection and context
+  budget path as the managed local runtime. Previously all 40 tool schemas were sent
+  at once (~6,200 tokens), so the first real chat failed on a 4096-token llama.cpp
+  context even though setup succeeded.
+- The first full request now filters to relevant tools (≈540 prompt tokens in the
+  laptop test) and the context budget uses the server's reported `n_ctx`.
+- Added a regression test for local-endpoint detection.
+- Verified on this laptop: llama.cpp b12144, Qwen3.5 0.8B Q4_K_M, 4096 context,
+  desktop package, Local AI → direct endpoint → setup test → full chat answer.
+
 # Agen Mini 0.11.3 — local endpoint compatibility
 
 Fix for local model servers that enable thinking by default.

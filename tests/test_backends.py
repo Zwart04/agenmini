@@ -69,6 +69,13 @@ async def test_ollama_invalid_json_retries_text_mode(monkeypatch):
         llm._session = None
 
 
+def test_local_like_matches_loopback_direct_endpoint(monkeypatch):
+    monkeypatch.setattr(llm, "active_backend", lambda: "online")
+    monkeypatch.setattr(db, "setting", lambda key: {"online_base": "http://127.0.0.1:8080/v1"}.get(key, ""))
+    assert llm.local_like() is True
+    monkeypatch.setattr(db, "setting", lambda key: {"online_base": "https://api.example.com/v1"}.get(key, ""))
+    assert llm.local_like() is False
+
 @pytest.mark.asyncio
 async def test_direct_loopback_endpoint_disables_thinking(monkeypatch):
     monkeypatch.setattr(llm, "_session", None)
